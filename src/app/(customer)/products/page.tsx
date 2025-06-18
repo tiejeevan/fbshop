@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { ShoppingCart, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -113,42 +114,66 @@ export default function ProductsPage() {
         <p className="text-center text-muted-foreground text-xl py-10">No products found matching your criteria.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProducts.map(product => (
-            <Card key={product.id} className="overflow-hidden flex flex-col group transform hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <Link href={`/products/${product.id}`} className="block">
-                <CardHeader className="p-0 relative">
-                  <Image
-                    src={product.imageUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(product.name)}`}
-                    alt={product.name}
-                    width={600}
-                    height={400}
-                    className="object-cover w-full h-48 transition-transform duration-300 group-hover:scale-105"
-                    data-ai-hint="product image"
-                  />
-                  {product.stock === 0 && <Badge variant="destructive" className="absolute top-2 right-2">Out of Stock</Badge>}
-                   {product.categoryName && <Badge className="absolute top-2 left-2 bg-primary/80 text-primary-foreground">{product.categoryName}</Badge>}
-                </CardHeader>
-                <CardContent className="p-4 flex-grow">
-                  <CardTitle className="font-headline text-xl mb-1 group-hover:text-primary transition-colors">{product.name}</CardTitle>
-                  <CardDescription className="text-sm text-muted-foreground line-clamp-2">{product.description}</CardDescription>
-                </CardContent>
-              </Link>
-              <CardFooter className="p-4 border-t mt-auto">
-                <div className="flex items-center justify-between w-full">
-                  <p className="text-lg font-semibold text-primary">${product.price.toFixed(2)}</p>
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleAddToCart(product)}
-                    disabled={product.stock === 0}
-                    aria-label={`Add ${product.name} to cart`}
-                    className="group-hover:bg-accent group-hover:text-accent-foreground"
-                  >
-                    <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
+          {filteredProducts.map(product => {
+            const hasRealImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
+            return (
+              <Card key={product.id} className="overflow-hidden flex flex-col group transform hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <Link href={`/products/${product.id}`} className="block">
+                  <CardHeader className="p-0 relative">
+                    {hasRealImage ? (
+                      <Image
+                        src={product.imageUrl}
+                        alt={product.name}
+                        width={600}
+                        height={400}
+                        className="object-cover w-full h-48 transition-transform duration-300 group-hover:scale-105"
+                        data-ai-hint="product image"
+                      />
+                    ) : product.icon ? (
+                      <div className="w-full h-48 flex items-center justify-center bg-muted rounded-t-md group-hover:bg-accent/20 transition-colors" data-ai-hint="product icon">
+                        <span
+                          className={cn(product.icon, 'css-icon-base text-primary group-hover:text-accent-foreground')}
+                          style={{ transform: 'scale(3)' }} 
+                        >
+                          {product.icon === 'css-icon-settings' && <span />}
+                          {product.icon === 'css-icon-trash' && <i><em /></i>}
+                        </span>
+                      </div>
+                    ) : (
+                      <Image
+                        src={`https://placehold.co/600x400.png?text=${encodeURIComponent(product.name)}`}
+                        alt={product.name}
+                        width={600}
+                        height={400}
+                        className="object-cover w-full h-48 transition-transform duration-300 group-hover:scale-105"
+                        data-ai-hint="product image placeholder"
+                      />
+                    )}
+                    {product.stock === 0 && <Badge variant="destructive" className="absolute top-2 right-2">Out of Stock</Badge>}
+                    {product.categoryName && <Badge className="absolute top-2 left-2 bg-primary/80 text-primary-foreground">{product.categoryName}</Badge>}
+                  </CardHeader>
+                  <CardContent className="p-4 flex-grow">
+                    <CardTitle className="font-headline text-xl mb-1 group-hover:text-primary transition-colors">{product.name}</CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground line-clamp-2">{product.description}</CardDescription>
+                  </CardContent>
+                </Link>
+                <CardFooter className="p-4 border-t mt-auto">
+                  <div className="flex items-center justify-between w-full">
+                    <p className="text-lg font-semibold text-primary">${product.price.toFixed(2)}</p>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleAddToCart(product)}
+                      disabled={product.stock === 0}
+                      aria-label={`Add ${product.name} to cart`}
+                      className="group-hover:bg-accent group-hover:text-accent-foreground"
+                    >
+                      <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
+                    </Button>
+                  </div>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

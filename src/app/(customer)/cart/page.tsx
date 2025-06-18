@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -12,6 +13,7 @@ import { ArrowLeft, Trash2, ShoppingBag, Minus, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
@@ -24,12 +26,10 @@ export default function CartPage() {
     if (currentUser) {
       setIsLoading(true);
       const userCart = localStorageService.getCart(currentUser.id);
-      // Enrich cart items with full product details if needed, especially for stock check.
-      // For now, assuming cart items store enough info.
       setCart(userCart);
       setIsLoading(false);
     } else {
-      setIsLoading(false); // Not logged in, cart is effectively empty for this view
+      setIsLoading(false); 
     }
   }, [currentUser]);
 
@@ -51,12 +51,12 @@ export default function CartPage() {
         return;
     }
     
-    let updatedQuantity = Math.max(1, newQuantity); // Ensure quantity is at least 1
+    let updatedQuantity = Math.max(1, newQuantity); 
     if (productDetails.stock < updatedQuantity) {
         toast({title: "Stock Limit", description: `Only ${productDetails.stock} units available for ${productDetails.name}.`, variant: "destructive"});
         updatedQuantity = productDetails.stock;
     }
-    if (updatedQuantity === 0 && productDetails.stock > 0) updatedQuantity = 1; // If stock available, don't let go to 0 from input unless deleting.
+    if (updatedQuantity === 0 && productDetails.stock > 0) updatedQuantity = 1; 
 
     const updatedItems = cart.items.map(item =>
       item.productId === productId ? { ...item, quantity: updatedQuantity } : item
@@ -84,7 +84,6 @@ export default function CartPage() {
   }
 
   if (!currentUser) {
-    // This page should be protected by the layout, but as a fallback:
     router.push('/login?redirect=/cart');
     return <div className="text-center py-20">Please log in to view your cart.</div>;
   }
@@ -110,17 +109,41 @@ export default function CartPage() {
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           {cart.items.map(item => {
-            const productDetails = localStorageService.findProductById(item.productId); // For stock check
+            const productDetails = localStorageService.findProductById(item.productId);
+            const hasRealImage = item.imageUrl && !item.imageUrl.startsWith('https://placehold.co');
+            const iconToShow = productDetails?.icon;
+
             return (
             <Card key={item.productId} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-md">
-              <Image
-                src={item.imageUrl || `https://placehold.co/100x100.png?text=${encodeURIComponent(item.name)}`}
-                alt={item.name}
-                width={100}
-                height={100}
-                className="w-24 h-24 object-cover rounded-md border"
-                data-ai-hint="product thumbnail"
-              />
+              {hasRealImage ? (
+                <Image
+                  src={item.imageUrl}
+                  alt={item.name}
+                  width={100}
+                  height={100}
+                  className="w-24 h-24 object-cover rounded-md border"
+                  data-ai-hint="product thumbnail"
+                />
+              ) : iconToShow ? (
+                <div className="w-24 h-24 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="product icon">
+                  <span
+                    className={cn(iconToShow, 'css-icon-base text-primary')}
+                    style={{ transform: 'scale(1.5)' }}
+                  >
+                    {iconToShow === 'css-icon-settings' && <span />}
+                    {iconToShow === 'css-icon-trash' && <i><em /></i>}
+                  </span>
+                </div>
+              ) : (
+                <Image
+                  src={`https://placehold.co/100x100.png?text=${encodeURIComponent(item.name)}`}
+                  alt={item.name}
+                  width={100}
+                  height={100}
+                  className="w-24 h-24 object-cover rounded-md border"
+                  data-ai-hint="product thumbnail placeholder"
+                />
+              )}
               <div className="flex-grow text-center sm:text-left">
                 <Link href={`/products/${item.productId}`} className="hover:underline">
                     <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>

@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, use } from 'react'; // Import use
+import React, { useEffect, useState, use } from 'react'; 
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,9 +12,10 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
-export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { // Update props
-  const params = use(paramsPromise); // Resolve params
+export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { 
+  const params = use(paramsPromise); 
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -25,21 +26,21 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
   useEffect(() => {
     setIsLoading(true);
-    const fetchedProduct = localStorageService.findProductById(params.id); // Use resolved params.id
+    const fetchedProduct = localStorageService.findProductById(params.id); 
     if (fetchedProduct) {
       setProduct(fetchedProduct);
       if (fetchedProduct.categoryId) {
         const fetchedCategory = localStorageService.findCategoryById(fetchedProduct.categoryId);
         setCategory(fetchedCategory || null);
       }
-      localStorageService.updateProduct({ ...fetchedProduct, views: fetchedProduct.views + 1 });
+      localStorageService.updateProduct({ ...fetchedProduct, views: (fetchedProduct.views || 0) + 1 });
 
     } else {
       toast({ title: "Product Not Found", description: "The product you are looking for does not exist.", variant: "destructive" });
       router.push('/products');
     }
     setIsLoading(false);
-  }, [params.id, router, toast]); // Update dependency array
+  }, [params.id, router, toast]); 
 
   const handleQuantityChange = (amount: number) => {
     if (!product) return;
@@ -90,6 +91,8 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   if (!product) {
     return <div className="text-center py-20 text-destructive">Product not found.</div>;
   }
+  
+  const hasRealImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -98,15 +101,38 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       </Button>
 
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-        <div className="bg-card p-4 rounded-lg shadow-lg">
-          <Image
-            src={product.imageUrl || `https://placehold.co/600x600.png?text=${encodeURIComponent(product.name)}`}
-            alt={product.name}
-            width={600}
-            height={600}
-            className="w-full h-auto object-contain rounded-md aspect-square"
-            data-ai-hint="product image"
-          />
+        <div className="bg-card p-4 rounded-lg shadow-lg aspect-square">
+          {hasRealImage ? (
+            <Image
+              src={product.imageUrl}
+              alt={product.name}
+              width={600}
+              height={600}
+              className="w-full h-full object-contain rounded-md"
+              data-ai-hint="product image"
+              priority
+            />
+          ) : product.icon ? (
+            <div className="w-full h-full flex items-center justify-center bg-muted rounded-md" data-ai-hint="product icon">
+              <span
+                className={cn(product.icon, 'css-icon-base text-primary')}
+                style={{ transform: 'scale(5)' }}
+              >
+                {product.icon === 'css-icon-settings' && <span />}
+                {product.icon === 'css-icon-trash' && <i><em /></i>}
+              </span>
+            </div>
+          ) : (
+            <Image
+              src={`https://placehold.co/600x600.png?text=${encodeURIComponent(product.name)}`}
+              alt={product.name}
+              width={600}
+              height={600}
+              className="w-full h-full object-contain rounded-md"
+              data-ai-hint="product image placeholder"
+              priority
+            />
+          )}
         </div>
 
         <div className="space-y-6">
@@ -148,8 +174,8 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           
           <div className="text-sm text-muted-foreground pt-4 border-t">
             <p>Product ID: {product.id}</p>
-            <p>Views: {product.views}</p>
-            <p>Purchases: {product.purchases}</p>
+            <p>Views: {product.views || 0}</p>
+            <p>Purchases: {product.purchases || 0}</p>
           </div>
         </div>
       </div>

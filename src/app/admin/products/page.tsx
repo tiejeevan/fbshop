@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -21,7 +22,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { cn } from '@/lib/utils';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -52,11 +54,11 @@ export default function AdminProductsPage() {
     const success = localStorageService.deleteProduct(productToDelete.id);
     if (success) {
       toast({ title: "Product Deleted", description: `"${productToDelete.name}" has been successfully deleted.` });
-      fetchProductsAndCategories(); // Refresh list
+      fetchProductsAndCategories(); 
     } else {
       toast({ title: "Error Deleting Product", description: "Could not delete the product. Please try again.", variant: "destructive" });
     }
-    setProductToDelete(null); // Close dialog
+    setProductToDelete(null); 
   };
   
 
@@ -106,51 +108,75 @@ export default function AdminProductsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell className="hidden sm:table-cell">
-                      <Image
-                        alt={product.name}
-                        className="aspect-square rounded-md object-cover"
-                        height="64"
-                        src={product.imageUrl || `https://placehold.co/64x64.png?text=${product.name.charAt(0)}`}
-                        width="64"
-                        data-ai-hint="product thumbnail"
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getCategoryName(product.categoryId)}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">${product.price.toFixed(2)}</TableCell>
-                    <TableCell className="hidden md:table-cell">{product.stock}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/admin/products/edit/${product.id}`} className="cursor-pointer">
-                              <Edit className="mr-2 h-4 w-4" /> Edit
-                            </Link>
-                          </DropdownMenuItem>
-                           <DropdownMenuItem asChild>
-                            <Link href={`/products/${product.id}`} target="_blank" className="cursor-pointer"> {/* Target blank to view on customer side */}
-                              <Eye className="mr-2 h-4 w-4" /> View
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setProductToDelete(product)} className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {products.map((product) => {
+                  const hasRealImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
+                  return (
+                    <TableRow key={product.id}>
+                      <TableCell className="hidden sm:table-cell">
+                        {hasRealImage ? (
+                          <Image
+                            alt={product.name}
+                            className="aspect-square rounded-md object-cover"
+                            height="64"
+                            src={product.imageUrl}
+                            width="64"
+                            data-ai-hint="product thumbnail"
+                          />
+                        ) : product.icon ? (
+                          <div className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="product icon">
+                            <span
+                              className={cn(product.icon, 'css-icon-base text-primary')}
+                              style={{ transform: 'scale(1.2)' }}
+                            >
+                              {product.icon === 'css-icon-settings' && <span />}
+                              {product.icon === 'css-icon-trash' && <i><em /></i>}
+                            </span>
+                          </div>
+                        ) : (
+                          <Image
+                            alt={product.name}
+                            className="aspect-square rounded-md object-cover"
+                            height="64"
+                            src={`https://placehold.co/64x64.png?text=${product.name.charAt(0)}`}
+                            width="64"
+                            data-ai-hint="product thumbnail placeholder"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{getCategoryName(product.categoryId)}</Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">${product.price.toFixed(2)}</TableCell>
+                      <TableCell className="hidden md:table-cell">{product.stock}</TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Toggle menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/products/edit/${product.id}`} className="cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" /> Edit
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/products/${product.id}`} target="_blank" className="cursor-pointer"> 
+                                <Eye className="mr-2 h-4 w-4" /> View
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setProductToDelete(product)} className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10">
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
