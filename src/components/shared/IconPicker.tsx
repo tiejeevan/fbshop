@@ -17,8 +17,6 @@ interface CssIconDefinition {
 }
 
 // Define CSS Icon Styles directly within the component using <style jsx global>
-// Note: For a very large number of icons, a separate CSS file might be more manageable.
-// But per "all icon styles should be defined in the code", this approach is taken.
 const CssIconStyles = () => (
   <style jsx global>{`
     .css-icon-base {
@@ -74,18 +72,18 @@ const CssIconStyles = () => (
     .css-icon-settings::after { bottom: -5px; }
     .css-icon-settings span::before { left: -5px; top: 50%; transform: translateY(-50%) rotate(90deg); }
     .css-icon-settings span::after { right: -5px; top: 50%; transform: translateY(-50%) rotate(90deg); left: auto; }
-    .css-icon-settings > span { /* Inner circle cutout - not perfect, simple version */
+    .css-icon-settings > span { /* Inner circle cutout */
         display: block;
         width: 8px;
         height: 8px;
-        background: transparent; /* Will be parent's background */
-        border: 4px solid transparent; /* Adjust for desired hole size and background */
+        background: transparent; 
+        border: 4px solid transparent;
         border-radius: 50%;
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        box-shadow: 0 0 0 100px var(--card); /* Use CSS var for background color */
+        box-shadow: 0 0 0 100px var(--card-bg-for-icon-cutout, white); /* Use CSS var for background color */
     }
 
 
@@ -174,7 +172,6 @@ const CssIconStyles = () => (
       line-height: 1;
       color: currentColor;
     }
-    /* A more complex pure CSS star is possible but much longer */
 
     /* Trash/Delete Icon */
     .css-icon-trash {
@@ -202,7 +199,7 @@ const CssIconStyles = () => (
       transform: translateX(-50%);
       border-radius: 0 0 2px 2px;
     }
-    .css-icon-trash span { /* Lid handle */
+    .css-icon-trash > span { /* Lid handle */
       position: absolute;
       width: 6px;
       height: 2px;
@@ -216,7 +213,7 @@ const CssIconStyles = () => (
         position: absolute;
         width: 2px;
         height: 8px;
-        background-color: var(--card); /* Use card background for "cutout" effect */
+        background-color: var(--card-bg-for-icon-cutout, white); /* Use card background for "cutout" effect */
         bottom: 3px;
     }
     .css-icon-trash i::before { left: 5px; }
@@ -329,7 +326,7 @@ const CssIconStyles = () => (
       right: 0;
       border-width: 0 5px 5px 0; /* Triangle size */
       border-style: solid;
-      border-color: transparent var(--card) transparent transparent; /* Use card background for "cutout" */
+      border-color: transparent var(--card-bg-for-icon-cutout, white) transparent transparent; /* Use card background for "cutout" */
     }
 
     /* Heart Icon */
@@ -337,19 +334,19 @@ const CssIconStyles = () => (
         content: "";
         position: absolute;
         width: 10px;
-        height: 16px; /* More elongated for typical heart shape */
+        height: 16px; 
         background: currentColor;
-        border-radius: 50px 50px 0 0; /* Top curve */
-        left: 6px; /* Center the whole shape */
+        border-radius: 50px 50px 0 0; 
+        left: 6px; 
         top: 2px;
     }
     .css-icon-heart::before {
         transform: rotate(-45deg);
-        left: 3px; /* Adjust for rotation */
+        left: 3px; 
     }
     .css-icon-heart::after {
         transform: rotate(45deg);
-        left: 11px; /* Adjust for rotation */
+        left: 11px; 
     }
 
     /* Shopping Cart Icon */
@@ -516,7 +513,6 @@ const CssIconStyles = () => (
       left: 50%;
       transform: translateX(-50%);
     }
-    /* More lines for globe would be more complex */
 
     /* Image Icon */
     .css-icon-image {
@@ -566,7 +562,7 @@ const CssIconStyles = () => (
         content: '';
         position: absolute;
         left: -6px;
-        top: -2px; /* align with parent border */
+        top: -2px; 
     }
     .css-icon-link::after { /* Middle bar */
         content: "";
@@ -574,10 +570,10 @@ const CssIconStyles = () => (
         width: 8px;
         height: 2px;
         background-color: currentColor;
-        top: 1.5px; /* (6px - 2px border*2 - 2px height)/2 - border */
-        left: 0.5px; /* (10px - 8px width)/2 - border */
-        transform: rotate(90deg); /* this is relative to the rotated parent */
-        transform-origin: 2px 1px; /* center of the bar for rotation, approx */
+        top: 1.5px; 
+        left: 0.5px; 
+        transform: rotate(90deg); 
+        transform-origin: 2px 1px; 
     }
 
     /* Calendar Icon */
@@ -612,8 +608,6 @@ const CssIconStyles = () => (
   `}</style>
 );
 
-// Define the list of available CSS icons
-// This list would need to be manually expanded to reach ~100 icons.
 const ALL_CSS_ICONS: CssIconDefinition[] = [
   { name: 'home', className: 'css-icon-home', displayName: 'Home', tags: ['house', 'main'] },
   { name: 'settings', className: 'css-icon-settings', displayName: 'Settings', tags: ['gear', 'options', 'configure'] },
@@ -653,19 +647,26 @@ interface IconPickerProps {
 
 export function IconPicker({ selectedIconClassName, onIconSelect, className }: IconPickerProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [cardBgColor, setCardBgColor] = useState('transparent');
+  const [cardBgColorForCutout, setCardBgColorForCutout] = useState('white'); // Default
 
   useEffect(() => {
-    // Get --card HSL from globals.css and convert to actual color for icon cutouts
     if (typeof window !== 'undefined') {
         const rootStyle = getComputedStyle(document.documentElement);
-        const cardHsl = rootStyle.getPropertyValue('--card').trim(); // e.g. "0 0% 100%"
-        if (cardHsl) {
-            setCardBgColor(`hsl(${cardHsl})`);
-        } else {
-            // Fallback if CSS var is not found
-            const bodyBg = getComputedStyle(document.body).backgroundColor;
-            setCardBgColor(bodyBg || 'white');
+        // Try to get --card first, then --background
+        let cardColor = rootStyle.getPropertyValue('--card').trim();
+        if (!cardColor || cardColor === "0 0% 100%") { // if --card is not set or is default white
+            cardColor = rootStyle.getPropertyValue('--background').trim();
+        }
+        
+        if (cardColor) {
+            // HSL values are often like "275 100% 25%"
+            // CSS variables are usually direct values like #FFFFFF or rgb(..) or hsl(..)
+            // Check if it's HSL partial values or a full CSS color
+            if (cardColor.split(' ').length === 3 && !cardColor.includes('(')) {
+                 setCardBgColorForCutout(`hsl(${cardColor})`);
+            } else {
+                 setCardBgColorForCutout(cardColor); // Assume it's a direct CSS color
+            }
         }
     }
   }, []);
@@ -686,7 +687,10 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
   return (
     <>
       <CssIconStyles />
-      <Card className={cn("w-full", className)} style={{'--card': cardBgColor} as React.CSSProperties}>
+      <Card 
+        className={cn("w-full", className)} 
+        style={{'--card-bg-for-icon-cutout': cardBgColorForCutout} as React.CSSProperties}
+      >
         <CardHeader>
           <CardTitle className="text-lg">Select an Icon (Optional)</CardTitle>
           <CardDescription>
@@ -707,7 +711,6 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
                 <p className="text-sm text-muted-foreground mb-2">Preview:</p>
                 <div className="css-icon-base" style={{ width: '48px', height: '48px', color: 'hsl(var(--primary))' }}>
                   <span className={cn(selectedIconClassName, 'css-icon-base')} style={{ transform: 'scale(2)'}} >
-                    {/* Some icons might need inner elements for structure */}
                     {selectedIconClassName === 'css-icon-settings' && <span></span>}
                     {selectedIconClassName === 'css-icon-trash' && <i><em></em></i>}
                   </span>
@@ -726,6 +729,7 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
               {filteredIcons.map((icon) => (
                 <Button
                   key={icon.name}
+                  type="button" // Important: Prevent form submission
                   variant="outline"
                   className={cn(
                     "flex flex-col items-center justify-center h-24 w-full p-1 text-xs", 
@@ -736,8 +740,7 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
                 >
                   <div className="css-icon-base" style={{ color: 'currentColor', marginBottom: '4px' }}>
                      <span className={cn(icon.className, 'css-icon-base')}>
-                        {/* Some icons might need inner elements for structure for the preview in button */}
-                        {icon.className === 'css-icon-settings' && <h1></h1>/* Bogus, just to allow span */}
+                        {icon.className === 'css-icon-settings' && <span></span>}
                         {icon.className === 'css-icon-trash' && <i><em></em></i>}
                      </span>
                   </div>
@@ -751,5 +754,3 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
     </>
   );
 }
-
-    
