@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
@@ -43,8 +44,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     loadUserFromStorage();
-    // Initialize default admin if not present (localStorageService does this on import, but good to be explicit)
-    localStorageService.initializeDefaultAdmin();
+    // Initialize default admin and mock data if not present
+    localStorageService.initializeData();
   }, [loadUserFromStorage]);
 
   const login = async (email: string, password: string): Promise<User | null> => {
