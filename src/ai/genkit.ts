@@ -1,6 +1,4 @@
 
-'use server';
-
 import {genkit, type GenkitPlugin} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 
@@ -30,3 +28,4 @@ export const ai = genkit({
   // or flows specifying a model from the googleAI plugin will fail if the plugin isn't loaded.
   model: modelName,
 });
+
