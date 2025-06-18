@@ -27,7 +27,9 @@ const productSchema = z.object({
   price: z.coerce.number().min(0.01, { message: 'Price must be greater than 0' }),
   stock: z.coerce.number().min(0, { message: 'Stock cannot be negative' }).int(),
   categoryId: z.string().min(1, { message: 'Please select a category' }),
-  icon: z.string().optional().nullable().default(null), // Ensure default is null if not provided
+  icon: z.custom<IconName>((val) => typeof val === 'string' || val === null, {
+    message: "Invalid icon name",
+  }).optional().nullable().default(null),
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;
@@ -58,7 +60,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
       ? {
           ...initialData,
           imageUrl: initialData.imageUrl || '',
-          icon: initialData.icon || null, // Explicitly set null if not present
+          icon: initialData.icon || null,
         }
       : {
           name: '',
@@ -67,12 +69,12 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           price: 0,
           stock: 0,
           categoryId: '',
-          icon: null, // Default to null for new products
+          icon: null,
         },
   });
   
   const productDescription = watch('description');
-  const currentIcon = watch('icon') as IconName; // Cast for IconPicker
+  const currentIcon = watch('icon');
 
   useEffect(() => {
     if (initialData) {
@@ -96,14 +98,20 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     try {
       const input: SuggestProductCategoriesInput = { productDescription };
       const result = await suggestProductCategories(input);
-      if (result && result.categories.length > 0) {
-        setSuggestedCategories(result.categories);
+      
+      // Ensure result.categories is an array before using it
+      const newSuggestedCategories = (result && Array.isArray(result.categories)) ? result.categories : [];
+
+      if (newSuggestedCategories.length > 0) {
+        setSuggestedCategories(newSuggestedCategories);
         toast({ title: "Categories Suggested", description: "AI has suggested some categories for you." });
       } else {
+        setSuggestedCategories([]); // Ensure it's an empty array if no suggestions
         toast({ title: "No Suggestions", description: "AI could not suggest categories for this description." });
       }
     } catch (error) {
       console.error("Error suggesting categories:", error);
+      setSuggestedCategories([]); // Reset on error to an empty array
       toast({ title: "Suggestion Error", description: "Could not get AI category suggestions.", variant: "destructive" });
     } finally {
       setIsSuggestingCategories(false);
@@ -117,7 +125,6 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsSubmitting(true);
     try {
-      // Ensure icon is either a string or null, not undefined
       const dataToSubmit = { ...data, icon: data.icon || null };
       await onFormSubmit(dataToSubmit, initialData?.id);
     } catch (error) {
