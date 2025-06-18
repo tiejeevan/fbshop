@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -17,7 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all'); // Default to 'all'
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -70,7 +71,7 @@ export default function ProductsPage() {
   };
 
   const filteredProducts = products
-    .filter(product => selectedCategory ? product.categoryId === selectedCategory : true)
+    .filter(product => (selectedCategory && selectedCategory !== 'all') ? product.categoryId === selectedCategory : true)
     .filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   if (isLoading) {
@@ -100,7 +101,7 @@ export default function ProductsPage() {
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Categories</SelectItem>
+            <SelectItem value="all">All Categories</SelectItem>
             {categories.map(category => (
               <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
             ))}
@@ -153,3 +154,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+
