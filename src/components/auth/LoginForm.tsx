@@ -50,7 +50,7 @@ export function LoginForm({ role, redirectPath, title, description, signupPath }
       if (user) {
         if (user.role === role) {
           toast({ title: 'Login Successful', description: `Welcome back, ${user.name || user.email}!` });
-          router.push(redirectPath);
+          router.replace(redirectPath); // Changed from router.push
         } else {
           toast({
             title: 'Login Failed',
