@@ -37,30 +37,27 @@ function removeItem(key: string): void {
   window.localStorage.removeItem(key);
 }
 
-// Initialize or update default admin user
-function initializeDefaultAdmin() {
+// Initialize default admin user and mock data
+function initializeData() {
   if (typeof window === 'undefined') return;
+
+  // Admin User
   let users = getItem<User[]>(KEYS.USERS) || [];
   let adminUser = users.find(user => user.role === 'admin' && user.email === 'admin@localcommerce.com');
 
   if (adminUser) {
-    // Admin exists, ensure password is correct
     if (adminUser.password !== 'password') {
-      adminUser.password = 'password'; // Update password
-      // Find the user in the array and update it directly for setItem
+      adminUser.password = 'password';
       const userIndex = users.findIndex(u => u.id === adminUser!.id);
-      if (userIndex !== -1) {
-        users[userIndex] = adminUser;
-      }
+      if (userIndex !== -1) users[userIndex] = adminUser;
       setItem(KEYS.USERS, users);
       console.log('Default admin user password updated.');
     }
   } else {
-    // Admin does not exist, create it
     adminUser = {
       id: crypto.randomUUID(),
       email: 'admin@localcommerce.com',
-      password: 'password', // Set correct password
+      password: 'password',
       role: 'admin',
       name: 'Administrator',
       createdAt: new Date().toISOString(),
@@ -69,17 +66,149 @@ function initializeDefaultAdmin() {
     setItem(KEYS.USERS, users);
     console.log('Default admin user created.');
   }
+
+  // Mock Categories
+  let categories = getItem<Category[]>(KEYS.CATEGORIES) || [];
+  if (categories.length === 0) {
+    const mockCategories: Category[] = [
+      { id: 'cat1_electronics', name: 'Electronics', description: 'Gadgets, devices, and more.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { id: 'cat2_books', name: 'Books', description: 'Fiction, non-fiction, and educational.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { id: 'cat3_homegoods', name: 'Home Goods', description: 'For your lovely home.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { id: 'cat4_apparel', name: 'Apparel', description: 'Clothing and accessories.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    ];
+    categories = mockCategories;
+    setItem(KEYS.CATEGORIES, categories);
+    console.log('Mock categories created.');
+  }
+
+  // Mock Products
+  let products = getItem<Product[]>(KEYS.PRODUCTS) || [];
+  if (products.length === 0 && categories.length > 0) {
+    const electronicsCat = categories.find(c => c.id === 'cat1_electronics');
+    const booksCat = categories.find(c => c.id === 'cat2_books');
+    const homeGoodsCat = categories.find(c => c.id === 'cat3_homegoods');
+    const apparelCat = categories.find(c => c.id === 'cat4_apparel');
+
+    const mockProducts: Product[] = [
+      {
+        id: crypto.randomUUID(),
+        name: 'Wireless Headphones X2000',
+        description: 'Experience immersive sound with these noise-cancelling wireless headphones. Long battery life and comfortable design for all-day listening.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 149.99,
+        stock: 50,
+        categoryId: electronicsCat?.id || categories[0].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 120,
+        purchases: 15,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'Smartwatch ProConnect',
+        description: 'Stay connected and track your fitness with this feature-packed smartwatch. GPS, heart rate monitor, and a vibrant display.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 249.50,
+        stock: 30,
+        categoryId: electronicsCat?.id || categories[0].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 250,
+        purchases: 35,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'The Enigmatic Cipher',
+        description: 'A thrilling mystery novel that will keep you on the edge of your seat until the very last page. By acclaimed author A. N. Other.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 19.99,
+        stock: 100,
+        categoryId: booksCat?.id || categories[1].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 85,
+        purchases: 22,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'Modern JavaScript Essentials',
+        description: 'A comprehensive guide to modern JavaScript development, covering ES6+ features, frameworks, and best practices.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 39.95,
+        stock: 75,
+        categoryId: booksCat?.id || categories[1].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 150,
+        purchases: 40,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'Artisan Coffee Maker',
+        description: 'Brew the perfect cup of coffee every morning with this stylish and efficient artisan coffee maker. Multiple brew settings.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 89.00,
+        stock: 40,
+        categoryId: homeGoodsCat?.id || categories[2].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 95,
+        purchases: 18,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'CozyPlush Throw Blanket',
+        description: 'Ultra-soft and warm plush throw blanket, perfect for cozy evenings. Available in various colors.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 29.99,
+        stock: 60,
+        categoryId: homeGoodsCat?.id || categories[2].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 210,
+        purchases: 55,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'Urban Explorer T-Shirt',
+        description: 'Comfortable and durable 100% cotton t-shirt with a unique urban graphic design. Perfect for everyday wear.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 24.99,
+        stock: 120,
+        categoryId: apparelCat?.id || categories[3].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 300,
+        purchases: 70,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'TrailBlazer Running Shoes',
+        description: 'Lightweight and responsive running shoes designed for trail running. Excellent grip and cushioning for all terrains.',
+        imageUrl: 'https://placehold.co/600x400.png',
+        price: 119.99,
+        stock: 45,
+        categoryId: apparelCat?.id || categories[3].id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 180,
+        purchases: 25,
+      },
+    ];
+    products = mockProducts;
+    setItem(KEYS.PRODUCTS, products);
+    console.log('Mock products created.');
+  }
+
+  // Initialize other keys if they don't exist
+  if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
+  if (!getItem(KEYS.ORDERS)) setItem(KEYS.ORDERS, []);
+  if (!getItem(KEYS.LOGIN_ACTIVITY)) setItem(KEYS.LOGIN_ACTIVITY, []);
 }
 
 // Run initialization once
 if (typeof window !== 'undefined') {
-    initializeDefaultAdmin();
-    // Initialize other keys if they don't exist
-    if (!getItem(KEYS.PRODUCTS)) setItem(KEYS.PRODUCTS, []);
-    if (!getItem(KEYS.CATEGORIES)) setItem(KEYS.CATEGORIES, []);
-    if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
-    if (!getItem(KEYS.ORDERS)) setItem(KEYS.ORDERS, []);
-    if (!getItem(KEYS.LOGIN_ACTIVITY)) setItem(KEYS.LOGIN_ACTIVITY, []);
+    initializeData();
 }
 
 
@@ -305,6 +434,5 @@ export const localStorageService = {
   addLoginActivity,
   setCurrentUser,
   getCurrentUser,
-  initializeDefaultAdmin,
+  initializeData, // Export the initialization function
 };
-

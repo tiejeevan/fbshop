@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 import { localStorageService } from '@/lib/localStorage'; // Direct import for cart count
 import type { Cart } from '@/types';
+import { cn } from '@/lib/utils';
 
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
