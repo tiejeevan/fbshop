@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react'; // Import use
 import { CategoryForm, CategoryFormValues } from '../../CategoryForm';
 import { localStorageService } from '@/lib/localStorage';
 import type { Category } from '@/types';
@@ -11,14 +11,15 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-export default function EditCategoryPage({ params }: { params: { id: string } }) {
+export default function EditCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { // Update props
+  const params = use(paramsPromise); // Resolve params
   const [category, setCategory] = useState<Category | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchedCategory = localStorageService.findCategoryById(params.id);
+    const fetchedCategory = localStorageService.findCategoryById(params.id); // Use resolved params.id
     if (fetchedCategory) {
       setCategory(fetchedCategory);
     } else {
@@ -26,7 +27,7 @@ export default function EditCategoryPage({ params }: { params: { id: string } })
       router.push('/admin/categories');
     }
     setIsLoading(false);
-  }, [params.id, router, toast]);
+  }, [params.id, router, toast]); // Update dependency array
 
   const handleEditCategory = async (data: CategoryFormValues, id?: string) => {
     if (!id) return; 

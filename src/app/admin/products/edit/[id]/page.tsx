@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react'; // Import use
 import { ProductForm, ProductFormValues } from '../../ProductForm';
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
@@ -10,7 +11,8 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-export default function EditProductPage({ params }: { params: { id: string } }) {
+export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { // Update props
+  const params = use(paramsPromise); // Resolve params
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,7 +20,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchedProduct = localStorageService.findProductById(params.id);
+    const fetchedProduct = localStorageService.findProductById(params.id); // Use resolved params.id
     if (fetchedProduct) {
       setProduct(fetchedProduct);
     } else {
@@ -27,13 +29,13 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     }
     setCategories(localStorageService.getCategories());
     setIsLoading(false);
-  }, [params.id, router, toast]);
+  }, [params.id, router, toast]); // Update dependency array
 
   const handleEditProduct = async (data: ProductFormValues, id?: string) => {
-    if (!id) return; // Should not happen in edit mode
+    if (!id) return; 
     try {
       const updatedProductData: Product = {
-        ...(product as Product), // Keep existing fields like createdAt, views, purchases
+        ...(product as Product), 
         ...data,
         id,
         imageUrl: data.imageUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(data.name)}`,

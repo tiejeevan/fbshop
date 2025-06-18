@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react'; // Import use
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
+export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { // Update props
+  const params = use(paramsPromise); // Resolve params
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -23,23 +25,21 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
   useEffect(() => {
     setIsLoading(true);
-    const fetchedProduct = localStorageService.findProductById(params.id);
+    const fetchedProduct = localStorageService.findProductById(params.id); // Use resolved params.id
     if (fetchedProduct) {
       setProduct(fetchedProduct);
       if (fetchedProduct.categoryId) {
         const fetchedCategory = localStorageService.findCategoryById(fetchedProduct.categoryId);
         setCategory(fetchedCategory || null);
       }
-      // Increment product views (simplified: only once per page load)
       localStorageService.updateProduct({ ...fetchedProduct, views: fetchedProduct.views + 1 });
 
     } else {
-      // Handle product not found, e.g., redirect or show error
       toast({ title: "Product Not Found", description: "The product you are looking for does not exist.", variant: "destructive" });
       router.push('/products');
     }
     setIsLoading(false);
-  }, [params.id, router, toast]);
+  }, [params.id, router, toast]); // Update dependency array
 
   const handleQuantityChange = (amount: number) => {
     if (!product) return;
@@ -88,7 +88,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   }
 
   if (!product) {
-    // This case should be handled by redirect in useEffect, but as a fallback:
     return <div className="text-center py-20 text-destructive">Product not found.</div>;
   }
 
