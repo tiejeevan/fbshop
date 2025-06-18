@@ -37,16 +37,30 @@ function removeItem(key: string): void {
   window.localStorage.removeItem(key);
 }
 
-// Initialize default admin user
+// Initialize or update default admin user
 function initializeDefaultAdmin() {
   if (typeof window === 'undefined') return;
-  const users = getItem<User[]>(KEYS.USERS) || [];
-  const adminExists = users.some(user => user.role === 'admin' && user.email === 'admin@localcommerce.com');
-  if (!adminExists) {
-    const adminUser: User = {
+  let users = getItem<User[]>(KEYS.USERS) || [];
+  let adminUser = users.find(user => user.role === 'admin' && user.email === 'admin@localcommerce.com');
+
+  if (adminUser) {
+    // Admin exists, ensure password is correct
+    if (adminUser.password !== 'password') {
+      adminUser.password = 'password'; // Update password
+      // Find the user in the array and update it directly for setItem
+      const userIndex = users.findIndex(u => u.id === adminUser!.id);
+      if (userIndex !== -1) {
+        users[userIndex] = adminUser;
+      }
+      setItem(KEYS.USERS, users);
+      console.log('Default admin user password updated.');
+    }
+  } else {
+    // Admin does not exist, create it
+    adminUser = {
       id: crypto.randomUUID(),
       email: 'admin@localcommerce.com',
-      password: 'adminpassword', // In a real app, this should be hashed.
+      password: 'password', // Set correct password
       role: 'admin',
       name: 'Administrator',
       createdAt: new Date().toISOString(),
@@ -293,3 +307,4 @@ export const localStorageService = {
   getCurrentUser,
   initializeDefaultAdmin,
 };
+
