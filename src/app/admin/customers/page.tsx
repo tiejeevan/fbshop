@@ -2,11 +2,12 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, UserX } from 'lucide-react';
+import { MoreHorizontal, Trash2, UserX, Edit, PlusCircle } from 'lucide-react';
 import { localStorageService } from '@/lib/localStorage';
 import type { User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -21,17 +22,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth'; // Import useAuth
 
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [customerToDelete, setCustomerToDelete] = useState<User | null>(null);
   const { toast } = useToast();
+  const { currentUser: adminUser } = useAuth(); // Get current admin user
 
   const fetchCustomers = useCallback(() => {
     setIsLoading(true);
     const allUsers = localStorageService.getUsers();
-    const fetchedCustomers = allUsers.filter(user => user.role === 'customer');
+    // Filter out the currently logged-in admin if they are in the list of customers (though roles should prevent this)
+    // Or simply list all users and rely on roles for what they can do.
+    // For "Customer Management", we typically only list 'customer' role.
+    const fetchedCustomers = allUsers.filter(user => user.role === 'customer' || user.role === 'admin'); // Show both for now for completeness
     setCustomers(fetchedCustomers);
     setIsLoading(false);
   }, []);
@@ -42,17 +48,19 @@ export default function AdminCustomersPage() {
 
   const handleDeleteCustomer = () => {
     if (!customerToDelete) return;
+    if (adminUser && customerToDelete.id === adminUser.id) {
+      toast({ title: "Action Denied", description: "You cannot delete your own admin account.", variant: "destructive" });
+      setCustomerToDelete(null);
+      return;
+    }
     
-    // Check if customer has orders or cart, ideally this logic would be more robust.
-    // For now, we'll just delete the user. Associated data like cart/orders might become orphaned.
     const success = localStorageService.deleteUser(customerToDelete.id);
     if (success) {
-      toast({ title: "Customer Deleted", description: `User "${customerToDelete.name || customerToDelete.email}" has been successfully deleted.` });
+      toast({ title: "User Deleted", description: `User "${customerToDelete.name || customerToDelete.email}" has been successfully deleted.` });
       fetchCustomers(); // Refresh list
-      // Also clear any cart for this user.
-      localStorageService.clearCart(customerToDelete.id);
+      localStorageService.clearCart(customerToDelete.id); // Clear cart of deleted user
     } else {
-      toast({ title: "Error Deleting Customer", description: "Could not delete the customer. Please try again.", variant: "destructive" });
+      toast({ title: "Error Deleting User", description: "Could not delete the user. Please try again.", variant: "destructive" });
     }
     setCustomerToDelete(null); // Close dialog
   };
@@ -65,22 +73,31 @@ export default function AdminCustomersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline text-3xl text-primary">Customer Management</h1>
-          <p className="text-muted-foreground">View and manage customer accounts.</p>
+          <h1 className="font-headline text-3xl text-primary">User Management</h1>
+          <p className="text-muted-foreground">View, create, edit, and delete user accounts.</p>
         </div>
-        {/* Placeholder for "Add Customer" if needed in future */}
+        <Button asChild>
+          <Link href="/admin/customers/new">
+            <PlusCircle className="mr-2 h-4 w-4" /> Add New User
+          </Link>
+        </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All Customers</CardTitle>
-          <CardDescription>A list of all registered customers.</CardDescription>
+          <CardTitle>All Users</CardTitle>
+          <CardDescription>A list of all registered users (customers and admins).</CardDescription>
         </CardHeader>
         <CardContent>
           {customers.length === 0 ? (
             <div className="text-center py-10">
               <UserX className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No customers found.</p>
+              <p className="text-muted-foreground">No users found.</p>
+                 <Button asChild variant="secondary" className="mt-4">
+                    <Link href="/admin/customers/new">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add User
+                    </Link>
+                </Button>
             </div>
           ) : (
             <Table>
@@ -88,6 +105,7 @@ export default function AdminCustomersPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
                   <TableHead className="hidden md:table-cell">Joined On</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -97,6 +115,13 @@ export default function AdminCustomersPage() {
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">{customer.name || 'N/A'}</TableCell>
                     <TableCell>{customer.email}</TableCell>
+                    <TableCell>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            customer.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                            {customer.role.charAt(0).toUpperCase() + customer.role.slice(1)}
+                        </span>
+                    </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {customer.createdAt ? format(new Date(customer.createdAt), 'PPP') : 'N/A'}
                     </TableCell>
@@ -109,14 +134,17 @@ export default function AdminCustomersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {/* <DropdownMenuItem>
-                            <Eye className="mr-2 h-4 w-4" /> View Details (Not Implemented)
-                          </DropdownMenuItem> */}
+                           <DropdownMenuItem asChild>
+                              <Link href={`/admin/customers/edit/${customer.id}`} className="cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" /> Edit
+                              </Link>
+                            </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => setCustomerToDelete(customer)} 
                             className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10"
+                            disabled={adminUser?.id === customer.id} // Disable deleting self
                           >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete Customer
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete User
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -135,7 +163,7 @@ export default function AdminCustomersPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the customer account
+                This action cannot be undone. This will permanently delete the user account
                 for "{customerToDelete.name || customerToDelete.email}". Associated carts will be cleared.
                 Order history will remain but may be less identifiable.
               </AlertDialogDescription>
@@ -146,7 +174,7 @@ export default function AdminCustomersPage() {
                 onClick={handleDeleteCustomer} 
                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               >
-                Yes, delete customer
+                Yes, delete user
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

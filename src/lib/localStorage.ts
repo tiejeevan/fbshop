@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole } from '@/types';
@@ -214,9 +215,14 @@ if (typeof window !== 'undefined') {
 
 // User Management
 export const getUsers = (): User[] => getItem<User[]>(KEYS.USERS) || [];
-export const addUser = (user: User): User => {
+export const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?: UserRole }): User => {
   const users = getUsers();
-  const newUser = { ...user, id: user.id || crypto.randomUUID(), createdAt: new Date().toISOString() };
+  const newUser: User = {
+    ...user,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    role: user.role || 'customer', // Default to customer if role is not provided
+  };
   users.push(newUser);
   setItem(KEYS.USERS, users);
   return newUser;
@@ -225,7 +231,13 @@ export const updateUser = (updatedUser: User): User | null => {
   let users = getUsers();
   const index = users.findIndex(u => u.id === updatedUser.id);
   if (index !== -1) {
-    users[index] = { ...users[index], ...updatedUser };
+    // Preserve original password if not provided in update
+    const existingPassword = users[index].password;
+    users[index] = { 
+      ...users[index], 
+      ...updatedUser, 
+      password: updatedUser.password || existingPassword 
+    };
     setItem(KEYS.USERS, users);
     return users[index];
   }
@@ -242,6 +254,8 @@ export const deleteUser = (userId: string): boolean => {
   return false;
 };
 export const findUserByEmail = (email: string): User | undefined => getUsers().find(u => u.email === email);
+export const findUserById = (userId: string): User | undefined => getUsers().find(u => u.id === userId);
+
 
 // Product Management
 export const getProducts = (): Product[] => getItem<Product[]>(KEYS.PRODUCTS) || [];
@@ -415,6 +429,7 @@ export const localStorageService = {
   updateUser,
   deleteUser,
   findUserByEmail,
+  findUserById,
   getProducts,
   addProduct,
   updateProduct,
@@ -436,3 +451,4 @@ export const localStorageService = {
   getCurrentUser,
   initializeData, // Export the initialization function
 };
+
