@@ -99,6 +99,7 @@ function initializeData() {
         price: 149.99,
         stock: 50,
         categoryId: electronicsCat?.id || categories[0].id,
+        icon: 'Headphones',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 120,
@@ -112,6 +113,7 @@ function initializeData() {
         price: 249.50,
         stock: 30,
         categoryId: electronicsCat?.id || categories[0].id,
+        icon: 'Watch',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 250,
@@ -125,6 +127,7 @@ function initializeData() {
         price: 19.99,
         stock: 100,
         categoryId: booksCat?.id || categories[1].id,
+        icon: 'BookOpen',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 85,
@@ -138,6 +141,7 @@ function initializeData() {
         price: 39.95,
         stock: 75,
         categoryId: booksCat?.id || categories[1].id,
+        icon: 'FileCode',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 150,
@@ -151,6 +155,7 @@ function initializeData() {
         price: 89.00,
         stock: 40,
         categoryId: homeGoodsCat?.id || categories[2].id,
+        icon: 'Coffee',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 95,
@@ -164,6 +169,7 @@ function initializeData() {
         price: 29.99,
         stock: 60,
         categoryId: homeGoodsCat?.id || categories[2].id,
+        icon: 'BedDouble',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 210,
@@ -177,6 +183,7 @@ function initializeData() {
         price: 24.99,
         stock: 120,
         categoryId: apparelCat?.id || categories[3].id,
+        icon: 'Shirt',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 300,
@@ -190,6 +197,7 @@ function initializeData() {
         price: 119.99,
         stock: 45,
         categoryId: apparelCat?.id || categories[3].id,
+        icon: 'Footprints',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 180,
@@ -268,6 +276,7 @@ export const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedA
     updatedAt: new Date().toISOString(),
     views: 0,
     purchases: 0,
+    icon: product.icon || undefined,
   };
   products.push(newProduct);
   setItem(KEYS.PRODUCTS, products);
@@ -277,7 +286,12 @@ export const updateProduct = (updatedProduct: Product): Product | null => {
   let products = getProducts();
   const index = products.findIndex(p => p.id === updatedProduct.id);
   if (index !== -1) {
-    products[index] = { ...products[index], ...updatedProduct, updatedAt: new Date().toISOString() };
+    products[index] = { 
+        ...products[index], 
+        ...updatedProduct, 
+        icon: updatedProduct.icon || undefined, 
+        updatedAt: new Date().toISOString() 
+    };
     setItem(KEYS.PRODUCTS, products);
     return products[index];
   }
@@ -451,4 +465,3 @@ export const localStorageService = {
   getCurrentUser,
   initializeData, // Export the initialization function
 };
-

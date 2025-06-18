@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useForm, SubmitHandler, Controller } from 'react-hook-form'; // Added Controller
+import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,8 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Wand2 } from 'lucide-react';
 import { suggestProductCategories, SuggestProductCategoriesInput } from '@/ai/flows/suggest-product-categories';
-import Link from 'next/link'; // Added import for Link
+import Link from 'next/link';
+import { IconPicker, type IconName } from '@/components/shared/IconPicker';
 
 const productSchema = z.object({
   name: z.string().min(3, { message: 'Product name must be at least 3 characters' }),
@@ -26,6 +27,7 @@ const productSchema = z.object({
   price: z.coerce.number().min(0.01, { message: 'Price must be greater than 0' }),
   stock: z.coerce.number().min(0, { message: 'Stock cannot be negative' }).int(),
   categoryId: z.string().min(1, { message: 'Please select a category' }),
+  icon: z.string().optional().nullable(),
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;
@@ -56,6 +58,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
       ? {
           ...initialData,
           imageUrl: initialData.imageUrl || '',
+          icon: initialData.icon || null,
         }
       : {
           name: '',
@@ -64,10 +67,12 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           price: 0,
           stock: 0,
           categoryId: '',
+          icon: null,
         },
   });
   
   const productDescription = watch('description');
+  const currentIcon = watch('icon');
 
   useEffect(() => {
     if (initialData) {
@@ -77,6 +82,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
       setValue('price', initialData.price);
       setValue('stock', initialData.stock);
       setValue('categoryId', initialData.categoryId);
+      setValue('icon', initialData.icon || null);
     }
   }, [initialData, setValue]);
 
@@ -102,6 +108,10 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     } finally {
       setIsSuggestingCategories(false);
     }
+  };
+
+  const handleIconSelection = (iconName: IconName) => {
+    setValue('icon', iconName, { shouldValidate: true });
   };
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
@@ -147,7 +157,6 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
                 {suggestedCategories.map((cat, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
                     onClick={() => {
-                        // Check if category exists by name, if so use its ID. Otherwise, admin may need to create it.
                         const existingCategory = categories.find(c => c.name.toLowerCase() === cat.toLowerCase());
                         if (existingCategory) {
                             setValue('categoryId', existingCategory.id, { shouldValidate: true });
@@ -208,11 +217,18 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="imageUrl">Image URL</Label>
+            <Label htmlFor="imageUrl">Image URL (Optional)</Label>
             <Input id="imageUrl" {...register('imageUrl')} placeholder="https://example.com/image.png" />
             {errors.imageUrl && <p className="text-sm text-destructive">{errors.imageUrl.message}</p>}
              <p className="text-xs text-muted-foreground">Use a service like Placehold.co (e.g., https://placehold.co/600x400.png)</p>
           </div>
+
+          <div className="space-y-2">
+            {/* IconPicker is placed here */}
+            <IconPicker selectedIcon={currentIcon} onIconSelect={handleIconSelection} />
+            {errors.icon && <p className="text-sm text-destructive">{errors.icon.message}</p>}
+          </div>
+
         </CardContent>
         <CardFooter className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => router.push('/admin/products')}>

@@ -1,3 +1,4 @@
+
 export type UserRole = 'admin' | 'customer';
 
 export interface User {
@@ -27,6 +28,7 @@ export interface Product {
   stock: number;
   categoryId: string; // Ensure this links to a Category.id
   categoryName?: string; // For display convenience
+  icon?: string; // Name of the lucide-icon
   createdAt: string;
   updatedAt: string;
   views: number;
