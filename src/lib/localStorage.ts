@@ -2,6 +2,11 @@
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole } from '@/types';
+import * as LucideIcons from 'lucide-react'; // Used for icon names for mock data
+
+const { default: _, ...Icons } = LucideIcons;
+const IconKeys = Object.keys(Icons) as (keyof typeof Icons)[];
+
 
 const KEYS = {
   USERS: 'localcommerce_users',
@@ -99,7 +104,7 @@ function initializeData() {
         price: 149.99,
         stock: 50,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'Headphones',
+        icon: 'Headphones', // Valid Lucide icon name
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 120,
@@ -113,7 +118,7 @@ function initializeData() {
         price: 249.50,
         stock: 30,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'Watch',
+        icon: 'Watch', // Valid Lucide icon name
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 250,
@@ -127,7 +132,7 @@ function initializeData() {
         price: 19.99,
         stock: 100,
         categoryId: booksCat?.id || categories[1].id,
-        icon: 'BookOpen',
+        icon: 'BookOpen', // Valid Lucide icon name
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 85,
@@ -141,7 +146,7 @@ function initializeData() {
         price: 39.95,
         stock: 75,
         categoryId: booksCat?.id || categories[1].id,
-        icon: 'FileCode',
+        icon: 'FileCode', // Valid Lucide icon name
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 150,
@@ -155,7 +160,7 @@ function initializeData() {
         price: 89.00,
         stock: 40,
         categoryId: homeGoodsCat?.id || categories[2].id,
-        icon: 'Coffee',
+        icon: 'Coffee', // Valid Lucide icon name
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 95,
@@ -169,7 +174,7 @@ function initializeData() {
         price: 29.99,
         stock: 60,
         categoryId: homeGoodsCat?.id || categories[2].id,
-        icon: 'BedDouble',
+        icon: 'BedDouble', // Valid Lucide icon name (assuming it exists)
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 210,
@@ -183,7 +188,7 @@ function initializeData() {
         price: 24.99,
         stock: 120,
         categoryId: apparelCat?.id || categories[3].id,
-        icon: 'Shirt',
+        icon: 'Shirt', // Valid Lucide icon name
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 300,
@@ -197,7 +202,7 @@ function initializeData() {
         price: 119.99,
         stock: 45,
         categoryId: apparelCat?.id || categories[3].id,
-        icon: 'Footprints',
+        icon: IconKeys.includes('Footprints') ? 'Footprints' : 'StepForward', // Check if Footprints exists
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 180,
@@ -276,7 +281,7 @@ export const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedA
     updatedAt: new Date().toISOString(),
     views: 0,
     purchases: 0,
-    icon: product.icon || undefined,
+    icon: product.icon || null, // Ensure icon is string or null
   };
   products.push(newProduct);
   setItem(KEYS.PRODUCTS, products);
@@ -289,7 +294,7 @@ export const updateProduct = (updatedProduct: Product): Product | null => {
     products[index] = { 
         ...products[index], 
         ...updatedProduct, 
-        icon: updatedProduct.icon || undefined, 
+        icon: updatedProduct.icon || null, // Ensure icon is string or null
         updatedAt: new Date().toISOString() 
     };
     setItem(KEYS.PRODUCTS, products);

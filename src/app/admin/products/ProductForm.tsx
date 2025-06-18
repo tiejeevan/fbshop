@@ -27,7 +27,7 @@ const productSchema = z.object({
   price: z.coerce.number().min(0.01, { message: 'Price must be greater than 0' }),
   stock: z.coerce.number().min(0, { message: 'Stock cannot be negative' }).int(),
   categoryId: z.string().min(1, { message: 'Please select a category' }),
-  icon: z.string().optional().nullable(),
+  icon: z.string().optional().nullable().default(null), // Ensure default is null if not provided
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;
@@ -58,7 +58,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
       ? {
           ...initialData,
           imageUrl: initialData.imageUrl || '',
-          icon: initialData.icon || null,
+          icon: initialData.icon || null, // Explicitly set null if not present
         }
       : {
           name: '',
@@ -67,12 +67,12 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           price: 0,
           stock: 0,
           categoryId: '',
-          icon: null,
+          icon: null, // Default to null for new products
         },
   });
   
   const productDescription = watch('description');
-  const currentIcon = watch('icon');
+  const currentIcon = watch('icon') as IconName; // Cast for IconPicker
 
   useEffect(() => {
     if (initialData) {
@@ -117,7 +117,9 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsSubmitting(true);
     try {
-      await onFormSubmit(data, initialData?.id);
+      // Ensure icon is either a string or null, not undefined
+      const dataToSubmit = { ...data, icon: data.icon || null };
+      await onFormSubmit(dataToSubmit, initialData?.id);
     } catch (error) {
        // Error is handled by onFormSubmit and toast is shown there
     } finally {
@@ -224,7 +226,6 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           </div>
 
           <div className="space-y-2">
-            {/* IconPicker is placed here */}
             <IconPicker selectedIcon={currentIcon} onIconSelect={handleIconSelection} />
             {errors.icon && <p className="text-sm text-destructive">{errors.icon.message}</p>}
           </div>
