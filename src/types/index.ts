@@ -28,7 +28,7 @@ export interface Product {
   stock: number;
   categoryId: string; // Ensure this links to a Category.id
   categoryName?: string; // For display convenience
-  icon?: string | null; // Name of the lucide-icon, can be null
+  icon?: string | null; // CSS class name for the icon, or null
   createdAt: string;
   updatedAt: string;
   views: number;
@@ -74,3 +74,5 @@ export interface LoginActivity {
   timestamp: string;
   type: 'login' | 'logout';
 }
+
+    

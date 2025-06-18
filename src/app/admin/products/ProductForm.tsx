@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Wand2 } from 'lucide-react';
 import { suggestProductCategories, SuggestProductCategoriesInput } from '@/ai/flows/suggest-product-categories';
 import Link from 'next/link';
-import { IconPicker, type IconName } from '@/components/shared/IconPicker';
+import { IconPicker, type CssIconClassName } from '@/components/shared/IconPicker'; // Updated import
 
 const productSchema = z.object({
   name: z.string().min(3, { message: 'Product name must be at least 3 characters' }),
@@ -27,9 +27,7 @@ const productSchema = z.object({
   price: z.coerce.number().min(0.01, { message: 'Price must be greater than 0' }),
   stock: z.coerce.number().min(0, { message: 'Stock cannot be negative' }).int(),
   categoryId: z.string().min(1, { message: 'Please select a category' }),
-  icon: z.custom<IconName>((val) => typeof val === 'string' || val === null, {
-    message: "Invalid icon name",
-  }).optional().nullable().default(null),
+  icon: z.string().optional().nullable().default(null), // Will store CSS class name
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;
@@ -53,14 +51,14 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     setValue,
     watch,
     formState: { errors },
-    control, // for ShadCN Select with RHF
+    control, 
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: initialData
       ? {
           ...initialData,
           imageUrl: initialData.imageUrl || '',
-          icon: initialData.icon || null,
+          icon: initialData.icon || null, // Icon is now CSS class string or null
         }
       : {
           name: '',
@@ -74,7 +72,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
   });
   
   const productDescription = watch('description');
-  const currentIcon = watch('icon');
+  const currentIconCssClass = watch('icon') as CssIconClassName; // Watched value is now CSS class
 
   useEffect(() => {
     if (initialData) {
@@ -99,34 +97,33 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
       const input: SuggestProductCategoriesInput = { productDescription };
       const result = await suggestProductCategories(input);
       
-      // Ensure result.categories is an array before using it
       const newSuggestedCategories = (result && Array.isArray(result.categories)) ? result.categories : [];
 
       if (newSuggestedCategories.length > 0) {
         setSuggestedCategories(newSuggestedCategories);
         toast({ title: "Categories Suggested", description: "AI has suggested some categories for you." });
       } else {
-        setSuggestedCategories([]); // Ensure it's an empty array if no suggestions
+        setSuggestedCategories([]); 
         toast({ title: "No Suggestions", description: "AI could not suggest categories for this description." });
       }
     } catch (error) {
       console.error("Error suggesting categories:", error);
-      setSuggestedCategories([]); // Reset on error to an empty array
+      setSuggestedCategories([]); 
       toast({ title: "Suggestion Error", description: "Could not get AI category suggestions.", variant: "destructive" });
     } finally {
       setIsSuggestingCategories(false);
     }
   };
 
-  const handleIconSelection = (iconName: IconName) => {
-    setValue('icon', iconName, { shouldValidate: true });
+  const handleIconSelection = (iconClassName: CssIconClassName) => { // Receives CSS class name
+    setValue('icon', iconClassName, { shouldValidate: true });
   };
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsSubmitting(true);
     try {
-      const dataToSubmit = { ...data, icon: data.icon || null };
-      await onFormSubmit(dataToSubmit, initialData?.id);
+      // data.icon is already the CSS class name or null
+      await onFormSubmit(data, initialData?.id);
     } catch (error) {
        // Error is handled by onFormSubmit and toast is shown there
     } finally {
@@ -233,7 +230,8 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           </div>
 
           <div className="space-y-2">
-            <IconPicker selectedIcon={currentIcon} onIconSelect={handleIconSelection} />
+            {/* Updated IconPicker usage */}
+            <IconPicker selectedIconClassName={currentIconCssClass} onIconSelect={handleIconSelection} />
             {errors.icon && <p className="text-sm text-destructive">{errors.icon.message}</p>}
           </div>
 
@@ -251,3 +249,5 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     </Card>
   );
 }
+
+    

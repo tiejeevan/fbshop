@@ -2,11 +2,8 @@
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole } from '@/types';
-import * as LucideIcons from 'lucide-react'; // Used for icon names for mock data
 
-const { default: _, ...Icons } = LucideIcons;
-const IconKeys = Object.keys(Icons) as (keyof typeof Icons)[];
-
+// Note: We removed the lucide-react specific icon key generation as it's no longer needed.
 
 const KEYS = {
   USERS: 'localcommerce_users',
@@ -104,7 +101,7 @@ function initializeData() {
         price: 149.99,
         stock: 50,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'Headphones', // Valid Lucide icon name
+        icon: 'css-icon-home', // Example CSS icon class
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 120,
@@ -118,13 +115,13 @@ function initializeData() {
         price: 249.50,
         stock: 30,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'Watch', // Valid Lucide icon name
+        icon: 'css-icon-settings', // Example CSS icon class
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 250,
         purchases: 35,
       },
-      {
+       {
         id: crypto.randomUUID(),
         name: 'The Enigmatic Cipher',
         description: 'A thrilling mystery novel that will keep you on the edge of your seat until the very last page. By acclaimed author A. N. Other.',
@@ -132,81 +129,11 @@ function initializeData() {
         price: 19.99,
         stock: 100,
         categoryId: booksCat?.id || categories[1].id,
-        icon: 'BookOpen', // Valid Lucide icon name
+        icon: 'css-icon-file', // Example CSS icon class
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 85,
         purchases: 22,
-      },
-      {
-        id: crypto.randomUUID(),
-        name: 'Modern JavaScript Essentials',
-        description: 'A comprehensive guide to modern JavaScript development, covering ES6+ features, frameworks, and best practices.',
-        imageUrl: 'https://placehold.co/600x400.png',
-        price: 39.95,
-        stock: 75,
-        categoryId: booksCat?.id || categories[1].id,
-        icon: 'FileCode', // Valid Lucide icon name
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        views: 150,
-        purchases: 40,
-      },
-      {
-        id: crypto.randomUUID(),
-        name: 'Artisan Coffee Maker',
-        description: 'Brew the perfect cup of coffee every morning with this stylish and efficient artisan coffee maker. Multiple brew settings.',
-        imageUrl: 'https://placehold.co/600x400.png',
-        price: 89.00,
-        stock: 40,
-        categoryId: homeGoodsCat?.id || categories[2].id,
-        icon: 'Coffee', // Valid Lucide icon name
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        views: 95,
-        purchases: 18,
-      },
-      {
-        id: crypto.randomUUID(),
-        name: 'CozyPlush Throw Blanket',
-        description: 'Ultra-soft and warm plush throw blanket, perfect for cozy evenings. Available in various colors.',
-        imageUrl: 'https://placehold.co/600x400.png',
-        price: 29.99,
-        stock: 60,
-        categoryId: homeGoodsCat?.id || categories[2].id,
-        icon: 'BedDouble', // Valid Lucide icon name (assuming it exists)
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        views: 210,
-        purchases: 55,
-      },
-      {
-        id: crypto.randomUUID(),
-        name: 'Urban Explorer T-Shirt',
-        description: 'Comfortable and durable 100% cotton t-shirt with a unique urban graphic design. Perfect for everyday wear.',
-        imageUrl: 'https://placehold.co/600x400.png',
-        price: 24.99,
-        stock: 120,
-        categoryId: apparelCat?.id || categories[3].id,
-        icon: 'Shirt', // Valid Lucide icon name
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        views: 300,
-        purchases: 70,
-      },
-      {
-        id: crypto.randomUUID(),
-        name: 'TrailBlazer Running Shoes',
-        description: 'Lightweight and responsive running shoes designed for trail running. Excellent grip and cushioning for all terrains.',
-        imageUrl: 'https://placehold.co/600x400.png',
-        price: 119.99,
-        stock: 45,
-        categoryId: apparelCat?.id || categories[3].id,
-        icon: IconKeys.includes('Footprints') ? 'Footprints' : 'StepForward', // Check if Footprints exists
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        views: 180,
-        purchases: 25,
       },
     ];
     products = mockProducts;
@@ -214,13 +141,11 @@ function initializeData() {
     console.log('Mock products created.');
   }
 
-  // Initialize other keys if they don't exist
   if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
   if (!getItem(KEYS.ORDERS)) setItem(KEYS.ORDERS, []);
   if (!getItem(KEYS.LOGIN_ACTIVITY)) setItem(KEYS.LOGIN_ACTIVITY, []);
 }
 
-// Run initialization once
 if (typeof window !== 'undefined') {
     initializeData();
 }
@@ -234,7 +159,7 @@ export const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?:
     ...user,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    role: user.role || 'customer', // Default to customer if role is not provided
+    role: user.role || 'customer', 
   };
   users.push(newUser);
   setItem(KEYS.USERS, users);
@@ -244,7 +169,6 @@ export const updateUser = (updatedUser: User): User | null => {
   let users = getUsers();
   const index = users.findIndex(u => u.id === updatedUser.id);
   if (index !== -1) {
-    // Preserve original password if not provided in update
     const existingPassword = users[index].password;
     users[index] = { 
       ...users[index], 
@@ -281,7 +205,7 @@ export const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedA
     updatedAt: new Date().toISOString(),
     views: 0,
     purchases: 0,
-    icon: product.icon || null, // Ensure icon is string or null
+    icon: product.icon || null, // Icon is CSS class name or null
   };
   products.push(newProduct);
   setItem(KEYS.PRODUCTS, products);
@@ -294,7 +218,7 @@ export const updateProduct = (updatedProduct: Product): Product | null => {
     products[index] = { 
         ...products[index], 
         ...updatedProduct, 
-        icon: updatedProduct.icon || null, // Ensure icon is string or null
+        icon: updatedProduct.icon || null, // Icon is CSS class name or null
         updatedAt: new Date().toISOString() 
     };
     setItem(KEYS.PRODUCTS, products);
@@ -345,11 +269,10 @@ export const deleteCategory = (categoryId: string): boolean => {
   categories = categories.filter(c => c.id !== categoryId);
   if (categories.length < initialLength) {
     setItem(KEYS.CATEGORIES, categories);
-    // Optionally, handle products associated with this category (e.g., set categoryId to null or a default)
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = ''; // Or some default category ID
+        p.categoryId = ''; 
         updateProduct(p);
       }
     });
@@ -397,7 +320,6 @@ export const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: 
     orders.push(newOrder);
     setItem(KEYS.ORDERS, orders);
 
-    // Decrement stock and increment purchases for each product in the order
     newOrder.items.forEach(item => {
       const product = findProductById(item.productId);
       if (product) {
@@ -468,5 +390,7 @@ export const localStorageService = {
   addLoginActivity,
   setCurrentUser,
   getCurrentUser,
-  initializeData, // Export the initialization function
+  initializeData,
 };
+
+    
