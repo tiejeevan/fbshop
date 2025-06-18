@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { BarChart3, DollarSign, ShoppingBag, Users } from 'lucide-react';
+import { BarChart3, DollarSign, ShoppingBag, Users, Tags } from 'lucide-react';
 import Link from 'next/link';
 import { localStorageService } from '@/lib/localStorage';
 import { useEffect, useState } from 'react';
