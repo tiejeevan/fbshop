@@ -64,7 +64,7 @@ export function IconPicker({ selectedIcon, onIconSelect, className }: IconPicker
     <Card className={cn("w-full", className)}>
       <CardHeader>
         <CardTitle className="text-lg">Select an Icon (Optional)</CardTitle>
-        <CardDescription>Search and select an icon for your product or category.</CardDescription>
+        <CardDescription>Search and select an icon for your product or category. ({allValidIconNames.length} icons available)</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Input
@@ -86,7 +86,7 @@ export function IconPicker({ selectedIcon, onIconSelect, className }: IconPicker
             </div>
         )}
         <ScrollArea className="h-72 w-full border rounded-md">
-            {filteredIcons.length === 0 && (
+            {searchTerm.trim() !== '' && filteredIcons.length === 0 && (
                 <div className="p-4 text-center text-muted-foreground">No icons found matching "{searchTerm}".</div>
             )}
             <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 p-2">
@@ -138,4 +138,3 @@ export const renderLucideIcon = (iconName: IconName, props?: LucideIconsModule.L
   }
   return <IconComponent {...props} />;
 };
-
