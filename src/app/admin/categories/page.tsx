@@ -41,6 +41,15 @@ export default function AdminCategoriesPage() {
 
   const handleDeleteCategory = () => {
     if (!categoryToDelete) return;
+    
+    // Check if any products are using this category
+    const productsUsingCategory = localStorageService.getProducts().filter(p => p.categoryId === categoryToDelete.id);
+    if (productsUsingCategory.length > 0) {
+        toast({ title: "Cannot Delete Category", description: `Category "${categoryToDelete.name}" is in use by ${productsUsingCategory.length} product(s). Please reassign them before deleting.`, variant: "destructive", duration: 5000 });
+        setCategoryToDelete(null);
+        return;
+    }
+
     const success = localStorageService.deleteCategory(categoryToDelete.id);
     if (success) {
       toast({ title: "Category Deleted", description: `"${categoryToDelete.name}" has been successfully deleted.` });
