@@ -7,16 +7,21 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import * as LucideIcons from 'lucide-react';
+import * as LucideIconsModule from 'lucide-react'; // Renamed for clarity
 import { HelpCircle } from 'lucide-react'; // Fallback icon
 
-// Remove the default export for LucideIcons if it exists to avoid conflicts
-const {default: _, ...Icons} = LucideIcons;
+// Filter to get only actual icon component names from the LucideIconsModule
+const allValidIconNames = Object.keys(LucideIconsModule)
+  .filter(name =>
+    name !== 'default' && // Exclude default export if any
+    name !== 'createLucideIcon' &&
+    name !== 'IconNode' &&
+    name !== 'LucideIcon' &&
+    typeof LucideIconsModule[name as keyof typeof LucideIconsModule] === 'function' // Ensure it's a component (function)
+  );
 
-// Dynamically generate the list of icons from lucide-react
-const allIconNames = Object.keys(Icons).filter(name => name !== 'createLucideIcon' && name !== 'IconNode' && name !== 'LucideIcon');
-
-export type IconName = keyof typeof Icons | null;
+// Define IconName based on the filtered list of valid icon keys
+export type IconName = typeof allValidIconNames[number] | null;
 
 interface IconPickerProps {
   selectedIcon?: IconName;
@@ -29,14 +34,20 @@ export function IconPicker({ selectedIcon, onIconSelect, className }: IconPicker
 
   const filteredIcons = useMemo(() => {
     if (!searchTerm) {
-      return allIconNames;
+      return allValidIconNames;
     }
-    return allIconNames.filter(name =>
+    return allValidIconNames.filter(name =>
       name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [searchTerm]);
 
-  const SelectedIconComponent = selectedIcon ? Icons[selectedIcon as keyof typeof Icons] as React.ElementType : null;
+  const SelectedIconComponent = useMemo(() => {
+    if (selectedIcon && allValidIconNames.includes(selectedIcon)) {
+      // Ensure selectedIcon is a valid key before trying to access it
+      return LucideIconsModule[selectedIcon as keyof typeof LucideIconsModule] as React.ElementType;
+    }
+    return null;
+  }, [selectedIcon]);
 
   return (
     <Card className={cn("w-full", className)}>
@@ -52,14 +63,13 @@ export function IconPicker({ selectedIcon, onIconSelect, className }: IconPicker
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full"
         />
-        {SelectedIconComponent && (
+        {SelectedIconComponent ? (
           <div className="mb-4 p-4 border rounded-md flex flex-col items-center justify-center bg-muted">
             <p className="text-sm text-muted-foreground mb-2">Preview:</p>
             <SelectedIconComponent className="h-16 w-16 text-primary" />
             <p className="mt-2 text-xs font-mono">{selectedIcon}</p>
           </div>
-        )}
-        {!SelectedIconComponent && (
+        ) : (
             <div className="mb-4 p-4 border rounded-md flex items-center justify-center text-muted-foreground min-h-[100px] bg-muted/50">
                No icon selected
             </div>
@@ -70,15 +80,20 @@ export function IconPicker({ selectedIcon, onIconSelect, className }: IconPicker
             )}
             <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 p-2">
             {filteredIcons.map((name) => {
-                const IconComponent = Icons[name as keyof typeof Icons] as React.ElementType;
-                if (!IconComponent) return null; // Should not happen with the filter
+                const IconComponent = LucideIconsModule[name as keyof typeof LucideIconsModule] as React.ElementType | undefined;
+                
+                // This check should ideally not be needed if allValidIconNames is correct, but as a safeguard:
+                if (!IconComponent || typeof IconComponent !== 'function') {
+                    return null; 
+                }
+
                 return (
                 <Button
                     key={name}
                     variant="outline"
                     size="icon"
                     className={cn(
-                    "flex flex-col items-center justify-center h-20 w-full p-1", // Adjusted for better text visibility
+                    "flex flex-col items-center justify-center h-20 w-full p-1",
                     selectedIcon === name && "ring-2 ring-primary bg-accent text-accent-foreground"
                     )}
                     onClick={() => onIconSelect(selectedIcon === name ? null : name as IconName)}
@@ -97,9 +112,14 @@ export function IconPicker({ selectedIcon, onIconSelect, className }: IconPicker
 }
 
 // Helper to render an icon by name (can be used elsewhere)
-export const renderLucideIcon = (iconName: IconName, props?: LucideIcons.LucideProps): React.ReactNode | null => {
-  if (!iconName) return null;
-  const IconComponent = Icons[iconName as keyof typeof Icons] as React.ElementType | undefined;
-  if (!IconComponent) return <HelpCircle {...props} />; // Fallback icon
+export const renderLucideIcon = (iconName: IconName, props?: LucideIconsModule.LucideProps): React.ReactNode | null => {
+  if (!iconName || !allValidIconNames.includes(iconName)) return <HelpCircle {...props} />; // Fallback or null if invalid
+  
+  const IconComponent = LucideIconsModule[iconName as keyof typeof LucideIconsModule] as React.ElementType | undefined;
+  
+  if (!IconComponent || typeof IconComponent !== 'function') {
+    return <HelpCircle {...props} />; // Fallback icon if component not found or not a function
+  }
   return <IconComponent {...props} />;
 };
+
