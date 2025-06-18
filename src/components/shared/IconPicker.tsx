@@ -652,20 +652,16 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
   useEffect(() => {
     if (typeof window !== 'undefined') {
         const rootStyle = getComputedStyle(document.documentElement);
-        // Try to get --card first, then --background
         let cardColor = rootStyle.getPropertyValue('--card').trim();
-        if (!cardColor || cardColor === "0 0% 100%") { // if --card is not set or is default white
+        if (!cardColor || cardColor === "0 0% 100%") { 
             cardColor = rootStyle.getPropertyValue('--background').trim();
         }
         
         if (cardColor) {
-            // HSL values are often like "275 100% 25%"
-            // CSS variables are usually direct values like #FFFFFF or rgb(..) or hsl(..)
-            // Check if it's HSL partial values or a full CSS color
             if (cardColor.split(' ').length === 3 && !cardColor.includes('(')) {
                  setCardBgColorForCutout(`hsl(${cardColor})`);
             } else {
-                 setCardBgColorForCutout(cardColor); // Assume it's a direct CSS color
+                 setCardBgColorForCutout(cardColor);
             }
         }
     }
@@ -705,11 +701,16 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
           />
-          <div className="mb-4 p-4 border rounded-md flex flex-col items-center justify-center bg-muted min-h-[100px]">
+          <div 
+            className="mb-4 p-4 border rounded-md flex flex-col items-center justify-center bg-muted min-h-[100px]"
+            style={{'--card-bg-for-icon-cutout': cardBgColorForCutout} as React.CSSProperties} // Ensure variable is available here too
+          >
             {selectedIconClassName ? (
               <>
                 <p className="text-sm text-muted-foreground mb-2">Preview:</p>
-                <div className="css-icon-base" style={{ width: '48px', height: '48px', color: 'hsl(var(--primary))' }}>
+                {/* This div is the one that provides the scaled size and color */}
+                <div style={{ width: '48px', height: '48px', color: 'hsl(var(--primary))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {/* This span is the actual icon, scaled */}
                   <span className={cn(selectedIconClassName, 'css-icon-base')} style={{ transform: 'scale(2)'}} >
                     {selectedIconClassName === 'css-icon-settings' && <span></span>}
                     {selectedIconClassName === 'css-icon-trash' && <i><em></em></i>}
@@ -729,7 +730,7 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
               {filteredIcons.map((icon) => (
                 <Button
                   key={icon.name}
-                  type="button" // Important: Prevent form submission
+                  type="button" 
                   variant="outline"
                   className={cn(
                     "flex flex-col items-center justify-center h-24 w-full p-1 text-xs", 
@@ -754,3 +755,4 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
     </>
   );
 }
+
