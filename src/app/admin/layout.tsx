@@ -9,35 +9,28 @@ import { Loader2, PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import Link from 'next/link';
-import { navItems } from '@/components/admin/AdminSidebar'; // Assuming navItems can be exported or defined here
-
-// If navItems cannot be directly imported, redefine them here or pass AdminSidebar as a component to SheetContent
-const mobileNavItems = [
-  { href: '/admin/dashboard', label: 'Dashboard', icon: Loader2 }, // Placeholder, update with actual icons
-  { href: '/admin/products', label: 'Products', icon: Loader2 },
-  { href: '/admin/categories', label: 'Categories', icon: Loader2 },
-  { href: '/admin/customers', label: 'Customers', icon: Loader2 },
-  { href: '/admin/analytics', label: 'Analytics', icon: Loader2 },
-];
-
+// navItems import removed as it was causing issues, mobile nav is simplified.
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname(); // Added to use in useEffect if needed
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading) { // Only act once initial auth check is done
       if (!currentUser || currentUser.role !== 'admin') {
-        // To prevent redirect loop if somehow /admin/login was part of this layout (it's not here)
-        if (pathname !== '/admin/login') {
-          router.replace('/admin/login');
+        // If user is not an admin or not logged in
+        if (pathname !== '/admin/login') { // And not already on the login page
+          router.replace('/admin/login'); // Redirect to login
         }
+      } else if (currentUser && currentUser.role === 'admin' && pathname === '/admin/login') {
+        // If user IS an admin and somehow landed on /admin/login, redirect to dashboard
+        router.replace('/admin/dashboard');
       }
     }
   }, [currentUser, isLoading, router, pathname]);
 
-  // If initial auth check is happening
+  // 1. Initial loading state for auth context
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -46,8 +39,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  // After auth check, if user is admin, render layout
+  // 2. User is authenticated as admin
   if (currentUser && currentUser.role === 'admin') {
+    // If an admin is on /admin/login, useEffect should redirect them.
+    // While that happens, show a loader. Avoid rendering admin shell for login page.
+    if (pathname === '/admin/login') {
+        return (
+            <div className="flex h-screen items-center justify-center bg-background">
+                <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                <p className="ml-4 text-muted-foreground">Redirecting to dashboard...</p>
+            </div>
+        );
+    }
+    // Otherwise, render the admin shell with the actual page content
     return (
       <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
         <AdminSidebar />
@@ -63,14 +67,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <SheetContent side="left" className="p-0 bg-sidebar text-sidebar-foreground border-sidebar-border w-[280px]">
                  <div className="flex h-16 items-center border-b border-sidebar-border px-6 shrink-0">
                   <Link href="/admin/dashboard" className="flex items-center gap-2 font-semibold text-sidebar-primary-foreground">
-                      <PanelLeft className="h-6 w-6 text-sidebar-primary" /> {/* Use an appropriate icon */}
+                      <PanelLeft className="h-6 w-6 text-sidebar-primary" />
                       <span className="font-headline text-xl">Local Commerce</span>
                   </Link>
                   </div>
                   <nav className="grid items-start px-4 py-4 text-sm font-medium">
-                    {/* Re-using navItems or a similar structure for mobile */}
-                    {/* This assumes navItems is available. You might need to adjust AdminSidebar.tsx to export it or duplicate the structure */}
-                    {/* For simplicity, using the previously hardcoded links as a fallback structure. Ideally, this would be dynamic. */}
                     <Link href="/admin/dashboard" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">Dashboard</Link>
                     <Link href="/admin/products" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">Products</Link>
                     <Link href="/admin/categories" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">Categories</Link>
@@ -80,13 +81,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </SheetContent>
             </Sheet>
             <div className="flex-1">
-              {/* Dynamically set header title based on page or keep generic */}
               <h1 className="font-headline text-lg font-semibold text-foreground">
-                {/* Example: {pathname.split('/').pop()?.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Admin'} */}
                 Admin Panel
               </h1>
             </div>
-            {/* Add User menu or other header items here if needed */}
           </header>
           <main className="flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6 bg-background overflow-auto">
             {children}
@@ -96,8 +94,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  // If not loading, and not an admin (useEffect should be redirecting)
-  // Show a loader while the redirect initiated by useEffect is in progress.
+  // 3. User is not admin (or not logged in), and not loading.
+  //    If the current path IS /admin/login, we should render the children (which is AdminLoginPage).
+  if (pathname === '/admin/login') {
+    return <>{children}</>; // Allow AdminLoginPage to render
+  }
+
+  // 4. Fallback: User is on a protected admin page (not /admin/login),
+  //    is not an admin, and initial loading is done.
+  //    The useEffect should be redirecting them. Show a loader during this process.
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <Loader2 className="h-16 w-16 animate-spin text-primary" />
