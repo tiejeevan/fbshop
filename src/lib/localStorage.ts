@@ -3,8 +3,6 @@
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole } from '@/types';
 
-// Note: We removed the lucide-react specific icon key generation as it's no longer needed.
-
 const KEYS = {
   USERS: 'localcommerce_users',
   PRODUCTS: 'localcommerce_products',
@@ -40,9 +38,11 @@ function removeItem(key: string): void {
   window.localStorage.removeItem(key);
 }
 
+let isDataInitialized = false;
+
 // Initialize default admin user and mock data
 function initializeData() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || isDataInitialized) return;
 
   // Admin User
   let users = getItem<User[]>(KEYS.USERS) || [];
@@ -89,8 +89,8 @@ function initializeData() {
   if (products.length === 0 && categories.length > 0) {
     const electronicsCat = categories.find(c => c.id === 'cat1_electronics');
     const booksCat = categories.find(c => c.id === 'cat2_books');
-    const homeGoodsCat = categories.find(c => c.id === 'cat3_homegoods');
-    const apparelCat = categories.find(c => c.id === 'cat4_apparel');
+    // const homeGoodsCat = categories.find(c => c.id === 'cat3_homegoods');
+    // const apparelCat = categories.find(c => c.id === 'cat4_apparel');
 
     const mockProducts: Product[] = [
       {
@@ -144,6 +144,9 @@ function initializeData() {
   if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
   if (!getItem(KEYS.ORDERS)) setItem(KEYS.ORDERS, []);
   if (!getItem(KEYS.LOGIN_ACTIVITY)) setItem(KEYS.LOGIN_ACTIVITY, []);
+  
+  isDataInitialized = true;
+  console.log('Local Commerce data initialized.');
 }
 
 if (typeof window !== 'undefined') {
@@ -205,7 +208,7 @@ export const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedA
     updatedAt: new Date().toISOString(),
     views: 0,
     purchases: 0,
-    icon: product.icon || null, // Icon is CSS class name or null
+    icon: product.icon || null,
   };
   products.push(newProduct);
   setItem(KEYS.PRODUCTS, products);
@@ -218,7 +221,7 @@ export const updateProduct = (updatedProduct: Product): Product | null => {
     products[index] = { 
         ...products[index], 
         ...updatedProduct, 
-        icon: updatedProduct.icon || null, // Icon is CSS class name or null
+        icon: updatedProduct.icon || null,
         updatedAt: new Date().toISOString() 
     };
     setItem(KEYS.PRODUCTS, products);
@@ -324,7 +327,7 @@ export const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: 
       const product = findProductById(item.productId);
       if (product) {
         product.stock -= item.quantity;
-        product.purchases += item.quantity;
+        product.purchases = (product.purchases || 0) + item.quantity;
         updateProduct(product);
       }
     });

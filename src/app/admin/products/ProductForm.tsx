@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react'; // Added useCallback
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Wand2 } from 'lucide-react';
 import { suggestProductCategories, SuggestProductCategoriesInput } from '@/ai/flows/suggest-product-categories';
 import Link from 'next/link';
-import { IconPicker, type CssIconClassName } from '@/components/shared/IconPicker'; // Updated import
+import { IconPicker, type CssIconClassName } from '@/components/shared/IconPicker';
 
 const productSchema = z.object({
   name: z.string().min(3, { message: 'Product name must be at least 3 characters' }),
@@ -27,7 +27,7 @@ const productSchema = z.object({
   price: z.coerce.number().min(0.01, { message: 'Price must be greater than 0' }),
   stock: z.coerce.number().min(0, { message: 'Stock cannot be negative' }).int(),
   categoryId: z.string().min(1, { message: 'Please select a category' }),
-  icon: z.string().optional().nullable().default(null), // Will store CSS class name
+  icon: z.string().optional().nullable().default(null), 
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;
@@ -58,7 +58,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
       ? {
           ...initialData,
           imageUrl: initialData.imageUrl || '',
-          icon: initialData.icon || null, // Icon is now CSS class string or null
+          icon: initialData.icon || null, 
         }
       : {
           name: '',
@@ -72,7 +72,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
   });
   
   const productDescription = watch('description');
-  const currentIconCssClass = watch('icon') as CssIconClassName; // Watched value is now CSS class
+  const currentIconCssClass = watch('icon') as CssIconClassName;
 
   useEffect(() => {
     if (initialData) {
@@ -115,14 +115,14 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     }
   };
 
-  const handleIconSelection = (iconClassName: CssIconClassName) => { // Receives CSS class name
+  const handleIconSelection = useCallback((iconClassName: CssIconClassName) => {
     setValue('icon', iconClassName, { shouldValidate: true });
-  };
+  }, [setValue]);
+
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsSubmitting(true);
     try {
-      // data.icon is already the CSS class name or null
       await onFormSubmit(data, initialData?.id);
     } catch (error) {
        // Error is handled by onFormSubmit and toast is shown there
@@ -230,7 +230,6 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           </div>
 
           <div className="space-y-2">
-            {/* Updated IconPicker usage */}
             <IconPicker selectedIconClassName={currentIconCssClass} onIconSelect={handleIconSelection} />
             {errors.icon && <p className="text-sm text-destructive">{errors.icon.message}</p>}
           </div>
