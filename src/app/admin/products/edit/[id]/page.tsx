@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB, getImage } from '@/lib/indexedDbService';
 
 export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = use(paramsPromise);
@@ -31,16 +32,59 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
     setIsLoading(false);
   }, [params.id, router, toast]);
 
-  const handleEditProduct = async (data: ProductFormValues, id?: string) => {
-    if (!id) return; 
+  const handleEditProduct = async (
+    data: ProductFormValues,
+    id?: string,
+    imagesToSave?: {type: 'primary' | 'additional', index?: number, file: File}[],
+    imagesToDelete?: string[]
+  ) => {
+    if (!id || !product) return;
+
     try {
+      let finalPrimaryImageId = product.primaryImageId;
+      let finalAdditionalImageIds = [...(product.additionalImageIds || [])];
+
+      // Delete images marked for deletion
+      if (imagesToDelete && imagesToDelete.length > 0) {
+        for (const imgId of imagesToDelete) {
+          await deleteImageFromDB(imgId);
+        }
+      }
+      
+      // Save new/updated images
+      if (imagesToSave && imagesToSave.length > 0) {
+        for (const imgInfo of imagesToSave) {
+          // If replacing an existing image, its old ID should be in imagesToDelete
+          const savedImageId = await saveImageToDB(
+            id, // Use actual product ID
+            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index ?? Date.now()), // Ensure unique index for new additional
+            imgInfo.file
+          );
+
+          if (imgInfo.type === 'primary') {
+            finalPrimaryImageId = savedImageId;
+          } else {
+            // Need to handle placement for additional images carefully
+            // For simplicity, if an index is provided, try to use it, otherwise append.
+            // This part might need more robust logic based on how ProductForm manages slots.
+            if (imgInfo.index !== undefined && finalAdditionalImageIds[imgInfo.index]) {
+                finalAdditionalImageIds[imgInfo.index] = savedImageId;
+            } else {
+                finalAdditionalImageIds.push(savedImageId);
+            }
+          }
+        }
+      }
+      
+      // Update product data in localStorage
       const updatedProductData: Product = {
-        ...(product as Product), // Spread existing product to keep fields like views, purchases
-        ...data, // Spread form data which includes name, desc, price, stock, categoryId
-        id, // Ensure ID is maintained
-        primaryImageDataUri: data.primaryImageDataUri || null, 
-        additionalImageDataUris: (data.additionalImageDataUris || []).filter(uri => uri && uri.trim() !== ''), 
+        ...product,
+        ...data, // Form field data (name, price, etc.)
+        id,
+        primaryImageId: finalPrimaryImageId,
+        additionalImageIds: finalAdditionalImageIds.filter(imgId => !!imgId && !imagesToDelete?.includes(imgId)), // Filter out explicitly deleted and nulls
       };
+
       localStorageService.updateProduct(updatedProductData);
       toast({ title: "Product Updated", description: `"${data.name}" has been successfully updated.` });
       router.push('/admin/products');

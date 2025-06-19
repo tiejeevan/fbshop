@@ -2,6 +2,8 @@
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem } from '@/types';
+import { deleteImagesForProduct as deleteImagesFromDB } from './indexedDbService';
+
 
 const KEYS = {
   USERS: 'localcommerce_users',
@@ -35,7 +37,7 @@ function setItem<T>(key: string, value: T): void {
   } catch (error) {
     console.error(`Error setting item ${key} in localStorage: `, error);
     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-      alert('Local storage quota exceeded. Please free up space or reduce image sizes.');
+      alert('Local storage quota exceeded. Please ensure product metadata is concise.');
     }
   }
 }
@@ -89,17 +91,12 @@ function initializeDataOnce() {
   if (products.length === 0 && categories.length > 0) {
     const electronicsCat = categories.find(c => c.id === 'cat1_electronics');
     const booksCat = categories.find(c => c.id === 'cat2_books');
-    // Using very small placeholder Data URIs for mock data to avoid exceeding quota quickly.
-    // A 1x1 transparent PNG
-    const tinyPlaceholderDataUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
-    const mockProducts: Product[] = [
+    const mockProducts: Omit<Product, 'primaryImageId' | 'additionalImageIds' | 'averageRating' | 'reviewCount'>[] = [
       {
         id: crypto.randomUUID(),
         name: 'Wireless Headphones X2000',
         description: 'Experience immersive sound with these noise-cancelling wireless headphones. Long battery life and comfortable design for all-day listening.',
-        primaryImageDataUri: tinyPlaceholderDataUri, // Using tiny placeholder
-        additionalImageDataUris: [tinyPlaceholderDataUri],
         price: 149.99,
         stock: 50,
         categoryId: electronicsCat?.id || categories[0].id,
@@ -112,8 +109,6 @@ function initializeDataOnce() {
         id: crypto.randomUUID(),
         name: 'Smartwatch ProConnect',
         description: 'Stay connected and track your fitness with this feature-packed smartwatch. GPS, heart rate monitor, and a vibrant display.',
-        primaryImageDataUri: tinyPlaceholderDataUri, // Using tiny placeholder
-        additionalImageDataUris: [],
         price: 249.50,
         stock: 30,
         categoryId: electronicsCat?.id || categories[0].id,
@@ -126,8 +121,6 @@ function initializeDataOnce() {
         id: crypto.randomUUID(),
         name: 'The Enigmatic Cipher',
         description: 'A thrilling mystery novel that will keep you on the edge of your seat until the very last page. By acclaimed author A. N. Other.',
-        primaryImageDataUri: null, // No image for this one initially
-        additionalImageDataUris: [],
         price: 19.99,
         stock: 100,
         categoryId: booksCat?.id || categories[1].id,
@@ -137,9 +130,10 @@ function initializeDataOnce() {
         purchases: 22,
       },
     ];
-    products = mockProducts.map(p => ({ ...p, averageRating: 0, reviewCount: 0, additionalImageDataUris: (p.additionalImageDataUris || []).filter(Boolean) }));
+    products = mockProducts.map(p => ({ ...p, primaryImageId: null, additionalImageIds: [], averageRating: 0, reviewCount: 0 }));
     setItem(KEYS.PRODUCTS, products);
   }
+
 
   if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
   if (!getItem(KEYS.ORDERS)) setItem(KEYS.ORDERS, []);
@@ -148,7 +142,7 @@ function initializeDataOnce() {
   if (!getItem(KEYS.REVIEWS)) setItem(KEYS.REVIEWS, []);
   if (!getItem(KEYS.RECENTLY_VIEWED)) setItem(KEYS.RECENTLY_VIEWED, []);
   if (!getItem(KEYS.THEME)) setItem(KEYS.THEME, 'system');
-  
+
   isDataInitialized = true;
 }
 
@@ -163,7 +157,7 @@ const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?: UserRo
     ...user,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    role: user.role || 'customer', 
+    role: user.role || 'customer',
   };
   users.push(newUser);
   setItem(KEYS.USERS, users);
@@ -175,9 +169,9 @@ const updateUser = (updatedUser: User): User | null => {
   if (index !== -1) {
     const existingPassword = users[index].password;
     const existingTheme = users[index].themePreference;
-    users[index] = { 
-      ...users[index], 
-      ...updatedUser, 
+    users[index] = {
+      ...users[index],
+      ...updatedUser,
       password: updatedUser.password || existingPassword,
       themePreference: updatedUser.themePreference || existingTheme,
     };
@@ -209,8 +203,8 @@ const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'v
   const newProduct: Product = {
     ...product,
     id: crypto.randomUUID(),
-    primaryImageDataUri: product.primaryImageDataUri || null,
-    additionalImageDataUris: (product.additionalImageDataUris || []).filter(uri => uri && uri.trim() !== ''),
+    primaryImageId: product.primaryImageId || null,
+    additionalImageIds: (product.additionalImageIds || []),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     views: 0,
@@ -226,24 +220,37 @@ const updateProduct = (updatedProduct: Product): Product | null => {
   let products = getProducts();
   const index = products.findIndex(p => p.id === updatedProduct.id);
   if (index !== -1) {
-    products[index] = { 
-        ...products[index], 
-        ...updatedProduct, 
-        primaryImageDataUri: updatedProduct.primaryImageDataUri || null,
-        additionalImageDataUris: (updatedProduct.additionalImageDataUris || []).filter(uri => uri && uri.trim() !== ''),
-        updatedAt: new Date().toISOString() 
+    products[index] = {
+        ...products[index],
+        ...updatedProduct,
+        primaryImageId: updatedProduct.primaryImageId || null,
+        additionalImageIds: (updatedProduct.additionalImageIds || []),
+        updatedAt: new Date().toISOString()
     };
     setItem(KEYS.PRODUCTS, products);
     return products[index];
   }
   return null;
 };
-const deleteProduct = (productId: string): boolean => {
+const deleteProduct = async (productId: string): Promise<boolean> => {
   let products = getProducts();
+  const productToDelete = products.find(p => p.id === productId);
+  if (!productToDelete) return false;
+
   const initialLength = products.length;
   products = products.filter(p => p.id !== productId);
+
   if (products.length < initialLength) {
     setItem(KEYS.PRODUCTS, products);
+    const imageIdsToDelete = [productToDelete.primaryImageId, ...(productToDelete.additionalImageIds || [])].filter(id => !!id) as string[];
+    if (imageIdsToDelete.length > 0) {
+      try {
+        await deleteImagesFromDB(imageIdsToDelete);
+      } catch (error) {
+        console.error("Error deleting images from IndexedDB during product deletion:", error);
+        // Proceed with localStorage deletion even if IndexedDB fails, to avoid inconsistent state.
+      }
+    }
     let reviews = getReviewsForProduct(productId);
     reviews.forEach(review => deleteReview(review.id));
     return true;
@@ -284,7 +291,7 @@ const deleteCategory = (categoryId: string): boolean => {
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = ''; 
+        p.categoryId = '';
         updateProduct(p);
       }
     });
@@ -306,17 +313,13 @@ const getCart = (userId: string): Cart | null => {
 const updateCart = (cart: Cart): void => {
     let carts = getItem<Cart[]>(KEYS.CARTS) || [];
     const index = carts.findIndex(c => c.userId === cart.userId);
-    const productDetailsCache: Record<string, Product | undefined> = {};
-    
+
     const updatedItems = cart.items.map(item => {
-      if (!productDetailsCache[item.productId]) {
-        productDetailsCache[item.productId] = findProductById(item.productId);
-      }
-      const product = productDetailsCache[item.productId];
+      const product = findProductById(item.productId); // Fetch full product for latest details
       return {
         ...item,
         name: product?.name || item.name,
-        primaryImageDataUri: product?.primaryImageDataUri || item.primaryImageDataUri,
+        primaryImageId: product?.primaryImageId || item.primaryImageId, // Get image ID
       };
     });
 
@@ -343,17 +346,13 @@ const getOrders = (userId?: string): Order[] => {
 
 const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }): Order => {
     const orders = getOrders();
-    const productDetailsCache: Record<string, Product | undefined> = {};
 
     const orderItemsWithDetails: OrderItem[] = orderData.items.map(item => {
-      if (!productDetailsCache[item.productId]) {
-        productDetailsCache[item.productId] = findProductById(item.productId);
-      }
-      const product = productDetailsCache[item.productId];
+      const product = findProductById(item.productId);
       return {
         ...item,
         name: product?.name || 'Unknown Product',
-        primaryImageDataUri: product?.primaryImageDataUri,
+        primaryImageId: product?.primaryImageId, // Get image ID
       };
     });
 
@@ -387,7 +386,7 @@ const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'lo
         timestamp: new Date().toISOString(),
         type,
     });
-    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100)); 
+    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100));
 };
 
 const setCurrentUser = (user: User | null): void => {
@@ -472,7 +471,7 @@ const addRecentlyViewed = (userId: string, productId: string): void => {
   let userLog = allLogs.find(log => log.userId === userId);
 
   const product = findProductById(productId);
-  if (!product) return; // Don't add if product doesn't exist
+  if (!product) return;
 
   if (!userLog) {
     userLog = { userId, items: [] };
@@ -483,7 +482,6 @@ const addRecentlyViewed = (userId: string, productId: string): void => {
   userLog.items = userLog.items.slice(0, MAX_RECENTLY_VIEWED);
   setItem(KEYS.RECENTLY_VIEWED, allLogs);
 
-  // Increment product view count
   product.views = (product.views || 0) + 1;
   updateProduct(product);
 };
@@ -507,7 +505,7 @@ const localStorageService = {
   getProducts,
   addProduct,
   updateProduct,
-  deleteProduct,
+  deleteProduct, // Now async
   findProductById,
   getCategories,
   addCategory,

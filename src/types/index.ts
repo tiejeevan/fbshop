@@ -5,7 +5,7 @@ export type Theme = 'light' | 'dark' | 'system';
 export interface User {
   id: string;
   email: string;
-  password?: string; 
+  password?: string;
   role: UserRole;
   name?: string;
   createdAt: string;
@@ -25,12 +25,12 @@ export interface Product {
   id:string;
   name: string;
   description: string;
-  primaryImageDataUri?: string | null; // Stores the Base64 Data URI of the primary image
-  additionalImageDataUris?: string[] | null; // Stores an array of Base64 Data URIs for additional images
+  primaryImageId?: string | null; // ID for IndexedDB
+  additionalImageIds?: string[];  // IDs for IndexedDB
   price: number;
   stock: number;
-  categoryId: string; 
-  categoryName?: string; 
+  categoryId: string;
+  categoryName?: string;
   createdAt: string;
   updatedAt: string;
   views: number;
@@ -42,9 +42,9 @@ export interface Product {
 export interface CartItem {
   productId: string;
   quantity: number;
-  price: number; 
-  name: string; 
-  primaryImageDataUri?: string | null; // For display
+  price: number;
+  name: string;
+  primaryImageId?: string | null; // For display, ID for IndexedDB
 }
 
 export interface Cart {
@@ -56,9 +56,9 @@ export interface Cart {
 export interface OrderItem {
   productId: string;
   quantity: number;
-  priceAtPurchase: number; 
-  name: string; 
-  primaryImageDataUri?: string | null; // For display
+  priceAtPurchase: number;
+  name: string;
+  primaryImageId?: string | null; // For display, ID for IndexedDB
 }
 
 export interface Order {
@@ -67,9 +67,9 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   orderDate: string;
-  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Completed'; 
-  shippingAddress?: any; 
-  paymentDetails?: any; 
+  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Completed';
+  shippingAddress?: any;
+  paymentDetails?: any;
 }
 
 export interface LoginActivity {
@@ -90,7 +90,7 @@ export interface Review {
   id: string;
   productId: string;
   userId: string;
-  userName: string; 
+  userName: string;
   rating: number; // 1 to 5
   comment: string;
   createdAt: string;
@@ -103,5 +103,5 @@ export interface RecentlyViewedItem {
 
 export interface UserRecentlyViewed {
   userId: string;
-  items: RecentlyViewedItem[]; 
+  items: RecentlyViewedItem[];
 }
