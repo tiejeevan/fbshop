@@ -147,9 +147,18 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (!isViewerOpen) return;
-      if (event.key === 'Escape') closeImageViewer();
-      if (event.key === 'ArrowRight') nextImage();
-      if (event.key === 'ArrowLeft') prevImage();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeImageViewer();
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        nextImage();
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        prevImage();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -680,12 +689,12 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       {/* Image Viewer Modal (Customer and Admin View) */}
       {isViewerOpen && currentDisplayableImageIds.length > 0 && (
         <div
-            className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4 animate-in fade-in"
-            onClick={closeImageViewer} // Close on backdrop click
+            className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-2 sm:p-4 animate-in fade-in" // Increased opacity
+            onClick={closeImageViewer}
         >
           <div
-            className="bg-card rounded-lg shadow-2xl relative max-w-4xl max-h-[95vh] w-full flex flex-col p-2 sm:p-4 overflow-hidden"
-            onClick={(e) => e.stopPropagation()} // Prevent modal close when clicking inside modal
+            className="bg-card rounded-lg shadow-2xl relative max-w-5xl max-h-[95vh] w-full flex flex-col p-2 sm:p-4 overflow-hidden" // Increased max-width
+            onClick={(e) => e.stopPropagation()}
           >
             <Button variant="ghost" size="icon" onClick={closeImageViewer} className="absolute top-2 right-2 z-[70] bg-card/50 hover:bg-card/80 h-8 w-8 sm:h-10 sm:w-10 rounded-full">
               <X className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -698,21 +707,25 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                     className="w-full h-full" 
                     imageClassName={cn("object-contain transition-transform duration-300 ease-in-out", isZoomed ? "scale-125 sm:scale-150 md:scale-175" : "scale-100")} 
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 70vw, 1000px"
-                    priority={selectedImageIndex === 0} // Prioritize first image
+                    priority={selectedImageIndex === 0}
                     placeholderIconSize="w-32 h-32"
                     data-ai-hint="product detail large"
                 />
             </div>
-            <div className="flex items-center justify-between p-1 sm:p-2 mt-1 sm:mt-2 relative z-[65]">
-                <Button variant="outline" size="icon" onClick={prevImage} disabled={currentDisplayableImageIds.length <= 1}><ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" /></Button>
-                <div className="flex flex-col items-center">
-                    <span className="text-xs sm:text-sm text-muted-foreground">{selectedImageIndex + 1} / {currentDisplayableImageIds.length}</span>
-                     <Button variant="ghost" size="sm" onClick={toggleZoom} className="mt-1 text-muted-foreground hover:text-foreground">
-                      {isZoomed ? <ZoomOut className="h-4 w-4 sm:h-5 sm:w-5 mr-1" /> : <ZoomIn className="h-4 w-4 sm:h-5 sm:w-5 mr-1" />}
+            <div className="flex items-center justify-between p-2 sm:p-4 mt-1 sm:mt-2 relative z-[65]"> {/* Adjusted padding */}
+                <Button variant="outline" size="icon" onClick={prevImage} disabled={currentDisplayableImageIds.length <= 1} className="h-10 w-10 sm:h-12 sm:w-12">
+                    <ChevronLeft className="h-6 w-6 sm:h-7 sm:w-7" />
+                </Button>
+                <div className="flex flex-col items-center gap-1">
+                    <span className="text-sm sm:text-base text-muted-foreground">{selectedImageIndex + 1} / {currentDisplayableImageIds.length}</span>
+                     <Button variant="ghost" size="sm" onClick={toggleZoom} className="text-muted-foreground hover:text-foreground">
+                      {isZoomed ? <ZoomOut className="h-5 w-5 sm:h-6 sm:w-6 mr-1" /> : <ZoomIn className="h-5 w-5 sm:h-6 sm:w-6 mr-1" />}
                       {isZoomed ? "Zoom Out" : "Zoom In"}
                     </Button>
                 </div>
-                <Button variant="outline" size="icon" onClick={nextImage} disabled={currentDisplayableImageIds.length <= 1}><ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" /></Button>
+                <Button variant="outline" size="icon" onClick={nextImage} disabled={currentDisplayableImageIds.length <= 1} className="h-10 w-10 sm:h-12 sm:w-12">
+                    <ChevronRight className="h-6 w-6 sm:h-7 sm:w-7" />
+                </Button>
             </div>
           </div>
         </div>
@@ -730,7 +743,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         {(reviews.length > 0 || (product.reviewCount && product.reviewCount > 0)) ? (
           <ReviewList
             reviews={reviews} 
-            adminView={isEditing && currentUser?.role === 'admin'} // Only pass adminView if editing and user is admin
+            adminView={isEditing && currentUser?.role === 'admin'} // Only pass adminView if user is admin
             onDeleteReview={handleDeleteReview}
           />
         ) : (
@@ -753,5 +766,3 @@ const getProductImageHint = (productName: string | undefined, type: string): str
   if (!productName) return type;
   return `${productName.split(" ")[0]} ${type}`.toLowerCase().slice(0, 20); // Max 2 keywords for hint
 }
-
-
