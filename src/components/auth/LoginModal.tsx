@@ -6,6 +6,8 @@ import {
   Dialog,
   DialogContent,
   DialogTrigger,
+  DialogHeader, // Added import
+  DialogTitle,  // Added import
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { UniversalLoginForm } from './UniversalLoginForm';
@@ -51,6 +53,13 @@ export function LoginModal() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+        {/* Visually hidden DialogHeader and DialogTitle for accessibility */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>
+            {view === 'login' ? 'User Login' : 'User Sign Up'}
+          </DialogTitle>
+        </DialogHeader>
+        
         {view === 'login' && (
           <UniversalLoginForm
             onLoginSuccess={handleLoginSuccess}
