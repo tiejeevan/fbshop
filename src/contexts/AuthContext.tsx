@@ -3,7 +3,7 @@
 
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { localStorageService } from '@/lib/localStorage';
-import type { User, UserRole } from '@/types';
+import type { User, UserRole, Theme } from '@/types';
 
 interface AuthContextType {
   currentUser: (User & { role: UserRole }) | null;
@@ -12,6 +12,7 @@ interface AuthContextType {
   signup: (userData: Pick<User, 'email' | 'password' | 'name'>) => Promise<User | null>;
   logout: () => void;
   refreshUser: () => void;
+  updateUserThemePreference: (theme: Theme) => void; // For user-specific theme if needed later
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,7 +33,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (fullUser) {
         setCurrentUser(fullUser as User & { role: UserRole });
       } else {
-        // Stored user info is stale or user deleted
         localStorageService.setCurrentUser(null);
         setCurrentUser(null);
       }
@@ -44,7 +44,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     loadUserFromStorage();
-    // Initialize default admin and mock data if not present
     localStorageService.initializeData();
   }, [loadUserFromStorage]);
 
@@ -76,12 +75,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       name: userData.name,
       role: 'customer', // Default role
       createdAt: new Date().toISOString(),
+      themePreference: 'system', // Default theme
     };
     const addedUser = localStorageService.addUser(newUser);
-    // Optionally auto-login after signup
-    // localStorageService.setCurrentUser(addedUser);
-    // setCurrentUser(addedUser as User & { role: UserRole });
-    // localStorageService.addLoginActivity(addedUser.id, addedUser.email, 'login');
     setIsLoading(false);
     return addedUser;
   };
@@ -94,12 +90,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setCurrentUser(null);
   };
 
-  const refreshUser = () => {
+  const refreshUser = useCallback(() => {
     loadUserFromStorage();
+  }, [loadUserFromStorage]);
+
+  const updateUserThemePreference = (theme: Theme) => {
+    if (currentUser) {
+      const updatedUser = { ...currentUser, themePreference: theme };
+      localStorageService.updateUser(updatedUser);
+      setCurrentUser(updatedUser); // Update context immediately
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, login, signup, logout, refreshUser, updateUserThemePreference }}>
       {children}
     </AuthContext.Provider>
   );

@@ -6,13 +6,17 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { localStorageService } from '@/lib/localStorage';
-import type { Product, Category } from '@/types';
-import { ArrowLeft, ShoppingCart, Minus, Plus } from 'lucide-react';
+import type { Product, Category, Review as ReviewType } from '@/types';
+import { ArrowLeft, ShoppingCart, Minus, Plus, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { WishlistButton } from '@/components/customer/WishlistButton';
+import { ReviewList } from '@/components/product/ReviewList';
+import { ReviewForm } from '@/components/product/ReviewForm';
+import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
 
 export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { 
   const params = use(paramsPromise); 
@@ -20,12 +24,13 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const [category, setCategory] = useState<Category | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviews, setReviews] = useState<ReviewType[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
-  useEffect(() => {
-    setIsLoading(true);
+  const fetchProductData = React.useCallback(() => {
     const fetchedProduct = localStorageService.findProductById(params.id); 
     if (fetchedProduct) {
       setProduct(fetchedProduct);
@@ -33,14 +38,30 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         const fetchedCategory = localStorageService.findCategoryById(fetchedProduct.categoryId);
         setCategory(fetchedCategory || null);
       }
-      localStorageService.updateProduct({ ...fetchedProduct, views: (fetchedProduct.views || 0) + 1 });
+      // Record view
+      if(currentUser) { // Only track views for logged-in users perhaps, or make it global
+        localStorageService.addRecentlyViewed(currentUser.id, fetchedProduct.id);
+      }
+      // Do not increment views here, let localStorageService handle it centrally if desired, or track differently
+      // localStorageService.updateProduct({ ...fetchedProduct, views: (fetchedProduct.views || 0) + 1 });
+
+      // Fetch reviews
+      const productReviews = localStorageService.getReviewsForProduct(params.id);
+      setReviews(productReviews);
+      const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
+      setAverageRating(productReviews.length > 0 ? totalRating / productReviews.length : 0);
 
     } else {
       toast({ title: "Product Not Found", description: "The product you are looking for does not exist.", variant: "destructive" });
       router.push('/products');
     }
     setIsLoading(false);
-  }, [params.id, router, toast]); 
+  }, [params.id, router, toast, currentUser]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    fetchProductData();
+  }, [fetchProductData]); 
 
   const handleQuantityChange = (amount: number) => {
     if (!product) return;
@@ -73,7 +94,14 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       }
     } else {
        if (quantity <= product.stock) {
-        cart.items.push({ productId: product.id, quantity, price: product.price, name: product.name, imageUrl: product.imageUrl });
+        cart.items.push({ 
+            productId: product.id, 
+            quantity, 
+            price: product.price, 
+            name: product.name, 
+            imageUrl: product.imageUrl, 
+            icon: product.icon 
+        });
       } else {
         toast({ title: "Stock Limit", description: `Cannot add ${quantity}. Max stock available: ${product.stock}.`, variant: "destructive" });
         return;
@@ -83,6 +111,24 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     toast({ title: "Added to Cart", description: `${quantity} x ${product.name} added to your cart.` });
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
+
+  const onReviewSubmitted = () => {
+    // Re-fetch reviews and update average rating
+    const productReviews = localStorageService.getReviewsForProduct(params.id);
+    setReviews(productReviews);
+    const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
+    setAverageRating(productReviews.length > 0 ? totalRating / productReviews.length : 0);
+     // Potentially update product in localStorage with new averageRating and reviewCount
+    const currentProduct = localStorageService.findProductById(params.id);
+    if (currentProduct) {
+        localStorageService.updateProduct({
+            ...currentProduct,
+            averageRating: productReviews.length > 0 ? totalRating / productReviews.length : 0,
+            reviewCount: productReviews.length,
+        });
+    }
+  };
+
 
   if (isLoading) {
     return <div className="text-center py-20">Loading product details...</div>;
@@ -101,7 +147,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       </Button>
 
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-        <div className="bg-card p-4 rounded-lg shadow-lg aspect-square">
+        <div className="bg-card p-4 rounded-lg shadow-lg aspect-square relative">
           {hasRealImage ? (
             <Image
               src={product.imageUrl}
@@ -124,6 +170,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
               >
                 {product.icon === 'css-icon-settings' && <span />}
                 {product.icon === 'css-icon-trash' && <i><em /></i>}
+                {product.icon === 'css-icon-file' && <span />}
               </span>
             </div>
           ) : (
@@ -137,6 +184,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
               priority
             />
           )}
+          {currentUser && <WishlistButton productId={product.id} userId={currentUser.id} className="absolute top-2 right-2 bg-transparent hover:bg-transparent p-1" />}
         </div>
 
         <div className="space-y-6">
@@ -146,9 +194,15 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
              </Link>
           )}
           <h1 className="font-headline text-4xl lg:text-5xl text-primary">{product.name}</h1>
+           {reviews.length > 0 && (
+            <div className="flex items-center gap-2">
+              <StarRatingDisplay rating={averageRating} />
+              <span className="text-muted-foreground text-sm">({reviews.length} review{reviews.length === 1 ? '' : 's'})</span>
+            </div>
+          )}
           <p className="text-2xl font-semibold text-foreground">${product.price.toFixed(2)}</p>
           
-          <div className="prose prose-lg max-w-none text-muted-foreground">
+          <div className="prose prose-lg max-w-none text-muted-foreground dark:prose-invert">
             <h2 className="font-headline text-xl text-foreground mb-2">Description</h2>
             <p>{product.description}</p>
           </div>
@@ -182,6 +236,16 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
             <p>Purchases: {product.purchases || 0}</p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-12 space-y-8">
+        <h2 className="font-headline text-3xl text-primary border-b pb-2">Customer Reviews</h2>
+        {currentUser ? (
+          <ReviewForm productId={product.id} userId={currentUser.id} userName={currentUser.name || 'Anonymous'} onReviewSubmitted={onReviewSubmitted} />
+        ) : (
+          <p className="text-muted-foreground">Please <Link href={`/login?redirect=/products/${product.id}`} className="text-primary hover:underline">login</Link> to leave a review.</p>
+        )}
+        <ReviewList reviews={reviews} />
       </div>
     </div>
   );

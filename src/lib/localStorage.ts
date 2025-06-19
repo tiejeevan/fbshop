@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { User, Product, Category, Cart, Order, LoginActivity, UserRole } from '@/types';
+import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem } from '@/types';
 
 const KEYS = {
   USERS: 'localcommerce_users',
@@ -11,6 +11,10 @@ const KEYS = {
   ORDERS: 'localcommerce_orders',
   LOGIN_ACTIVITY: 'localcommerce_login_activity',
   CURRENT_USER: 'localcommerce_current_user',
+  WISHLISTS: 'localcommerce_wishlists',
+  REVIEWS: 'localcommerce_reviews',
+  RECENTLY_VIEWED: 'localcommerce_recently_viewed',
+  THEME: 'localcommerce_theme', // Global theme preference
 };
 
 function getItem<T>(key: string): T | null {
@@ -40,8 +44,7 @@ function removeItem(key: string): void {
 
 let isDataInitialized = false;
 
-// Initialize default admin user and mock data
-function initializeData() {
+function initializeDataOnce() {
   if (typeof window === 'undefined' || isDataInitialized) return;
 
   // Admin User
@@ -54,7 +57,6 @@ function initializeData() {
       const userIndex = users.findIndex(u => u.id === adminUser!.id);
       if (userIndex !== -1) users[userIndex] = adminUser;
       setItem(KEYS.USERS, users);
-      console.log('Default admin user password updated.');
     }
   } else {
     adminUser = {
@@ -67,7 +69,6 @@ function initializeData() {
     };
     users.push(adminUser);
     setItem(KEYS.USERS, users);
-    console.log('Default admin user created.');
   }
 
   // Mock Categories
@@ -81,7 +82,6 @@ function initializeData() {
     ];
     categories = mockCategories;
     setItem(KEYS.CATEGORIES, categories);
-    console.log('Mock categories created.');
   }
 
   // Mock Products
@@ -89,8 +89,6 @@ function initializeData() {
   if (products.length === 0 && categories.length > 0) {
     const electronicsCat = categories.find(c => c.id === 'cat1_electronics');
     const booksCat = categories.find(c => c.id === 'cat2_books');
-    // const homeGoodsCat = categories.find(c => c.id === 'cat3_homegoods');
-    // const apparelCat = categories.find(c => c.id === 'cat4_apparel');
 
     const mockProducts: Product[] = [
       {
@@ -101,7 +99,7 @@ function initializeData() {
         price: 149.99,
         stock: 50,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'css-icon-home', // Example CSS icon class
+        icon: 'css-icon-home',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 120,
@@ -115,7 +113,7 @@ function initializeData() {
         price: 249.50,
         stock: 30,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'css-icon-settings', // Example CSS icon class
+        icon: 'css-icon-settings',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 250,
@@ -129,34 +127,36 @@ function initializeData() {
         price: 19.99,
         stock: 100,
         categoryId: booksCat?.id || categories[1].id,
-        icon: 'css-icon-file', // Example CSS icon class
+        icon: 'css-icon-file',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 85,
         purchases: 22,
       },
     ];
-    products = mockProducts;
+    products = mockProducts.map(p => ({ ...p, averageRating: 0, reviewCount: 0 })); // Initialize review fields
     setItem(KEYS.PRODUCTS, products);
-    console.log('Mock products created.');
   }
 
   if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
   if (!getItem(KEYS.ORDERS)) setItem(KEYS.ORDERS, []);
   if (!getItem(KEYS.LOGIN_ACTIVITY)) setItem(KEYS.LOGIN_ACTIVITY, []);
+  if (!getItem(KEYS.WISHLISTS)) setItem(KEYS.WISHLISTS, []);
+  if (!getItem(KEYS.REVIEWS)) setItem(KEYS.REVIEWS, []);
+  if (!getItem(KEYS.RECENTLY_VIEWED)) setItem(KEYS.RECENTLY_VIEWED, []);
+  if (!getItem(KEYS.THEME)) setItem(KEYS.THEME, 'system');
   
   isDataInitialized = true;
-  console.log('Local Commerce data initialized.');
 }
 
 if (typeof window !== 'undefined') {
-    initializeData();
+    initializeDataOnce();
 }
 
 
 // User Management
-export const getUsers = (): User[] => getItem<User[]>(KEYS.USERS) || [];
-export const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?: UserRole }): User => {
+const getUsers = (): User[] => getItem<User[]>(KEYS.USERS) || [];
+const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?: UserRole }): User => {
   const users = getUsers();
   const newUser: User = {
     ...user,
@@ -168,22 +168,29 @@ export const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?:
   setItem(KEYS.USERS, users);
   return newUser;
 };
-export const updateUser = (updatedUser: User): User | null => {
+const updateUser = (updatedUser: User): User | null => {
   let users = getUsers();
   const index = users.findIndex(u => u.id === updatedUser.id);
   if (index !== -1) {
     const existingPassword = users[index].password;
+    const existingTheme = users[index].themePreference;
     users[index] = { 
       ...users[index], 
       ...updatedUser, 
-      password: updatedUser.password || existingPassword 
+      password: updatedUser.password || existingPassword,
+      themePreference: updatedUser.themePreference || existingTheme,
     };
     setItem(KEYS.USERS, users);
+    // If the updated user is the current user, update current user session too
+    const sessionUser = getCurrentUser();
+    if (sessionUser && sessionUser.id === updatedUser.id) {
+      setCurrentUser(users[index]);
+    }
     return users[index];
   }
   return null;
 };
-export const deleteUser = (userId: string): boolean => {
+const deleteUser = (userId: string): boolean => {
   let users = getUsers();
   const initialLength = users.length;
   users = users.filter(u => u.id !== userId);
@@ -193,13 +200,13 @@ export const deleteUser = (userId: string): boolean => {
   }
   return false;
 };
-export const findUserByEmail = (email: string): User | undefined => getUsers().find(u => u.email === email);
-export const findUserById = (userId: string): User | undefined => getUsers().find(u => u.id === userId);
+const findUserByEmail = (email: string): User | undefined => getUsers().find(u => u.email === email);
+const findUserById = (userId: string): User | undefined => getUsers().find(u => u.id === userId);
 
 
 // Product Management
-export const getProducts = (): Product[] => getItem<Product[]>(KEYS.PRODUCTS) || [];
-export const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases'>): Product => {
+const getProducts = (): Product[] => getItem<Product[]>(KEYS.PRODUCTS) || [];
+const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'>): Product => {
   const products = getProducts();
   const newProduct: Product = {
     ...product,
@@ -209,12 +216,14 @@ export const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedA
     views: 0,
     purchases: 0,
     icon: product.icon || null,
+    averageRating: 0,
+    reviewCount: 0,
   };
   products.push(newProduct);
   setItem(KEYS.PRODUCTS, products);
   return newProduct;
 };
-export const updateProduct = (updatedProduct: Product): Product | null => {
+const updateProduct = (updatedProduct: Product): Product | null => {
   let products = getProducts();
   const index = products.findIndex(p => p.id === updatedProduct.id);
   if (index !== -1) {
@@ -229,22 +238,25 @@ export const updateProduct = (updatedProduct: Product): Product | null => {
   }
   return null;
 };
-export const deleteProduct = (productId: string): boolean => {
+const deleteProduct = (productId: string): boolean => {
   let products = getProducts();
   const initialLength = products.length;
   products = products.filter(p => p.id !== productId);
   if (products.length < initialLength) {
     setItem(KEYS.PRODUCTS, products);
+    // Also delete associated reviews
+    let reviews = getReviewsForProduct(productId);
+    reviews.forEach(review => deleteReview(review.id));
     return true;
   }
   return false;
 };
-export const findProductById = (productId: string): Product | undefined => getProducts().find(p => p.id === productId);
+const findProductById = (productId: string): Product | undefined => getProducts().find(p => p.id === productId);
 
 
 // Category Management
-export const getCategories = (): Category[] => getItem<Category[]>(KEYS.CATEGORIES) || [];
-export const addCategory = (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
+const getCategories = (): Category[] => getItem<Category[]>(KEYS.CATEGORIES) || [];
+const addCategory = (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
   const categories = getCategories();
   const newCategory: Category = {
     ...category,
@@ -256,7 +268,7 @@ export const addCategory = (category: Omit<Category, 'id' | 'createdAt' | 'updat
   setItem(KEYS.CATEGORIES, categories);
   return newCategory;
 };
-export const updateCategory = (updatedCategory: Category): Category | null => {
+const updateCategory = (updatedCategory: Category): Category | null => {
   let categories = getCategories();
   const index = categories.findIndex(c => c.id === updatedCategory.id);
   if (index !== -1) {
@@ -266,7 +278,7 @@ export const updateCategory = (updatedCategory: Category): Category | null => {
   }
   return null;
 };
-export const deleteCategory = (categoryId: string): boolean => {
+const deleteCategory = (categoryId: string): boolean => {
   let categories = getCategories();
   const initialLength = categories.length;
   categories = categories.filter(c => c.id !== categoryId);
@@ -283,17 +295,39 @@ export const deleteCategory = (categoryId: string): boolean => {
   }
   return false;
 };
-export const findCategoryById = (categoryId: string): Category | undefined => getCategories().find(c => c.id === categoryId);
+const findCategoryById = (categoryId: string): Category | undefined => getCategories().find(c => c.id === categoryId);
 
 // Cart Management
-export const getCart = (userId: string): Cart | null => {
+const getCart = (userId: string): Cart | null => {
     const carts = getItem<Cart[]>(KEYS.CARTS) || [];
-    return carts.find(cart => cart.userId === userId) || { userId, items: [], updatedAt: new Date().toISOString() };
+    const userCart = carts.find(cart => cart.userId === userId);
+    if (userCart) return userCart;
+    // If no cart, create one
+    const newCart: Cart = { userId, items: [], updatedAt: new Date().toISOString() };
+    carts.push(newCart);
+    setItem(KEYS.CARTS, carts);
+    return newCart;
 };
-export const updateCart = (cart: Cart): void => {
+const updateCart = (cart: Cart): void => {
     let carts = getItem<Cart[]>(KEYS.CARTS) || [];
     const index = carts.findIndex(c => c.userId === cart.userId);
-    const updatedCart = { ...cart, updatedAt: new Date().toISOString() };
+    const productDetailsCache: Record<string, Product | undefined> = {};
+    
+    const updatedItems = cart.items.map(item => {
+      if (!productDetailsCache[item.productId]) {
+        productDetailsCache[item.productId] = findProductById(item.productId);
+      }
+      const product = productDetailsCache[item.productId];
+      return {
+        ...item,
+        name: product?.name || item.name, // Fallback to existing name if product not found
+        imageUrl: product?.imageUrl || item.imageUrl,
+        icon: product?.icon || item.icon,
+      };
+    });
+
+    const updatedCart = { ...cart, items: updatedItems, updatedAt: new Date().toISOString() };
+
     if (index !== -1) {
         carts[index] = updatedCart;
     } else {
@@ -301,22 +335,39 @@ export const updateCart = (cart: Cart): void => {
     }
     setItem(KEYS.CARTS, carts);
 };
-export const clearCart = (userId: string): void => {
+const clearCart = (userId: string): void => {
     updateCart({ userId, items: [], updatedAt: new Date().toISOString() });
 };
 
 // Order Management
-export const getOrders = (userId?: string): Order[] => {
+const getOrders = (userId?: string): Order[] => {
     const allOrders = getItem<Order[]>(KEYS.ORDERS) || [];
     if (userId) {
-        return allOrders.filter(order => order.userId === userId);
+        return allOrders.filter(order => order.userId === userId).sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
     }
-    return allOrders;
+    return allOrders.sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 };
-export const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }): Order => {
+
+const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }): Order => {
     const orders = getOrders();
+    const productDetailsCache: Record<string, Product | undefined> = {};
+
+    const orderItemsWithDetails: OrderItem[] = orderData.items.map(item => {
+      if (!productDetailsCache[item.productId]) {
+        productDetailsCache[item.productId] = findProductById(item.productId);
+      }
+      const product = productDetailsCache[item.productId];
+      return {
+        ...item,
+        name: product?.name || 'Unknown Product',
+        imageUrl: product?.imageUrl,
+        icon: product?.icon,
+      };
+    });
+
     const newOrder: Order = {
         ...orderData,
+        items: orderItemsWithDetails,
         id: crypto.randomUUID(),
         orderDate: new Date().toISOString(),
     };
@@ -335,9 +386,10 @@ export const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: 
     return newOrder;
 };
 
+
 // Login Activity
-export const getLoginActivity = (): LoginActivity[] => getItem<LoginActivity[]>(KEYS.LOGIN_ACTIVITY) || [];
-export const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'logout'): void => {
+const getLoginActivity = (): LoginActivity[] => getItem<LoginActivity[]>(KEYS.LOGIN_ACTIVITY) || [];
+const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'logout'): void => {
     const activities = getLoginActivity();
     activities.push({
         id: crypto.randomUUID(),
@@ -346,24 +398,124 @@ export const addLoginActivity = (userId: string, userEmail: string, type: 'login
         timestamp: new Date().toISOString(),
         type,
     });
-    setItem(KEYS.LOGIN_ACTIVITY, activities);
+    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100)); // Keep last 100 activities
 };
 
 
 // Current User Session
-export const setCurrentUser = (user: User | null): void => {
+const setCurrentUser = (user: User | null): void => {
   if (user) {
-    setItem(KEYS.CURRENT_USER, { id: user.id, role: user.role, email: user.email, name: user.name });
+    setItem(KEYS.CURRENT_USER, { id: user.id, role: user.role, email: user.email, name: user.name, themePreference: user.themePreference });
   } else {
     removeItem(KEYS.CURRENT_USER);
   }
 };
 
-export const getCurrentUser = (): { id: string; role: UserRole; email: string; name?: string } | null => {
-  return getItem<{ id: string; role: UserRole; email: string; name?: string }>(KEYS.CURRENT_USER);
+const getCurrentUser = (): (User & { role: UserRole }) | null => {
+  return getItem<(User & { role: UserRole })>(KEYS.CURRENT_USER);
 };
 
-export const localStorageService = {
+// Wishlist Management
+const getAllWishlists = (): WishlistItem[] => getItem<WishlistItem[]>(KEYS.WISHLISTS) || [];
+const getWishlist = (userId: string): WishlistItem[] => {
+  return getAllWishlists().filter(item => item.userId === userId);
+};
+const addToWishlist = (userId: string, productId: string): void => {
+  const wishlists = getAllWishlists();
+  if (!wishlists.find(item => item.userId === userId && item.productId === productId)) {
+    wishlists.push({ userId, productId, addedAt: new Date().toISOString() });
+    setItem(KEYS.WISHLISTS, wishlists);
+  }
+};
+const removeFromWishlist = (userId: string, productId: string): void => {
+  let wishlists = getAllWishlists();
+  wishlists = wishlists.filter(item => !(item.userId === userId && item.productId === productId));
+  setItem(KEYS.WISHLISTS, wishlists);
+};
+const isProductInWishlist = (userId: string, productId: string): boolean => {
+  return getAllWishlists().some(item => item.userId === userId && item.productId === productId);
+};
+
+// Review Management
+const getAllReviews = (): Review[] => getItem<Review[]>(KEYS.REVIEWS) || [];
+const getReviewsForProduct = (productId: string): Review[] => {
+  return getAllReviews().filter(review => review.productId === productId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+};
+const addReview = (reviewData: Omit<Review, 'id' | 'createdAt'>): Review => {
+  const reviews = getAllReviews();
+  const newReview: Review = {
+    ...reviewData,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  };
+  reviews.push(newReview);
+  setItem(KEYS.REVIEWS, reviews);
+
+  // Update product's average rating and review count
+  const product = findProductById(reviewData.productId);
+  if (product) {
+    const productReviews = getReviewsForProduct(reviewData.productId);
+    const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
+    product.averageRating = productReviews.length > 0 ? totalRating / productReviews.length : 0;
+    product.reviewCount = productReviews.length;
+    updateProduct(product);
+  }
+  return newReview;
+};
+const deleteReview = (reviewId: string): void => {
+  let reviews = getAllReviews();
+  const reviewToDelete = reviews.find(r => r.id === reviewId);
+  if (!reviewToDelete) return;
+
+  reviews = reviews.filter(r => r.id !== reviewId);
+  setItem(KEYS.REVIEWS, reviews);
+
+  // Update product's average rating and review count
+  const product = findProductById(reviewToDelete.productId);
+  if (product) {
+    const productReviews = getReviewsForProduct(reviewToDelete.productId);
+    const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
+    product.averageRating = productReviews.length > 0 ? totalRating / productReviews.length : 0;
+    product.reviewCount = productReviews.length;
+    updateProduct(product);
+  }
+};
+
+
+// Recently Viewed Products
+const MAX_RECENTLY_VIEWED = 5;
+const getAllRecentlyViewed = (): UserRecentlyViewed[] => getItem<UserRecentlyViewed[]>(KEYS.RECENTLY_VIEWED) || [];
+const getRecentlyViewed = (userId: string): RecentlyViewedItem[] => {
+  const userLog = getAllRecentlyViewed().find(log => log.userId === userId);
+  return userLog ? userLog.items : [];
+};
+const addRecentlyViewed = (userId: string, productId: string): void => {
+  let allLogs = getAllRecentlyViewed();
+  let userLog = allLogs.find(log => log.userId === userId);
+
+  if (!userLog) {
+    userLog = { userId, items: [] };
+    allLogs.push(userLog);
+  }
+
+  // Remove if already exists to move to top
+  userLog.items = userLog.items.filter(item => item.productId !== productId);
+  // Add to top
+  userLog.items.unshift({ productId, viewedAt: new Date().toISOString() });
+  // Limit to MAX_RECENTLY_VIEWED
+  userLog.items = userLog.items.slice(0, MAX_RECENTLY_VIEWED);
+  
+  setItem(KEYS.RECENTLY_VIEWED, allLogs);
+};
+
+// Theme Preference (Global)
+const getGlobalTheme = (): Theme => getItem<Theme>(KEYS.THEME) || 'system';
+const setGlobalTheme = (theme: Theme): void => {
+  setItem(KEYS.THEME, theme);
+};
+
+
+const localStorageService = {
   KEYS,
   getItem,
   setItem,
@@ -393,7 +545,22 @@ export const localStorageService = {
   addLoginActivity,
   setCurrentUser,
   getCurrentUser,
-  initializeData,
+  initializeData: initializeDataOnce,
+  // Wishlist
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
+  isProductInWishlist,
+  // Reviews
+  getReviewsForProduct,
+  addReview,
+  deleteReview, // For potential future use by admin or user on their own review
+  // Recently Viewed
+  getRecentlyViewed,
+  addRecentlyViewed,
+  // Theme
+  getGlobalTheme,
+  setGlobalTheme,
 };
 
-    
+export { localStorageService };

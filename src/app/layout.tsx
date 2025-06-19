@@ -1,8 +1,10 @@
+
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google'; // Default, will be overridden by tailwind config
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from '@/components/AppProviders';
 import { Toaster } from '@/components/ui/toaster';
+import { ThemeApplicator } from '@/components/shared/ThemeApplicator'; // New component
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -25,6 +27,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} font-body antialiased`}>
         <AppProviders>
+          <ThemeApplicator /> {/* Applies theme class to <html> */}
           {children}
           <Toaster />
         </AppProviders>

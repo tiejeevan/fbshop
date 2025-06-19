@@ -1,5 +1,6 @@
 
 export type UserRole = 'admin' | 'customer';
+export type Theme = 'light' | 'dark' | 'system';
 
 export interface User {
   id: string;
@@ -9,6 +10,7 @@ export interface User {
   name?: string;
   createdAt: string;
   lastLogin?: string;
+  themePreference?: Theme;
 }
 
 export interface Category {
@@ -20,7 +22,7 @@ export interface Category {
 }
 
 export interface Product {
-  id: string;
+  id:string;
   name: string;
   description: string;
   imageUrl: string;
@@ -33,6 +35,9 @@ export interface Product {
   updatedAt: string;
   views: number;
   purchases: number;
+  // For reviews
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 export interface CartItem {
@@ -41,6 +46,7 @@ export interface CartItem {
   price: number; // Price at the time of adding to cart
   name: string; // For display
   imageUrl?: string; // For display
+  icon?: string | null; // For display
 }
 
 export interface Cart {
@@ -54,6 +60,8 @@ export interface OrderItem {
   quantity: number;
   priceAtPurchase: number; // Price at the time of order
   name: string; // For display
+  imageUrl?: string; // For display
+  icon?: string | null; // For display
 }
 
 export interface Order {
@@ -75,4 +83,28 @@ export interface LoginActivity {
   type: 'login' | 'logout';
 }
 
-    
+export interface WishlistItem {
+  userId: string;
+  productId: string;
+  addedAt: string;
+}
+
+export interface Review {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string; // Store userName at time of review for denormalization
+  rating: number; // 1 to 5
+  comment: string;
+  createdAt: string;
+}
+
+export interface RecentlyViewedItem {
+  productId: string;
+  viewedAt: string;
+}
+
+export interface UserRecentlyViewed {
+  userId: string;
+  items: RecentlyViewedItem[]; // Store an array of product IDs, ordered by most recent
+}

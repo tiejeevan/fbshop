@@ -1,10 +1,11 @@
+
 'use client';
 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag, User, LogIn, LogOut, Home, Menu, ShoppingCart, PackageSearch } from 'lucide-react';
+import { ShoppingBag, User, LogIn, LogOut, Home, Menu, ShoppingCart, PackageSearch, Heart, History } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -17,9 +18,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
-import { localStorageService } from '@/lib/localStorage'; // Direct import for cart count
+import { localStorageService } from '@/lib/localStorage';
 import type { Cart } from '@/types';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
 
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
@@ -44,23 +46,15 @@ export function CustomerNavbar() {
       }
     };
 
-    updateCartCount(); // Initial count
+    updateCartCount(); 
 
-    // Listen for custom event or poll if necessary for real-time updates across tabs (complex for pure LS)
-    // For simplicity, we re-fetch on navigation or specific actions. Here, we can use an interval or rely on page re-renders.
-    // A more robust solution would involve a global state or context for the cart that updates on changes.
-    const intervalId = setInterval(updateCartCount, 2000); // Poll every 2 seconds
-    
-    // Event listener for cart updates
     const handleCartUpdate = () => updateCartCount();
     window.addEventListener('cartUpdated', handleCartUpdate);
 
-
     return () => {
-      clearInterval(intervalId);
       window.removeEventListener('cartUpdated', handleCartUpdate);
     };
-  }, [currentUser, pathname]); // Re-check on user change or navigation
+  }, [currentUser, pathname]); 
 
 
   const handleLogout = () => {
@@ -92,7 +86,10 @@ export function CustomerNavbar() {
           <Link href="/profile"><User className="mr-2 h-4 w-4" /> Profile</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/profile/orders"><ShoppingBag className="mr-2 h-4 w-4" /> Orders</Link>
+          <Link href="/profile/orders"><History className="mr-2 h-4 w-4" /> Order History</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/profile/wishlist"><Heart className="mr-2 h-4 w-4" /> Wishlist</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/10">
@@ -125,7 +122,8 @@ export function CustomerNavbar() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />
@@ -140,7 +138,7 @@ export function CustomerNavbar() {
           {currentUser ? (
             <UserMenu />
           ) : (
-            <Button asChild>
+            <Button asChild size="sm">
               <Link href="/login"><LogIn className="mr-2 h-4 w-4"/> Login</Link>
             </Button>
           )}
@@ -167,6 +165,14 @@ export function CustomerNavbar() {
                     {link.label}
                   </Link>
                 ))}
+                 {currentUser && (
+                   <>
+                    <DropdownMenuSeparator />
+                     <Link href="/profile" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><User className="mr-2 h-5 w-5" /> Profile</Link>
+                     <Link href="/profile/orders" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile/orders" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><History className="mr-2 h-5 w-5" /> Orders</Link>
+                     <Link href="/profile/wishlist" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile/wishlist" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Heart className="mr-2 h-5 w-5" /> Wishlist</Link>
+                   </>
+                 )}
               </nav>
             </SheetContent>
           </Sheet>

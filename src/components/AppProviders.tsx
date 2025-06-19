@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { ReactNode } from 'react';
 import { AuthProvider } from '@/contexts/AuthContext';
-// import { CartProvider } from '@/contexts/CartContext'; // Example if you add a CartContext
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -11,9 +12,9 @@ interface AppProvidersProps {
 export const AppProviders: React.FC<AppProvidersProps> = ({ children }) => {
   return (
     <AuthProvider>
-      {/* <CartProvider> */}
+      <ThemeProvider>
         {children}
-      {/* </CartProvider> */}
+      </ThemeProvider>
     </AuthProvider>
   );
 };

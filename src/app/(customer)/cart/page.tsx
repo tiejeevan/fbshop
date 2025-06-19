@@ -62,7 +62,7 @@ export default function CartPage() {
       item.productId === productId ? { ...item, quantity: updatedQuantity } : item
     );
     const updatedCart = { ...cart, items: updatedItems };
-    setCart(updatedCart);
+    setCart(updatedCart); // Optimistic update for UI
     localStorageService.updateCart(updatedCart);
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
@@ -71,7 +71,7 @@ export default function CartPage() {
     if (!currentUser || !cart) return;
     const updatedItems = cart.items.filter(item => item.productId !== productId);
     const updatedCart = { ...cart, items: updatedItems };
-    setCart(updatedCart);
+    setCart(updatedCart); // Optimistic update
     localStorageService.updateCart(updatedCart);
     toast({ title: "Item Removed", description: "Product removed from your cart." });
     window.dispatchEvent(new CustomEvent('cartUpdated'));
@@ -111,13 +111,13 @@ export default function CartPage() {
           {cart.items.map(item => {
             const productDetails = localStorageService.findProductById(item.productId);
             const hasRealImage = item.imageUrl && !item.imageUrl.startsWith('https://placehold.co');
-            const iconToShow = productDetails?.icon;
+            const iconToShow = item.icon; // Icon from cart item, which should be from product
 
             return (
             <Card key={item.productId} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-md">
               {hasRealImage ? (
                 <Image
-                  src={item.imageUrl}
+                  src={item.imageUrl!}
                   alt={item.name}
                   width={100}
                   height={100}
@@ -136,6 +136,7 @@ export default function CartPage() {
                   >
                     {iconToShow === 'css-icon-settings' && <span />}
                     {iconToShow === 'css-icon-trash' && <i><em /></i>}
+                    {iconToShow === 'css-icon-file' && <span />}
                   </span>
                 </div>
               ) : (
