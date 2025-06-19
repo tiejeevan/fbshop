@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ITEMS_PER_PAGE = 15;
+const ALL_FILTER_VALUE = "__ALL_LOG_FILTERS__"; // Define a constant for "All" options
 
 export default function AdminLogsPage() {
   const [allLogs, setAllLogs] = useState<AdminActionLog[]>([]); // Store all logs from DB
@@ -86,24 +87,33 @@ export default function AdminLogsPage() {
           <CardDescription>Review of actions performed by administrators. Logs are stored in IndexedDB.</CardDescription>
            <div className="mt-4 flex flex-col sm:flex-row gap-2 items-center border-t pt-4">
             <Filter className="h-5 w-5 text-muted-foreground mr-2 hidden sm:block" />
-            <Select value={filterAdminEmail} onValueChange={setFilterAdminEmail}>
+            <Select
+              value={filterAdminEmail === '' ? ALL_FILTER_VALUE : filterAdminEmail}
+              onValueChange={(value) => setFilterAdminEmail(value === ALL_FILTER_VALUE ? '' : value)}
+            >
               <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Filter by Admin..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Admins</SelectItem>
+                <SelectItem value={ALL_FILTER_VALUE}>All Admins</SelectItem>
                 {uniqueAdminEmails.map(email => <SelectItem key={email} value={email}>{email}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterActionType} onValueChange={setFilterActionType}>
+            <Select
+              value={filterActionType === '' ? ALL_FILTER_VALUE : filterActionType}
+              onValueChange={(value) => setFilterActionType(value === ALL_FILTER_VALUE ? '' : value)}
+            >
               <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Filter by Action..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Actions</SelectItem>
+                <SelectItem value={ALL_FILTER_VALUE}>All Actions</SelectItem>
                 {uniqueActionTypes.map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>)}
               </SelectContent>
             </Select>
-             <Select value={filterEntityType} onValueChange={setFilterEntityType}>
+             <Select
+               value={filterEntityType === '' ? ALL_FILTER_VALUE : filterEntityType}
+               onValueChange={(value) => setFilterEntityType(value === ALL_FILTER_VALUE ? '' : value)}
+             >
               <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filter by Entity..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Entities</SelectItem>
+                <SelectItem value={ALL_FILTER_VALUE}>All Entities</SelectItem>
                 {uniqueEntityTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -185,4 +195,3 @@ export default function AdminLogsPage() {
     </div>
   );
 }
-
