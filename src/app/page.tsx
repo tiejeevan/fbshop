@@ -4,9 +4,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button'; // Keep for UserPlus button
 import Link from 'next/link';
 import { Loader2, UserCog, ShoppingBag, UserPlus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { buttonVariants } from '@/components/ui/button'; // Import buttonVariants
 
 export default function HomePage() {
   const { currentUser, isLoading } = useAuth();
@@ -20,15 +22,10 @@ export default function HomePage() {
         } else if (currentUser.role === 'admin') {
           router.replace('/admin/dashboard');
         }
-        // If currentUser exists but role is unexpected or not handled,
-        // they might see the landing page, or you could add specific error handling/redirect.
       }
-      // If !currentUser, they remain on this page to see login/signup options.
     }
   }, [currentUser, isLoading, router]);
 
-  // Show loader while isLoading is true, OR
-  // if isLoading is false BUT currentUser exists (meaning a redirect is about to happen).
   if (isLoading || (!isLoading && currentUser)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
@@ -38,7 +35,6 @@ export default function HomePage() {
     );
   }
 
-  // This content is only rendered if isLoading is false AND there is no currentUser.
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-secondary p-6 text-center">
       <ShoppingBag className="h-20 w-20 text-primary mb-6" />
@@ -57,11 +53,15 @@ export default function HomePage() {
           Explore our products, manage your cart, and enjoy a seamless (simulated) checkout.
         </p>
         <div className="space-y-4">
-          <Button asChild className="w-full" size="lg">
-            <Link href="/login">
-              <ShoppingBag className="mr-2 h-5 w-5" /> Customer Login
-            </Link>
-          </Button>
+          <Link
+            href="/login"
+            className={cn(
+              buttonVariants({ size: 'lg', variant: 'default' }), // Use default variant or specify as needed
+              "w-full" // Ensure it takes full width
+            )}
+          >
+            <ShoppingBag className="mr-2 h-5 w-5" /> Customer Login
+          </Link>
           <Button asChild variant="outline" className="w-full" size="lg">
             <Link href="/signup">
               <UserPlus className="mr-2 h-5 w-5" /> Create Customer Account
