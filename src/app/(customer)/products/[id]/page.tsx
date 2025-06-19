@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, use, useCallback, ChangeEvent } from 'react';
+import React, { useEffect, useState, use, useCallback, ChangeEvent, useMemo } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,16 +23,18 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
+import { LoginModal } from '@/components/auth/LoginModal';
+
 
 const MAX_TOTAL_IMAGES = 10;
 const MAX_FILE_SIZE_MB = 0.5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface EditableImageData {
-  id: string | null; // Existing ID from DB
-  file: File | null; // New file to upload
-  previewUrl: string | null; // For new files or existing
-  toBeDeleted?: boolean; // Mark existing image for deletion
+  id: string | null;
+  file: File | null;
+  previewUrl: string | null;
+  toBeDeleted?: boolean;
 }
 
 export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id:string }> }) {
@@ -47,20 +49,19 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
-  // Admin Edit Mode State
   const [isEditing, setIsEditing] = useState(false);
   const [editableProductData, setEditableProductData] = useState<Partial<Product>>({});
   const [editablePrimaryImage, setEditablePrimaryImage] = useState<EditableImageData | null>(null);
   const [editableAdditionalImages, setEditableAdditionalImages] = useState<EditableImageData[]>([]);
   const [reviewsToDelete, setReviewsToDelete] = useState<string[]>([]);
 
-
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [allProductImageIds, setAllProductImageIds] = useState<string[]>([]);
+  const [allProductImageIdsState, setAllProductImageIdsState] = useState<string[]>([]); // Renamed to avoid conflict
   const [isZoomed, setIsZoomed] = useState(false);
 
   const fetchProductData = useCallback((productId: string) => {
+    setIsLoading(true);
     const fetchedProduct = localStorageService.findProductById(productId);
     if (fetchedProduct) {
       setProduct(fetchedProduct);
@@ -68,7 +69,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         fetchedProduct.primaryImageId,
         ...(fetchedProduct.additionalImageIds || [])
       ].filter((id): id is string => !!id);
-      setAllProductImageIds(imageIds);
+      setAllProductImageIdsState(imageIds);
 
       if (fetchedProduct.categoryId) {
         const fetchedCategory = localStorageService.findCategoryById(fetchedProduct.categoryId);
@@ -82,14 +83,12 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
       setAverageRating(productReviews.length > 0 ? totalRating / productReviews.length : 0);
       
-      // Initialize admin edit state if product is fetched
       setEditableProductData({ name: fetchedProduct.name, description: fetchedProduct.description, price: fetchedProduct.price, stock: fetchedProduct.stock, categoryId: fetchedProduct.categoryId });
-      setEditablePrimaryImage({ id: fetchedProduct.primaryImageId || null, file: null, previewUrl: null });
+      setEditablePrimaryImage({ id: fetchedProduct.primaryImageId || null, file: null, previewUrl: null, toBeDeleted: false });
       setEditableAdditionalImages(
-        (fetchedProduct.additionalImageIds || []).map(id => ({ id, file: null, previewUrl: null }))
+        (fetchedProduct.additionalImageIds || []).map(id => ({ id, file: null, previewUrl: null, toBeDeleted: false }))
       );
       setReviewsToDelete([]);
-
     } else {
       toast({ title: "Product Not Found", variant: "destructive" });
       router.push('/products');
@@ -98,9 +97,64 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   }, [currentUser, router, toast]);
 
   useEffect(() => {
-    setIsLoading(true);
     fetchProductData(params.id);
   }, [params.id, fetchProductData]);
+
+
+  // Calculate currentDisplayableImageIds using useMemo, defined before usage in callbacks
+  const currentDisplayableImageIds = useMemo(() => {
+    if (isEditing) {
+        let ids: (string | null | undefined)[] = [];
+        if (editablePrimaryImage && !editablePrimaryImage.toBeDeleted) {
+            ids.push(editablePrimaryImage.file ? editablePrimaryImage.previewUrl : editablePrimaryImage.id);
+        }
+        editableAdditionalImages.forEach(img => {
+            if (!img.toBeDeleted) { // Only include if not marked for deletion
+                ids.push(img.file ? img.previewUrl : img.id);
+            }
+        });
+        return ids.filter(Boolean) as string[];
+    }
+    return allProductImageIdsState; // Use state variable for non-editing mode
+  }, [isEditing, editablePrimaryImage, editableAdditionalImages, allProductImageIdsState]);
+
+
+  // Image Viewer Logic
+  const openImageViewer = useCallback((index: number) => {
+    if (currentDisplayableImageIds.length > 0) {
+      setSelectedImageIndex(index);
+      setIsViewerOpen(true);
+      setIsZoomed(false);
+    }
+  }, [currentDisplayableImageIds]); // Depends on memoized value
+
+  const closeImageViewer = useCallback(() => setIsViewerOpen(false), []);
+
+  const nextImage = useCallback(() => {
+    if (!currentDisplayableImageIds.length) return;
+    setSelectedImageIndex((prevIndex) => (prevIndex + 1) % currentDisplayableImageIds.length);
+    setIsZoomed(false);
+  }, [currentDisplayableImageIds]); // Depends on memoized value
+
+  const prevImage = useCallback(() => {
+    if (!currentDisplayableImageIds.length) return;
+    setSelectedImageIndex((prevIndex) => (prevIndex - 1 + currentDisplayableImageIds.length) % currentDisplayableImageIds.length);
+    setIsZoomed(false);
+  }, [currentDisplayableImageIds]); // Depends on memoized value
+
+  const toggleZoom = useCallback(() => setIsZoomed(prev => !prev), []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!isViewerOpen) return;
+      if (event.key === 'Escape') closeImageViewer();
+      if (event.key === 'ArrowRight') nextImage();
+      if (event.key === 'ArrowLeft') prevImage();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isViewerOpen, closeImageViewer, nextImage, prevImage]);
+
 
   const handleQuantityChange = (amount: number) => {
     if (!product) return;
@@ -115,8 +169,9 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const handleAddToCart = () => {
     if (!product) return;
     if (!currentUser) {
-      toast({ title: "Login Required", variant: "destructive" });
-      // The login modal should be used instead of router.push
+      toast({ title: "Login Required", description: "Please log in to add items to your cart.", variant: "destructive" });
+      // The LoginModal should be used, typically triggered from CustomerNavbar or a specific Login button
+      // For now, we just toast and return. The user should use the global login modal.
       return;
     }
     const cart = localStorageService.getCart(currentUser.id) || { userId: currentUser.id, items: [], updatedAt: new Date().toISOString() };
@@ -150,16 +205,15 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   };
 
   const onReviewSubmitted = () => {
-    fetchProductData(params.id); // Refetch to update reviews and average rating
+    if (product) fetchProductData(product.id);
   };
 
-  // Admin Edit Mode Functions
   const handleEnterEditMode = () => {
     if (!product) return;
     setEditableProductData({ name: product.name, description: product.description, price: product.price, stock: product.stock, categoryId: product.categoryId });
-    setEditablePrimaryImage({ id: product.primaryImageId || null, file: null, previewUrl: null });
+    setEditablePrimaryImage({ id: product.primaryImageId || null, file: null, previewUrl: null, toBeDeleted: false });
     setEditableAdditionalImages(
-      (product.additionalImageIds || []).map(id => ({ id, file: null, previewUrl: null }))
+      (product.additionalImageIds || []).map(id => ({ id, file: null, previewUrl: null, toBeDeleted: false }))
     );
     setReviewsToDelete([]);
     setIsEditing(true);
@@ -167,7 +221,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    if (product) fetchProductData(product.id);
+    if (product) fetchProductData(product.id); // Refetch to discard changes
   };
 
   const handleSaveEdits = async () => {
@@ -175,11 +229,13 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     setIsLoading(true);
     
     let finalPrimaryImageId = editablePrimaryImage?.id || null;
-    let finalAdditionalImageIds = editableAdditionalImages.map(img => img.id).filter(id => id !== null) as string[];
+    let finalAdditionalImageIds: string[] = [];
 
     // 1. Handle Primary Image
     if (editablePrimaryImage?.file) { 
-      if (finalPrimaryImageId) await deleteImageFromDB(finalPrimaryImageId); 
+      if (finalPrimaryImageId && editablePrimaryImage.id === finalPrimaryImageId) { // if replacing an existing image, its ID must be deleted
+          await deleteImageFromDB(finalPrimaryImageId);
+      }
       finalPrimaryImageId = await saveImageToDB(product.id, 'primary', editablePrimaryImage.file);
     } else if (editablePrimaryImage?.toBeDeleted && finalPrimaryImageId) {
       await deleteImageFromDB(finalPrimaryImageId);
@@ -187,23 +243,24 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     }
 
     // 2. Handle Additional Images
-    const newAdditionalImageIds: string[] = [];
+    const imagesToKeepOrAddNew: string[] = [];
     for (const imgData of editableAdditionalImages) {
-      if (imgData.file) { 
-        if (imgData.id && !imgData.toBeDeleted) { // if replacing an existing, non-deleted image
+      if (imgData.file) { // New file uploaded for this slot
+        if (imgData.id && !imgData.toBeDeleted) { // If it was replacing an existing image, delete the old one.
           await deleteImageFromDB(imgData.id);
         }
-        const newId = await saveImageToDB(product.id, Date.now() + Math.random().toString(36).substring(2,7) , imgData.file); 
-        newAdditionalImageIds.push(newId);
-      } else if (imgData.id && !imgData.toBeDeleted) {
-        newAdditionalImageIds.push(imgData.id); 
-      } else if (imgData.id && imgData.toBeDeleted) {
-        await deleteImageFromDB(imgData.id); 
+        const newId = await saveImageToDB(product.id, Date.now() + Math.random().toString(36).substring(2,7), imgData.file);
+        imagesToKeepOrAddNew.push(newId);
+      } else if (imgData.id && !imgData.toBeDeleted) { // Existing image, not changed, not deleted
+        imagesToKeepOrAddNew.push(imgData.id);
+      } else if (imgData.id && imgData.toBeDeleted) { // Existing image, marked for deletion
+        await deleteImageFromDB(imgData.id);
       }
+      // If it's a new slot without a file and without an ID, it's just an empty slot and ignored.
     }
-    finalAdditionalImageIds = newAdditionalImageIds;
+    finalAdditionalImageIds = imagesToKeepOrAddNew;
 
-    const updatedProduct: Product = {
+    const updatedProductData: Product = {
       ...product,
       name: editableProductData.name || product.name,
       description: editableProductData.description || product.description,
@@ -212,15 +269,18 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       categoryId: editableProductData.categoryId || product.categoryId,
       primaryImageId: finalPrimaryImageId,
       additionalImageIds: finalAdditionalImageIds,
+      updatedAt: new Date().toISOString(),
     };
-    localStorageService.updateProduct(updatedProduct);
+    localStorageService.updateProduct(updatedProductData);
 
-    reviewsToDelete.forEach(reviewId => localStorageService.deleteReview(reviewId));
+    for (const reviewId of reviewsToDelete) {
+        localStorageService.deleteReview(reviewId);
+    }
 
     toast({ title: "Product Updated Successfully" });
     setIsEditing(false);
     fetchProductData(product.id); 
-    setIsLoading(false);
+    // No need for setIsLoading(false) here as fetchProductData sets it.
   };
 
   const handleEditableFieldChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -233,16 +293,18 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     if (file && editablePrimaryImage) {
       if (file.size > MAX_FILE_SIZE_BYTES) {
         toast({ title: "File Too Large", description: `Primary image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
-        return;
+        e.target.value = ''; return;
       }
       if (editablePrimaryImage.previewUrl && editablePrimaryImage.previewUrl.startsWith('blob:')) URL.revokeObjectURL(editablePrimaryImage.previewUrl);
-      setEditablePrimaryImage({ ...editablePrimaryImage, file: file, previewUrl: URL.createObjectURL(file), toBeDeleted: false }); // Ensure not marked for deletion if new file uploaded
+      setEditablePrimaryImage({ ...editablePrimaryImage, file: file, previewUrl: URL.createObjectURL(file), toBeDeleted: false });
     }
+    e.target.value = '';
   };
 
   const removeEditablePrimaryImage = () => {
     if (editablePrimaryImage) {
       if (editablePrimaryImage.previewUrl && editablePrimaryImage.previewUrl.startsWith('blob:')) URL.revokeObjectURL(editablePrimaryImage.previewUrl);
+      // Mark for deletion only if it had an ID. If it was just a preview of a new file, clearing is enough.
       setEditablePrimaryImage({ ...editablePrimaryImage, file: null, previewUrl: null, toBeDeleted: !!editablePrimaryImage.id });
     }
   };
@@ -252,15 +314,16 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     if (file) {
        if (file.size > MAX_FILE_SIZE_BYTES) {
         toast({ title: "File Too Large", description: `Additional image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
-        return;
+        e.target.value = ''; return;
       }
       setEditableAdditionalImages(prev => {
         const newImages = [...prev];
         if (newImages[index].previewUrl && newImages[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newImages[index].previewUrl!);
-        newImages[index] = { ...newImages[index], file: file, previewUrl: URL.createObjectURL(file), toBeDeleted: false }; // Ensure not marked for deletion
+        newImages[index] = { ...newImages[index], file: file, previewUrl: URL.createObjectURL(file), toBeDeleted: false };
         return newImages;
       });
     }
+    e.target.value = '';
   };
   
   const addEditableAdditionalImageSlot = () => {
@@ -277,6 +340,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       const newImages = [...prev];
       const imgToRemove = newImages[index];
       if (imgToRemove.previewUrl && imgToRemove.previewUrl.startsWith('blob:')) URL.revokeObjectURL(imgToRemove.previewUrl);
+      
       if (imgToRemove.id) { 
         newImages[index] = { ...imgToRemove, file: null, previewUrl: null, toBeDeleted: true };
       } else { 
@@ -287,78 +351,43 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   };
   
   const setAdditionalAsPrimary = (index: number) => {
-    if (!editablePrimaryImage || !editableAdditionalImages[index]) return;
-
-    const newPrimaryCandidate = editableAdditionalImages[index];
+    if (!editableAdditionalImages[index] || (!editableAdditionalImages[index].id && !editableAdditionalImages[index].file)) {
+        toast({ title: "Invalid Action", description: "Cannot set an empty slot as primary.", variant: "destructive" });
+        return;
+    }
+    const newPrimaryCandidate = { ...editableAdditionalImages[index] };
     if (newPrimaryCandidate.toBeDeleted) {
       toast({ title: "Cannot Set Deleted Image", description: "This image is marked for deletion.", variant: "destructive" });
       return;
     }
 
-    const newPrimary = { ...newPrimaryCandidate, toBeDeleted: false }; 
-    const oldPrimary = { ...editablePrimaryImage, toBeDeleted: false }; 
+    const oldPrimaryCandidate = editablePrimaryImage ? { ...editablePrimaryImage } : { id: null, file: null, previewUrl: null, toBeDeleted: false };
 
-    setEditablePrimaryImage(newPrimary);
+    setEditablePrimaryImage({ ...newPrimaryCandidate, toBeDeleted: false });
     
     setEditableAdditionalImages(prev => {
         let newAdditionals = [...prev];
         newAdditionals.splice(index, 1); 
-        if(oldPrimary.id || oldPrimary.file) { 
-            newAdditionals.push(oldPrimary);
+        if(oldPrimaryCandidate.id || oldPrimaryCandidate.file) { // Only add old primary if it existed
+            newAdditionals.push({ ...oldPrimaryCandidate, toBeDeleted: false }); // Ensure it's not marked for deletion
         }
-        return newAdditionals.filter(img => img.id || img.file); 
+        return newAdditionals.filter(img => img.id || img.file || img.previewUrl); // Clean up completely empty slots if any result
     });
-     toast({title: "Primary Image Swapped", description: "Changes will be applied on save."});
+    toast({title: "Primary Image Swapped", description: "Changes will be applied on save."});
   };
 
   const handleDeleteReview = (reviewId: string) => {
     setReviewsToDelete(prev => [...prev, reviewId]);
     setReviews(prev => prev.filter(r => r.id !== reviewId)); 
-    toast({ title: "Review Marked for Deletion" });
+    toast({ title: "Review Marked for Deletion", description: "Changes will apply on save." });
   };
 
   const handleDeleteProduct = async () => {
     if (!product) return;
-    await localStorageService.deleteProduct(product.id);
+    await localStorageService.deleteProduct(product.id); // This also handles deleting images from IndexedDB
     toast({ title: "Product Deleted" });
     router.push('/admin/products'); 
   };
-
-
-  // Image Viewer Logic
-  const openImageViewer = (index: number) => {
-    if (currentDisplayableImageIds.length > 0) { // Use currentDisplayableImageIds
-      setSelectedImageIndex(index);
-      setIsViewerOpen(true);
-      setIsZoomed(false);
-    }
-  };
-  const closeImageViewer = useCallback(() => setIsViewerOpen(false), []);
-  const nextImage = useCallback(() => {
-    const currentIds = isEditing ? currentDisplayableImageIds : allProductImageIds;
-    if (!currentIds.length) return;
-    setSelectedImageIndex((prevIndex) => (prevIndex + 1) % currentIds.length);
-    setIsZoomed(false);
-  }, [isEditing, currentDisplayableImageIds, allProductImageIds]);
-
-  const prevImage = useCallback(() => {
-     const currentIds = isEditing ? currentDisplayableImageIds : allProductImageIds;
-    if (!currentIds.length) return;
-    setSelectedImageIndex((prevIndex) => (prevIndex - 1 + currentIds.length) % currentIds.length);
-    setIsZoomed(false);
-  }, [isEditing, currentDisplayableImageIds, allProductImageIds]);
-  const toggleZoom = useCallback(() => setIsZoomed(prev => !prev), []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!isViewerOpen) return;
-      if (event.key === 'Escape') closeImageViewer();
-      if (event.key === 'ArrowRight') nextImage();
-      if (event.key === 'ArrowLeft') prevImage();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isViewerOpen, closeImageViewer, nextImage, prevImage]);
 
   if (isLoading) {
     return (
@@ -392,12 +421,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     return <div className="text-center py-20 text-destructive">Product not found.</div>;
   }
 
-  const currentDisplayableImageIds = isEditing
-    ? [
-        (editablePrimaryImage?.file ? editablePrimaryImage?.previewUrl : editablePrimaryImage?.id),
-        ...editableAdditionalImages.map(img => (img.file ? img.previewUrl : img.id)).filter(Boolean)
-      ].filter(Boolean) as string[]
-    : allProductImageIds;
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -412,10 +435,10 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         )}
         {currentUser?.role === 'admin' && isEditing && (
           <div className="flex gap-2">
-            <Button onClick={handleSaveEdits} variant="default">
-              <Save className="mr-2 h-4 w-4" /> Save Changes
+            <Button onClick={handleSaveEdits} variant="default" disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Changes
             </Button>
-            <Button onClick={handleCancelEdit} variant="outline">
+            <Button onClick={handleCancelEdit} variant="outline" disabled={isLoading}>
               <Ban className="mr-2 h-4 w-4" /> Cancel
             </Button>
           </div>
@@ -425,61 +448,62 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       {isEditing && (
          <div className="mb-6 p-4 border border-yellow-500 bg-yellow-500/10 rounded-md">
             <h2 className="text-lg font-semibold text-yellow-700 mb-2 flex items-center"><AlertTriangle className="mr-2 h-5 w-5" /> Admin Edit Mode</h2>
-            <p className="text-sm text-yellow-600">You are currently editing this product. Changes will be applied upon saving.</p>
+            <p className="text-sm text-yellow-600">You are currently editing this product. Max {MAX_FILE_SIZE_MB}MB per image. Changes will be applied upon saving.</p>
          </div>
       )}
-
 
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
         {/* Image Section */}
         <div className="space-y-3">
           {isEditing ? (
-            // EDITING IMAGES
             <>
              <div className="space-y-2 border p-3 rounded-md bg-muted/20">
                 <Label className="font-semibold text-foreground">Primary Image</Label>
-                <Input type="file" accept="image/*" onChange={handlePrimaryImageChange} />
-                {editablePrimaryImage?.previewUrl && (
-                  <div className="relative w-32 h-32 mt-2">
-                    <Image src={editablePrimaryImage.previewUrl} alt="Primary preview" layout="fill" objectFit="cover" className="rounded-md" data-ai-hint="admin product preview" unoptimized/>
-                    <Button variant="destructive" size="icon" onClick={removeEditablePrimaryImage} className="absolute -top-2 -right-2 h-6 w-6 p-1"><Trash2 className="h-3 w-3"/></Button>
+                <Input type="file" accept="image/*" onChange={handlePrimaryImageChange} id="primaryImageFile" className="text-sm file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
+                {editablePrimaryImage?.previewUrl && !editablePrimaryImage.toBeDeleted && (
+                  <div className="relative w-32 h-32 mt-2 group">
+                    <Image src={editablePrimaryImage.previewUrl} alt="Primary preview" layout="fill" objectFit="cover" className="rounded-md border" data-ai-hint="admin product preview" unoptimized/>
+                    <Button variant="destructive" size="icon" onClick={removeEditablePrimaryImage} className="absolute -top-2 -right-2 h-6 w-6 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-3 w-3"/></Button>
                   </div>
                 )}
                 {!editablePrimaryImage?.previewUrl && editablePrimaryImage?.id && !editablePrimaryImage?.toBeDeleted && ( 
-                     <ProductImage imageId={editablePrimaryImage.id} alt="Current primary" className="w-32 h-32 rounded-md border" data-ai-hint="admin product current primary"/>
+                     <ProductImage imageId={editablePrimaryImage.id} alt="Current primary" className="w-32 h-32 rounded-md border group relative" data-ai-hint="admin product current primary">
+                         <Button variant="destructive" size="icon" onClick={removeEditablePrimaryImage} className="absolute -top-2 -right-2 h-6 w-6 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-3 w-3"/></Button>
+                     </ProductImage>
                 )}
-                 {editablePrimaryImage?.toBeDeleted && editablePrimaryImage?.id && <p className="text-xs text-destructive">Primary image will be removed.</p>}
+                 {editablePrimaryImage?.toBeDeleted && editablePrimaryImage?.id && <p className="text-xs text-destructive p-2 bg-destructive/10 rounded">Primary image will be removed on save.</p>}
               </div>
               <div className="space-y-3 border p-3 rounded-md bg-muted/20">
-                 <Label className="font-semibold text-foreground">Additional Images (Max {MAX_TOTAL_IMAGES} total including primary)</Label>
+                 <Label className="font-semibold text-foreground">Additional Images (Max {MAX_TOTAL_IMAGES -1} additional)</Label>
                 {editableAdditionalImages.map((imgData, index) => {
                   if (imgData.toBeDeleted && imgData.id) {
                     return (
-                       <div key={imgData.id || `del-marker-${index}`} className="border-t pt-2 text-xs text-destructive">
-                         Image <ProductImage imageId={imgData.id} alt="to delete" className="w-10 h-10 inline-block" /> will be removed.
+                       <div key={imgData.id || `del-marker-${index}`} className="border-t pt-3 mt-3 text-xs text-destructive p-2 bg-destructive/10 rounded flex items-center gap-2">
+                         <ImageOff className="h-5 w-5 inline-block"/>
+                         Image <ProductImage imageId={imgData.id} alt="to delete" className="w-10 h-10 inline-block rounded border" /> will be removed on save.
                        </div>
                     );
                   }
                   return (
-                  <div key={imgData.id || `edit-add-${index}`} className="border-t pt-2">
+                  <div key={imgData.id || `edit-add-${index}`} className="border-t pt-3 mt-3 first:mt-0 first:border-t-0">
                     <div className="flex items-center gap-2">
-                        <Input type="file" accept="image/*" onChange={(e) => handleAdditionalImageChange(e, index)} className="flex-grow"/>
-                        <Button variant="outline" size="sm" onClick={() => setAdditionalAsPrimary(index)} disabled={!imgData.id && !imgData.file}>Set Primary</Button>
+                        <Input type="file" accept="image/*" onChange={(e) => handleAdditionalImageChange(e, index)} className="flex-grow text-sm file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
+                        <Button variant="outline" size="sm" onClick={() => setAdditionalAsPrimary(index)} disabled={(!imgData.id && !imgData.file) || imgData.toBeDeleted}>Set Primary</Button>
                         <Button variant="ghost" size="icon" onClick={() => removeEditableAdditionalImage(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
                     </div>
-                    {imgData.previewUrl && (
-                      <div className="relative w-24 h-24 mt-2">
-                        <Image src={imgData.previewUrl} alt={`Additional preview ${index + 1}`} layout="fill" objectFit="cover" className="rounded-md" data-ai-hint="admin product additional preview" unoptimized/>
+                    {imgData.previewUrl && !imgData.toBeDeleted && (
+                      <div className="relative w-24 h-24 mt-2 group">
+                        <Image src={imgData.previewUrl} alt={`Additional preview ${index + 1}`} layout="fill" objectFit="cover" className="rounded-md border" data-ai-hint="admin product additional preview" unoptimized/>
                       </div>
                     )}
-                     {!imgData.previewUrl && imgData.id && ( 
-                        <ProductImage imageId={imgData.id} alt={`Current additional ${index+1}`} className="w-24 h-24 mt-2 rounded-md border" data-ai-hint="admin product current additional"/>
+                     {!imgData.previewUrl && imgData.id && !imgData.toBeDeleted && ( 
+                        <ProductImage imageId={imgData.id} alt={`Current additional ${index+1}`} className="w-24 h-24 mt-2 rounded-md border group relative" data-ai-hint="admin product current additional"/>
                     )}
                   </div>
                   );
                 })}
-                {( (editablePrimaryImage?.id || editablePrimaryImage?.file ? 1:0) + editableAdditionalImages.filter(img => (img.id || img.file) && !img.toBeDeleted).length) < MAX_TOTAL_IMAGES && (
-                    <Button type="button" variant="outline" size="sm" onClick={addEditableAdditionalImageSlot} className="mt-2"><UploadCloud className="mr-2 h-4 w-4"/>Add Image Slot</Button>
+                 {( (editablePrimaryImage?.id || editablePrimaryImage?.file ? (!editablePrimaryImage?.toBeDeleted ? 1:0) :0) + editableAdditionalImages.filter(img => (img.id || img.file) && !img.toBeDeleted).length) < MAX_TOTAL_IMAGES && (
+                    <Button type="button" variant="outline" size="sm" onClick={addEditableAdditionalImageSlot} className="mt-3"><UploadCloud className="mr-2 h-4 w-4"/>Add Image Slot</Button>
                 )}
               </div>
             </>
@@ -488,7 +512,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
             <>
               <div
                 className="bg-card p-1 rounded-lg shadow-lg aspect-[4/3] relative overflow-hidden cursor-pointer group"
-                onClick={() => openImageViewer(0)}
+                onClick={() => currentDisplayableImageIds.length > 0 && openImageViewer(0)} // Ensure images before opening
               >
                 <ProductImage
                     imageId={product.primaryImageId}
@@ -501,25 +525,27 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                     placeholderIconSize="w-24 h-24"
                     data-ai-hint="product detail"
                 />
-                <div className="absolute bottom-2 right-2 bg-black/50 text-white p-2 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center">
-                    <Maximize className="h-3 w-3 mr-1" /> Click to view gallery
-                </div>
+                 {currentDisplayableImageIds.length > 0 && (
+                  <div className="absolute bottom-2 right-2 bg-black/50 text-white p-2 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center">
+                      <Maximize className="h-3 w-3 mr-1" /> Click to view gallery
+                  </div>
+                 )}
                 {currentUser && <WishlistButton productId={product.id} userId={currentUser.id} className="absolute top-2 right-2 bg-card/80 hover:bg-card p-1" />}
               </div>
 
-              {allProductImageIds.length > 1 && (
+              {currentDisplayableImageIds.length > 1 && (
                 <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                  {allProductImageIds.map((imgId, index) => (
+                  {currentDisplayableImageIds.map((imgIdOrUrl, index) => ( // Use currentDisplayableImageIds
                     <div
-                      key={imgId || `thumb-${index}`}
+                      key={imgIdOrUrl || `thumb-${index}`}
                       className={cn(
                         "aspect-square bg-card rounded-md overflow-hidden cursor-pointer border-2 hover:border-primary transition-all",
                         selectedImageIndex === index && isViewerOpen ? "border-primary ring-2 ring-primary ring-offset-2" : "border-border"
                       )}
                       onClick={() => openImageViewer(index)}
                     >
-                      <ProductImage
-                        imageId={imgId}
+                      <ProductImage // Use ProductImage for thumbnails too for consistency
+                        imageId={imgIdOrUrl} // This will correctly handle Object URLs or DB IDs
                         alt={`${product.name} - image ${index + 1}`}
                         fill
                         className="w-full h-full"
@@ -548,19 +574,18 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           ) : (
             <h1 className="font-headline text-4xl lg:text-5xl text-primary">{product.name}</h1>
           )}
-           {reviews.length > 0 && !isEditing && (
+           {(reviews.length > 0 || product.averageRating) && !isEditing && (
             <div className="flex items-center gap-2">
-              <StarRatingDisplay rating={averageRating} />
-              <span className="text-muted-foreground text-sm">({reviews.length} review{reviews.length === 1 ? '' : 's'})</span>
+              <StarRatingDisplay rating={product.averageRating || averageRating} />
+              <span className="text-muted-foreground text-sm">({product.reviewCount || reviews.length} review{ (product.reviewCount || reviews.length) === 1 ? '' : 's'})</span>
             </div>
           )}
           
           {isEditing ? (
-            <Input name="price" type="number" value={editableProductData?.price || 0} onChange={handleEditableFieldChange} className="text-2xl font-semibold text-foreground h-auto p-2" />
+            <Input name="price" type="number" step="0.01" value={editableProductData?.price || 0} onChange={handleEditableFieldChange} className="text-2xl font-semibold text-foreground h-auto p-2" />
           ) : (
             <p className="text-2xl font-semibold text-foreground">${product.price.toFixed(2)}</p>
           )}
-
 
           <div className="prose prose-lg max-w-none text-muted-foreground dark:prose-invert">
             <h2 className="font-headline text-xl text-foreground mb-2">Description</h2>
@@ -572,13 +597,12 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           </div>
           
           {isEditing ? (
-            <Input name="stock" type="number" value={editableProductData?.stock || 0} onChange={handleEditableFieldChange} className="h-auto p-2"/>
+            <Input name="stock" type="number" min="0" value={editableProductData?.stock || 0} onChange={handleEditableFieldChange} className="h-auto p-2"/>
           ) : product.stock > 0 ? (
             <Badge className="text-sm">In Stock: {product.stock} units</Badge>
           ) : (
             <Badge variant="destructive" className="text-sm">Out of Stock</Badge>
           )}
-
 
           {product.stock > 0 && !isEditing && (
             <div className="flex items-center gap-4 pt-4">
@@ -622,11 +646,11 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       {isViewerOpen && currentDisplayableImageIds.length > 0 && (
         <div
             className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4 animate-in fade-in"
-            onClick={closeImageViewer}
+            onClick={closeImageViewer} // Click on backdrop closes
         >
           <div
             className="bg-card rounded-lg shadow-2xl relative max-w-4xl max-h-[95vh] w-full flex flex-col p-2 sm:p-4 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
           >
             <Button variant="ghost" size="icon" onClick={closeImageViewer} className="absolute top-2 right-2 z-[70] bg-card/50 hover:bg-card/80 h-8 w-8 sm:h-10 sm:w-10 rounded-full">
               <X className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -636,9 +660,10 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                     imageId={currentDisplayableImageIds[selectedImageIndex]}
                     alt={`${product?.name || 'Product'} - Image ${selectedImageIndex + 1}`}
                     fill
-                    className="w-full h-full"
-                    imageClassName={cn("object-contain transition-transform duration-300 ease-in-out", isZoomed ? "scale-125 sm:scale-150 md:scale-175" : "scale-100")}
+                    className="w-full h-full" // Container class
+                    imageClassName={cn("object-contain transition-transform duration-300 ease-in-out", isZoomed ? "scale-125 sm:scale-150 md:scale-175" : "scale-100")} // Actual image class
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 70vw, 1000px"
+                    priority={selectedImageIndex === 0} // Prioritize first image in viewer
                     placeholderIconSize="w-32 h-32"
                     data-ai-hint="product detail large"
                 />
@@ -665,11 +690,11 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           <ReviewForm productId={product.id} userId={currentUser.id} userName={currentUser.name || 'Anonymous'} onReviewSubmitted={onReviewSubmitted} />
         )}
         {!currentUser && !isEditing && (
-          <p className="text-muted-foreground">Please <LoginTrigger /> to leave a review.</p>
+          <p className="text-muted-foreground">Please <LoginModalTrigger /> to leave a review.</p>
         )}
-        {reviews.length > 0 ? (
+        {(reviews.length > 0 || product.reviewCount > 0) ? (
           <ReviewList
-            reviews={reviews}
+            reviews={reviews} // Show currently loaded reviews (or fetch if needed)
             adminView={isEditing && currentUser?.role === 'admin'}
             onDeleteReview={handleDeleteReview}
           />
@@ -681,7 +706,19 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   );
 }
 
-const LoginTrigger = () => {
-    return <Link href="/products" className="text-primary hover:underline">login</Link>;
+// A small component to trigger the LoginModal, keeping ProductDetailPage cleaner
+const LoginModalTrigger = () => {
+    // The LoginModal component itself usually contains its DialogTrigger
+    // For this specific context where we just want text to act as a trigger,
+    // if LoginModal is context-based or globally available, you might call a function to open it.
+    // Assuming LoginModal is self-contained with its own trigger:
+    return <LoginModal />; // This will render the LoginModal's DialogTrigger (e.g., a "Login" button)
+                           // If you need just a text link, LoginModal's trigger needs to be adaptable
+                           // or you use a global modal state.
+                           // For now, rendering the full LoginModal component which includes its trigger.
+                           // A more elegant solution would be a text link that opens the modal,
+                           // for which LoginModal's DialogTrigger might need to be <Button variant="link">.
+                           // Or, simply:
+    // return <Link href="#" className="text-primary hover:underline">login</Link>; // if LoginModal is not used this way
 };
 
