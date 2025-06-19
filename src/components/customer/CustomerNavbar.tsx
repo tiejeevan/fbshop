@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag, User, LogIn, LogOut, Home, Menu, ShoppingCart, PackageSearch, Heart, History } from 'lucide-react';
+import { ShoppingBag, User, LogOut, Home, Menu, ShoppingCart, PackageSearch, Heart, History } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -19,14 +19,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 import { localStorageService } from '@/lib/localStorage';
-import type { Cart } from '@/types';
+// import type { Cart } from '@/types'; // Cart type not directly used here
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { LoginModal } from '@/components/auth/LoginModal'; // Import the new LoginModal
 
-// Updated navLinks: Home points to /products, Products link removed.
 const navLinks = [
   { href: '/products', label: 'Home', icon: Home },
-  // Example: { href: '/about', label: 'About Us', icon: InfoIcon }, // Add more links as needed
 ];
 
 export function CustomerNavbar() {
@@ -59,7 +58,7 @@ export function CustomerNavbar() {
 
   const handleLogout = () => {
     logout();
-    router.push('/'); // Redirect to the main landing page
+    router.push('/'); 
   };
 
   const UserMenu = () => (
@@ -102,7 +101,6 @@ export function CustomerNavbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-        {/* Logo/Brand link now points to /products */}
         <Link href="/products" className="flex items-center gap-2" onClick={() => setIsSheetOpen(false)}>
           <ShoppingBag className="h-7 w-7 text-primary" />
           <span className="font-headline text-2xl font-semibold text-primary">Local Commerce</span>
@@ -139,9 +137,7 @@ export function CustomerNavbar() {
           {currentUser ? (
             <UserMenu />
           ) : (
-            <Button asChild size="sm">
-              <Link href="/login"><LogIn className="mr-2 h-4 w-4"/> Login</Link>
-            </Button>
+            <LoginModal /> // Replace old Login button with LoginModal trigger
           )}
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild className="md:hidden">
@@ -152,7 +148,7 @@ export function CustomerNavbar() {
             </SheetTrigger>
             <SheetContent side="left" className="w-[300px] sm:w-[400px]">
               <nav className="mt-8 flex flex-col gap-4">
-                {navLinks.map(link => ( // This will now use the updated navLinks
+                {navLinks.map(link => ( 
                   <Link
                     key={link.label}
                     href={link.href}
@@ -182,4 +178,3 @@ export function CustomerNavbar() {
     </header>
   );
 }
-
