@@ -47,7 +47,6 @@ let isDataInitialized = false;
 function initializeDataOnce() {
   if (typeof window === 'undefined' || isDataInitialized) return;
 
-  // Admin User
   let users = getItem<User[]>(KEYS.USERS) || [];
   let adminUser = users.find(user => user.role === 'admin' && user.email === 'admin@localcommerce.com');
 
@@ -71,7 +70,6 @@ function initializeDataOnce() {
     setItem(KEYS.USERS, users);
   }
 
-  // Mock Categories
   let categories = getItem<Category[]>(KEYS.CATEGORIES) || [];
   if (categories.length === 0) {
     const mockCategories: Category[] = [
@@ -84,7 +82,6 @@ function initializeDataOnce() {
     setItem(KEYS.CATEGORIES, categories);
   }
 
-  // Mock Products
   let products = getItem<Product[]>(KEYS.PRODUCTS) || [];
   if (products.length === 0 && categories.length > 0) {
     const electronicsCat = categories.find(c => c.id === 'cat1_electronics');
@@ -95,7 +92,8 @@ function initializeDataOnce() {
         id: crypto.randomUUID(),
         name: 'Wireless Headphones X2000',
         description: 'Experience immersive sound with these noise-cancelling wireless headphones. Long battery life and comfortable design for all-day listening.',
-        imageUrl: 'https://placehold.co/600x400.png',
+        imageUrl: 'https://placehold.co/600x400.png?text=Primary+Headphones',
+        imageUrls: ['https://placehold.co/600x400.png?text=Headphones+Angle+1', 'https://placehold.co/600x400.png?text=Headphones+Angle+2', 'https://placehold.co/600x400.png?text=Headphones+On+Ear'],
         price: 149.99,
         stock: 50,
         categoryId: electronicsCat?.id || categories[0].id,
@@ -109,7 +107,8 @@ function initializeDataOnce() {
         id: crypto.randomUUID(),
         name: 'Smartwatch ProConnect',
         description: 'Stay connected and track your fitness with this feature-packed smartwatch. GPS, heart rate monitor, and a vibrant display.',
-        imageUrl: 'https://placehold.co/600x400.png',
+        imageUrl: 'https://placehold.co/600x400.png?text=Smartwatch+Main',
+        imageUrls: ['https://placehold.co/600x400.png?text=Smartwatch+Screen', 'https://placehold.co/600x400.png?text=Smartwatch+Side'],
         price: 249.50,
         stock: 30,
         categoryId: electronicsCat?.id || categories[0].id,
@@ -123,7 +122,7 @@ function initializeDataOnce() {
         id: crypto.randomUUID(),
         name: 'The Enigmatic Cipher',
         description: 'A thrilling mystery novel that will keep you on the edge of your seat until the very last page. By acclaimed author A. N. Other.',
-        imageUrl: 'https://placehold.co/600x400.png',
+        imageUrl: 'https://placehold.co/600x400.png?text=Book+Cover',
         price: 19.99,
         stock: 100,
         categoryId: booksCat?.id || categories[1].id,
@@ -134,7 +133,7 @@ function initializeDataOnce() {
         purchases: 22,
       },
     ];
-    products = mockProducts.map(p => ({ ...p, averageRating: 0, reviewCount: 0 })); // Initialize review fields
+    products = mockProducts.map(p => ({ ...p, averageRating: 0, reviewCount: 0, imageUrls: (p.imageUrls || []).filter(Boolean) }));
     setItem(KEYS.PRODUCTS, products);
   }
 
@@ -153,8 +152,6 @@ if (typeof window !== 'undefined') {
     initializeDataOnce();
 }
 
-
-// User Management
 const getUsers = (): User[] => getItem<User[]>(KEYS.USERS) || [];
 const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?: UserRole }): User => {
   const users = getUsers();
@@ -181,7 +178,6 @@ const updateUser = (updatedUser: User): User | null => {
       themePreference: updatedUser.themePreference || existingTheme,
     };
     setItem(KEYS.USERS, users);
-    // If the updated user is the current user, update current user session too
     const sessionUser = getCurrentUser();
     if (sessionUser && sessionUser.id === updatedUser.id) {
       setCurrentUser(users[index]);
@@ -203,14 +199,14 @@ const deleteUser = (userId: string): boolean => {
 const findUserByEmail = (email: string): User | undefined => getUsers().find(u => u.email === email);
 const findUserById = (userId: string): User | undefined => getUsers().find(u => u.id === userId);
 
-
-// Product Management
 const getProducts = (): Product[] => getItem<Product[]>(KEYS.PRODUCTS) || [];
 const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'>): Product => {
   const products = getProducts();
   const newProduct: Product = {
     ...product,
     id: crypto.randomUUID(),
+    imageUrl: product.imageUrl, // Primary URL is now mandatory from form
+    imageUrls: (product.imageUrls || []).filter(url => url && url.trim() !== ''),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     views: 0,
@@ -230,6 +226,8 @@ const updateProduct = (updatedProduct: Product): Product | null => {
     products[index] = { 
         ...products[index], 
         ...updatedProduct, 
+        imageUrl: updatedProduct.imageUrl, // Primary URL is mandatory
+        imageUrls: (updatedProduct.imageUrls || []).filter(url => url && url.trim() !== ''),
         icon: updatedProduct.icon || null,
         updatedAt: new Date().toISOString() 
     };
@@ -244,7 +242,6 @@ const deleteProduct = (productId: string): boolean => {
   products = products.filter(p => p.id !== productId);
   if (products.length < initialLength) {
     setItem(KEYS.PRODUCTS, products);
-    // Also delete associated reviews
     let reviews = getReviewsForProduct(productId);
     reviews.forEach(review => deleteReview(review.id));
     return true;
@@ -253,8 +250,6 @@ const deleteProduct = (productId: string): boolean => {
 };
 const findProductById = (productId: string): Product | undefined => getProducts().find(p => p.id === productId);
 
-
-// Category Management
 const getCategories = (): Category[] => getItem<Category[]>(KEYS.CATEGORIES) || [];
 const addCategory = (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
   const categories = getCategories();
@@ -297,12 +292,10 @@ const deleteCategory = (categoryId: string): boolean => {
 };
 const findCategoryById = (categoryId: string): Category | undefined => getCategories().find(c => c.id === categoryId);
 
-// Cart Management
 const getCart = (userId: string): Cart | null => {
     const carts = getItem<Cart[]>(KEYS.CARTS) || [];
     const userCart = carts.find(cart => cart.userId === userId);
     if (userCart) return userCart;
-    // If no cart, create one
     const newCart: Cart = { userId, items: [], updatedAt: new Date().toISOString() };
     carts.push(newCart);
     setItem(KEYS.CARTS, carts);
@@ -320,8 +313,8 @@ const updateCart = (cart: Cart): void => {
       const product = productDetailsCache[item.productId];
       return {
         ...item,
-        name: product?.name || item.name, // Fallback to existing name if product not found
-        imageUrl: product?.imageUrl || item.imageUrl,
+        name: product?.name || item.name,
+        imageUrl: product?.imageUrl || item.imageUrl, // Use product's primary image
         icon: product?.icon || item.icon,
       };
     });
@@ -339,7 +332,6 @@ const clearCart = (userId: string): void => {
     updateCart({ userId, items: [], updatedAt: new Date().toISOString() });
 };
 
-// Order Management
 const getOrders = (userId?: string): Order[] => {
     const allOrders = getItem<Order[]>(KEYS.ORDERS) || [];
     if (userId) {
@@ -360,7 +352,7 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
       return {
         ...item,
         name: product?.name || 'Unknown Product',
-        imageUrl: product?.imageUrl,
+        imageUrl: product?.imageUrl, // Use product's primary image
         icon: product?.icon,
       };
     });
@@ -382,12 +374,9 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
         updateProduct(product);
       }
     });
-
     return newOrder;
 };
 
-
-// Login Activity
 const getLoginActivity = (): LoginActivity[] => getItem<LoginActivity[]>(KEYS.LOGIN_ACTIVITY) || [];
 const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'logout'): void => {
     const activities = getLoginActivity();
@@ -398,11 +387,9 @@ const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'lo
         timestamp: new Date().toISOString(),
         type,
     });
-    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100)); // Keep last 100 activities
+    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100)); 
 };
 
-
-// Current User Session
 const setCurrentUser = (user: User | null): void => {
   if (user) {
     setItem(KEYS.CURRENT_USER, { id: user.id, role: user.role, email: user.email, name: user.name, themePreference: user.themePreference });
@@ -415,7 +402,6 @@ const getCurrentUser = (): (User & { role: UserRole }) | null => {
   return getItem<(User & { role: UserRole })>(KEYS.CURRENT_USER);
 };
 
-// Wishlist Management
 const getAllWishlists = (): WishlistItem[] => getItem<WishlistItem[]>(KEYS.WISHLISTS) || [];
 const getWishlist = (userId: string): WishlistItem[] => {
   return getAllWishlists().filter(item => item.userId === userId);
@@ -436,7 +422,6 @@ const isProductInWishlist = (userId: string, productId: string): boolean => {
   return getAllWishlists().some(item => item.userId === userId && item.productId === productId);
 };
 
-// Review Management
 const getAllReviews = (): Review[] => getItem<Review[]>(KEYS.REVIEWS) || [];
 const getReviewsForProduct = (productId: string): Review[] => {
   return getAllReviews().filter(review => review.productId === productId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -450,8 +435,6 @@ const addReview = (reviewData: Omit<Review, 'id' | 'createdAt'>): Review => {
   };
   reviews.push(newReview);
   setItem(KEYS.REVIEWS, reviews);
-
-  // Update product's average rating and review count
   const product = findProductById(reviewData.productId);
   if (product) {
     const productReviews = getReviewsForProduct(reviewData.productId);
@@ -466,11 +449,8 @@ const deleteReview = (reviewId: string): void => {
   let reviews = getAllReviews();
   const reviewToDelete = reviews.find(r => r.id === reviewId);
   if (!reviewToDelete) return;
-
   reviews = reviews.filter(r => r.id !== reviewId);
   setItem(KEYS.REVIEWS, reviews);
-
-  // Update product's average rating and review count
   const product = findProductById(reviewToDelete.productId);
   if (product) {
     const productReviews = getReviewsForProduct(reviewToDelete.productId);
@@ -481,8 +461,6 @@ const deleteReview = (reviewId: string): void => {
   }
 };
 
-
-// Recently Viewed Products
 const MAX_RECENTLY_VIEWED = 5;
 const getAllRecentlyViewed = (): UserRecentlyViewed[] => getItem<UserRecentlyViewed[]>(KEYS.RECENTLY_VIEWED) || [];
 const getRecentlyViewed = (userId: string): RecentlyViewedItem[] => {
@@ -492,28 +470,20 @@ const getRecentlyViewed = (userId: string): RecentlyViewedItem[] => {
 const addRecentlyViewed = (userId: string, productId: string): void => {
   let allLogs = getAllRecentlyViewed();
   let userLog = allLogs.find(log => log.userId === userId);
-
   if (!userLog) {
     userLog = { userId, items: [] };
     allLogs.push(userLog);
   }
-
-  // Remove if already exists to move to top
   userLog.items = userLog.items.filter(item => item.productId !== productId);
-  // Add to top
   userLog.items.unshift({ productId, viewedAt: new Date().toISOString() });
-  // Limit to MAX_RECENTLY_VIEWED
   userLog.items = userLog.items.slice(0, MAX_RECENTLY_VIEWED);
-  
   setItem(KEYS.RECENTLY_VIEWED, allLogs);
 };
 
-// Theme Preference (Global)
 const getGlobalTheme = (): Theme => getItem<Theme>(KEYS.THEME) || 'system';
 const setGlobalTheme = (theme: Theme): void => {
   setItem(KEYS.THEME, theme);
 };
-
 
 const localStorageService = {
   KEYS,
@@ -546,19 +516,15 @@ const localStorageService = {
   setCurrentUser,
   getCurrentUser,
   initializeData: initializeDataOnce,
-  // Wishlist
   getWishlist,
   addToWishlist,
   removeFromWishlist,
   isProductInWishlist,
-  // Reviews
   getReviewsForProduct,
   addReview,
-  deleteReview, // For potential future use by admin or user on their own review
-  // Recently Viewed
+  deleteReview,
   getRecentlyViewed,
   addRecentlyViewed,
-  // Theme
   getGlobalTheme,
   setGlobalTheme,
 };

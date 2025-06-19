@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, use } from 'react'; // Import use
+import React, { useEffect, useState, use } from 'react';
 import { ProductForm, ProductFormValues } from '../../ProductForm';
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
@@ -11,8 +11,8 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { // Update props
-  const params = use(paramsPromise); // Resolve params
+export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = use(paramsPromise);
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,7 +20,7 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchedProduct = localStorageService.findProductById(params.id); // Use resolved params.id
+    const fetchedProduct = localStorageService.findProductById(params.id);
     if (fetchedProduct) {
       setProduct(fetchedProduct);
     } else {
@@ -29,7 +29,7 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
     }
     setCategories(localStorageService.getCategories());
     setIsLoading(false);
-  }, [params.id, router, toast]); // Update dependency array
+  }, [params.id, router, toast]);
 
   const handleEditProduct = async (data: ProductFormValues, id?: string) => {
     if (!id) return; 
@@ -38,7 +38,8 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
         ...(product as Product), 
         ...data,
         id,
-        imageUrl: data.imageUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(data.name)}`,
+        imageUrl: data.imageUrl, // It's mandatory from form schema now
+        imageUrls: (data.imageUrls || []).filter(url => url && url.trim() !== ''), 
       };
       localStorageService.updateProduct(updatedProductData);
       toast({ title: "Product Updated", description: `"${data.name}" has been successfully updated.` });

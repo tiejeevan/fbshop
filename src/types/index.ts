@@ -25,7 +25,8 @@ export interface Product {
   id:string;
   name: string;
   description: string;
-  imageUrl: string;
+  imageUrl: string; // Primary image URL, mandatory
+  imageUrls?: string[]; // Additional image URLs, up to 9
   price: number;
   stock: number;
   categoryId: string; // Ensure this links to a Category.id
@@ -35,7 +36,6 @@ export interface Product {
   updatedAt: string;
   views: number;
   purchases: number;
-  // For reviews
   averageRating?: number;
   reviewCount?: number;
 }
@@ -45,7 +45,7 @@ export interface CartItem {
   quantity: number;
   price: number; // Price at the time of adding to cart
   name: string; // For display
-  imageUrl?: string; // For display
+  imageUrl?: string; // For display - will use product's primary imageUrl
   icon?: string | null; // For display
 }
 
@@ -60,7 +60,7 @@ export interface OrderItem {
   quantity: number;
   priceAtPurchase: number; // Price at the time of order
   name: string; // For display
-  imageUrl?: string; // For display
+  imageUrl?: string; // For display - will use product's primary imageUrl
   icon?: string | null; // For display
 }
 

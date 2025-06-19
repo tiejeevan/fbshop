@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -23,7 +24,8 @@ export default function NewProductPage() {
     try {
       localStorageService.addProduct({
         ...data,
-        imageUrl: data.imageUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(data.name)}`, // Default placeholder if empty
+        imageUrl: data.imageUrl, // Mandatory from form schema
+        imageUrls: (data.imageUrls || []).filter(url => url && url.trim() !== ''),
       });
       toast({ title: "Product Created", description: `"${data.name}" has been successfully added.` });
       router.push('/admin/products');
