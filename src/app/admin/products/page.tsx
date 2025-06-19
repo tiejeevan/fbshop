@@ -12,8 +12,9 @@ import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth'; // Import useAuth
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ProductImage } from '@/components/product/ProductImage'; // Import new component
+import { ProductImage } from '@/components/product/ProductImage'; 
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -21,6 +22,7 @@ export default function AdminProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const { toast } = useToast();
+  const { currentUser } = useAuth(); // Get current admin user
 
   const fetchProductsAndCategories = useCallback(() => {
     setIsLoading(true);
@@ -39,10 +41,22 @@ export default function AdminProductsPage() {
     return categories.find(c => c.id === categoryId)?.name || 'Uncategorized';
   };
 
-  const handleDeleteProduct = async () => { // Make async
-    if (!productToDelete) return;
-    const success = await localStorageService.deleteProduct(productToDelete.id); // Await the async operation
+  const handleDeleteProduct = async () => { 
+    if (!productToDelete || !currentUser) {
+        toast({ title: "Error", description: "Product data or admin session missing for deletion.", variant: "destructive" });
+        setProductToDelete(null);
+        return;
+    }
+    const success = await localStorageService.deleteProduct(productToDelete.id); 
     if (success) {
+      localStorageService.addAdminActionLog({
+        adminId: currentUser.id,
+        adminEmail: currentUser.email,
+        actionType: 'PRODUCT_DELETE',
+        entityType: 'Product',
+        entityId: productToDelete.id,
+        description: `Deleted product "${productToDelete.name}" (ID: ${productToDelete.id.substring(0,8)}...).`
+      });
       toast({ title: "Product Deleted", description: `"${productToDelete.name}" deleted.` });
       fetchProductsAndCategories();
     } else {
@@ -138,5 +152,3 @@ export default function AdminProductsPage() {
     </div>
   );
 }
-
-    

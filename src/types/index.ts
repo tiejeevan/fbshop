@@ -16,12 +16,12 @@ export interface User {
 export interface Category {
   id: string;
   name: string;
-  slug: string; // URL-friendly identifier, now mandatory
+  slug: string; 
   description?: string;
-  parentId: string | null; // For subcategories, now mandatory (null for top-level)
-  imageId: string | null; // For category image (ID for IndexedDB)
-  displayOrder: number; // For custom sorting, now mandatory
-  isActive: boolean; // To toggle visibility, now mandatory
+  parentId: string | null; 
+  imageId: string | null; 
+  displayOrder: number; 
+  isActive: boolean; 
   createdAt: string;
   updatedAt: string;
 }
@@ -30,8 +30,8 @@ export interface Product {
   id:string;
   name: string;
   description: string;
-  primaryImageId?: string | null; // ID for IndexedDB
-  additionalImageIds?: string[];  // IDs for IndexedDB
+  primaryImageId?: string | null; 
+  additionalImageIds?: string[];  
   price: number;
   stock: number;
   categoryId: string;
@@ -49,7 +49,7 @@ export interface CartItem {
   quantity: number;
   price: number;
   name: string;
-  primaryImageId?: string | null; // For display, ID for IndexedDB
+  primaryImageId?: string | null; 
 }
 
 export interface Cart {
@@ -63,7 +63,7 @@ export interface OrderItem {
   quantity: number;
   priceAtPurchase: number;
   name: string;
-  primaryImageId?: string | null; // For display, ID for IndexedDB
+  primaryImageId?: string | null; 
 }
 
 export interface Order {
@@ -96,7 +96,7 @@ export interface Review {
   productId: string;
   userId: string;
   userName: string;
-  rating: number; // 1 to 5
+  rating: number; 
   comment: string;
   createdAt: string;
 }
@@ -111,3 +111,14 @@ export interface UserRecentlyViewed {
   items: RecentlyViewedItem[];
 }
 
+export interface AdminActionLog {
+  id: string;
+  adminId: string;
+  adminEmail: string;
+  actionType: string; // e.g., 'PRODUCT_CREATE', 'CATEGORY_UPDATE', 'USER_DELETE'
+  entityType?: string; // e.g., 'Product', 'Category', 'User'
+  entityId?: string;   // ID of the affected entity
+  timestamp: string;   // ISO date string
+  description: string; // Human-readable description of the action
+  // details?: any;     // Optional: for storing old/new values, complex for now
+}

@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { BarChart3, DollarSign, ShoppingBag, Users, Tags, Eye } from 'lucide-react';
+import { BarChart3, DollarSign, ShoppingBag, Users, Tags, Eye, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { localStorageService } from '@/lib/localStorage';
 import { useEffect, useState } from 'react';
@@ -25,7 +25,7 @@ export default function AdminDashboardPage() {
   });
 
   useEffect(() => {
-    // Fetch stats from localStorage
+    
     const products = localStorageService.getProducts();
     const categories = localStorageService.getCategories();
     const customers = localStorageService.getUsers().filter(u => u.role === 'customer');
@@ -97,13 +97,12 @@ export default function AdminDashboardPage() {
             <p className="text-xs text-muted-foreground">
               Track sales performance (simulated)
             </p>
-            {/* Link to orders/analytics page when implemented */}
-            {/* <Link href="/admin/orders" className="text-sm text-primary hover:underline mt-2 block">View Orders</Link> */}
+            
           </CardContent>
         </Card>
       </div>
 
-      {/* Placeholder for recent activity or quick actions */}
+      
       <Card>
         <CardHeader>
           <CardTitle className="font-headline">Quick Actions</CardTitle>
@@ -130,7 +129,13 @@ export default function AdminDashboardPage() {
           <Link href="/products" passHref>
              <button className="w-full p-4 border rounded-lg hover:bg-accent transition-colors text-center">
               <Eye className="h-8 w-8 mx-auto mb-2 text-primary" />
-              View Products (Customer)
+              View Storefront
+            </button>
+          </Link>
+          <Link href="/admin/logs" passHref>
+             <button className="w-full p-4 border rounded-lg hover:bg-accent transition-colors text-center">
+              <FileText className="h-8 w-8 mx-auto mb-2 text-primary" />
+              View Action Logs
             </button>
           </Link>
         </CardContent>

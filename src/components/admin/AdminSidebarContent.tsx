@@ -16,6 +16,7 @@ import {
   Settings,
   ChevronDown,
   type LucideIcon,
+  FileText, // Added icon for logs
 } from 'lucide-react';
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -35,7 +36,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   useSidebar, 
-  SidebarTrigger, // Import SidebarTrigger
+  SidebarTrigger, 
 } from '@/components/ui/sidebar';
 
 
@@ -51,6 +52,7 @@ const navItems: NavItem[] = [
   { href: '/admin/categories', label: 'Categories', icon: Tags },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/admin/logs', label: 'Action Logs', icon: FileText }, // New logs link
 ];
 
 export function AdminSidebarContent() {
@@ -71,7 +73,7 @@ export function AdminSidebarContent() {
           <ShoppingBag className="h-7 w-7 text-sidebar-primary shrink-0" />
           {(sidebarState === 'expanded' || isMobile) && <span className="font-headline text-xl truncate">Local Commerce</span>}
         </Link>
-        <SidebarTrigger className="hidden md:flex text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent" /> {/* Desktop Trigger */}
+        <SidebarTrigger className="hidden md:flex text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent" /> 
       </SidebarHeader>
 
       <SidebarContent className="p-2">

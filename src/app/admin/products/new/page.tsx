@@ -7,6 +7,7 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Category, Product } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth'; // Import useAuth
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -16,6 +17,7 @@ export default function NewProductPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const router = useRouter();
   const { toast } = useToast();
+  const { currentUser } = useAuth(); // Get current admin user
 
   useEffect(() => {
     setCategories(localStorageService.getCategories());
@@ -23,19 +25,24 @@ export default function NewProductPage() {
 
   const handleCreateProduct = async (
     data: ProductFormValues,
-    _id?: string, // Not used for new product
+    _id?: string, 
     imagesToSave?: {type: 'primary' | 'additional', index?: number, file: File}[],
-    _imagesToDelete?: string[] // Not used for new product
+    _imagesToDelete?: string[] 
   ) => {
+    if (!currentUser) {
+      toast({ title: "Authentication Error", description: "Admin user not found.", variant: "destructive" });
+      return;
+    }
     try {
       let primaryImageId: string | null = null;
       const additionalImageIds: string[] = [];
+      const tempProductId = `temp_${crypto.randomUUID()}`; // Temporary ID for image association before product ID is final
 
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {
           const savedImageId = await saveImageToDB(
-            'new_product_placeholder_id', // Temp ID, real product ID not known yet
-            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index ?? 0),
+            tempProductId, 
+            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index ?? Date.now()),
             imgInfo.file
           );
           if (imgInfo.type === 'primary') {
@@ -52,7 +59,18 @@ export default function NewProductPage() {
         additionalImageIds,
       };
       
-      localStorageService.addProduct(productDataForStorage);
+      const newProduct = localStorageService.addProduct(productDataForStorage); // This will generate the final ID
+
+      // Log the action
+      localStorageService.addAdminActionLog({
+        adminId: currentUser.id,
+        adminEmail: currentUser.email,
+        actionType: 'PRODUCT_CREATE',
+        entityType: 'Product',
+        entityId: newProduct.id,
+        description: `Created product "${newProduct.name}" (ID: ${newProduct.id.substring(0,8)}...).`
+      });
+      
       toast({ title: "Product Created", description: `"${data.name}" has been successfully added.` });
       router.push('/admin/products');
     } catch (error) {

@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem } from '@/types';
+import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem, AdminActionLog } from '@/types';
 import { deleteImagesForProduct as deleteImagesFromDB, deleteImage as deleteSingleImageFromDB } from './indexedDbService';
 
 
@@ -16,7 +16,8 @@ const KEYS = {
   WISHLISTS: 'localcommerce_wishlists',
   REVIEWS: 'localcommerce_reviews',
   RECENTLY_VIEWED: 'localcommerce_recently_viewed',
-  THEME: 'localcommerce_theme', // Global theme preference
+  THEME: 'localcommerce_theme', 
+  ADMIN_ACTION_LOGS: 'localcommerce_admin_action_logs', // New key for admin logs
 };
 
 function getItem<T>(key: string): T | null {
@@ -92,7 +93,7 @@ function initializeDataOnce() {
     }));
     setItem(KEYS.CATEGORIES, categories);
   } else {
-    categories = categories.map((cat, index) => ({
+     categories = categories.map((cat, index) => ({
         ...cat,
         slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
         parentId: cat.parentId === undefined ? null : cat.parentId,
@@ -159,6 +160,7 @@ function initializeDataOnce() {
   if (!getItem(KEYS.REVIEWS)) setItem(KEYS.REVIEWS, []);
   if (!getItem(KEYS.RECENTLY_VIEWED)) setItem(KEYS.RECENTLY_VIEWED, []);
   if (!getItem(KEYS.THEME)) setItem(KEYS.THEME, 'system');
+  if (!getItem(KEYS.ADMIN_ACTION_LOGS)) setItem(KEYS.ADMIN_ACTION_LOGS, []); // Initialize admin logs
 
   isDataInitialized = true;
 }
@@ -190,7 +192,7 @@ const updateUser = (updatedUser: User): User | null => {
     users[index] = {
       ...users[index],
       ...updatedUser,
-      password: updatedUser.password || existingPassword, // Keep old password if new one isn't provided
+      password: updatedUser.password || existingPassword, 
       themePreference: updatedUser.themePreference || existingTheme,
     };
     setItem(KEYS.USERS, users);
@@ -298,7 +300,7 @@ const addCategory = (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedA
   return newCategory;
 };
 const updateCategory = (updatedCategory: Category): Category | null => {
-  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; // Get unsorted for update
+  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; 
   const index = categories.findIndex(c => c.id === updatedCategory.id);
   if (index !== -1) {
     categories[index] = {
@@ -313,7 +315,7 @@ const updateCategory = (updatedCategory: Category): Category | null => {
   return null;
 };
 const deleteCategory = async (categoryId: string): Promise<boolean> => {
-  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; // Get unsorted
+  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; 
   const categoryToDelete = categories.find(c => c.id === categoryId);
   if (!categoryToDelete) return false;
 
@@ -322,7 +324,7 @@ const deleteCategory = async (categoryId: string): Promise<boolean> => {
 
   if (categories.length < initialLength) {
     setItem(KEYS.CATEGORIES, categories);
-    // Delete category image if it exists
+    
     if (categoryToDelete.imageId) {
         try {
             await deleteSingleImageFromDB(categoryToDelete.imageId);
@@ -330,18 +332,18 @@ const deleteCategory = async (categoryId: string): Promise<boolean> => {
             console.error("Error deleting category image from IndexedDB:", error);
         }
     }
-    // Optionally, reassign products from this category or handle subcategories
+    
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = ''; // Unassign category
+        p.categoryId = ''; 
         updateProduct(p);
       }
     });
-    // Reassign child categories to be top-level or delete them recursively (simpler: prevent deletion if children exist)
+    
     const childCategories = categories.filter(c => c.parentId === categoryId);
     for (const child of childCategories) {
-        child.parentId = null; // Make children top-level
+        child.parentId = null; 
         updateCategory(child);
     }
     return true;
@@ -544,6 +546,26 @@ const setGlobalTheme = (theme: Theme): void => {
   setItem(KEYS.THEME, theme);
 };
 
+// Admin Action Logs
+const MAX_ADMIN_LOGS = 200; // Keep the last 200 logs for performance
+const getAdminActionLogs = (): AdminActionLog[] => {
+  const logs = getItem<AdminActionLog[]>(KEYS.ADMIN_ACTION_LOGS) || [];
+  return logs.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+};
+
+const addAdminActionLog = (logData: Omit<AdminActionLog, 'id' | 'timestamp'>): void => {
+  let logs = getItem<AdminActionLog[]>(KEYS.ADMIN_ACTION_LOGS) || [];
+  const newLog: AdminActionLog = {
+    ...logData,
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+  };
+  logs.unshift(newLog); // Add to the beginning for chronological order (newest first)
+  logs = logs.slice(0, MAX_ADMIN_LOGS); // Keep only the most recent logs
+  setItem(KEYS.ADMIN_ACTION_LOGS, logs);
+};
+
+
 const localStorageService = {
   KEYS,
   getItem,
@@ -587,7 +609,8 @@ const localStorageService = {
   addRecentlyViewed,
   getGlobalTheme,
   setGlobalTheme,
+  getAdminActionLogs,
+  addAdminActionLog,
 };
 
 export { localStorageService };
-
