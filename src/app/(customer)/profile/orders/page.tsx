@@ -9,6 +9,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge'; // Added this import
 import { PackageSearch, ArrowLeft, ShoppingCart } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
