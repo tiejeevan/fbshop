@@ -130,7 +130,11 @@ export default function ProductsPage() {
                         data-ai-hint="product image"
                       />
                     ) : product.icon ? (
-                      <div className="w-full h-48 flex items-center justify-center bg-muted rounded-t-md group-hover:bg-accent/20 transition-colors" data-ai-hint="product icon">
+                      <div 
+                        className="w-full h-48 flex items-center justify-center bg-muted rounded-t-md group-hover:bg-accent/20 transition-colors" 
+                        data-ai-hint="product icon"
+                        style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
+                      >
                         <span
                           className={cn(product.icon, 'css-icon-base text-primary group-hover:text-accent-foreground')}
                           style={{ transform: 'scale(3)' }} 
@@ -179,4 +183,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-

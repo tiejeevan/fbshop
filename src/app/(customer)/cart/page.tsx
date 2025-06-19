@@ -125,7 +125,11 @@ export default function CartPage() {
                   data-ai-hint="product thumbnail"
                 />
               ) : iconToShow ? (
-                <div className="w-24 h-24 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="product icon">
+                <div 
+                  className="w-24 h-24 flex items-center justify-center bg-muted rounded-md border" 
+                  data-ai-hint="product icon"
+                  style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
+                >
                   <span
                     className={cn(iconToShow, 'css-icon-base text-primary')}
                     style={{ transform: 'scale(1.5)' }}

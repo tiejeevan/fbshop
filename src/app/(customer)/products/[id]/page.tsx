@@ -113,7 +113,11 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
               priority
             />
           ) : product.icon ? (
-            <div className="w-full h-full flex items-center justify-center bg-muted rounded-md" data-ai-hint="product icon">
+            <div 
+              className="w-full h-full flex items-center justify-center bg-muted rounded-md" 
+              data-ai-hint="product icon"
+              style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
+            >
               <span
                 className={cn(product.icon, 'css-icon-base text-primary')}
                 style={{ transform: 'scale(5)' }}

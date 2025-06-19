@@ -123,7 +123,11 @@ export default function AdminProductsPage() {
                             data-ai-hint="product thumbnail"
                           />
                         ) : product.icon ? (
-                          <div className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="product icon">
+                          <div 
+                            className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" 
+                            data-ai-hint="product icon"
+                            style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
+                          >
                             <span
                               className={cn(product.icon, 'css-icon-base text-primary')}
                               style={{ transform: 'scale(1.2)' }}
