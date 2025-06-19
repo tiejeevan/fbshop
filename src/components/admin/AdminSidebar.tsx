@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -53,7 +54,7 @@ export function AdminSidebar() {
 
   const handleLogout = () => {
     logout();
-    router.push('/admin/login');
+    router.push('/'); // Redirect to the main landing page
   };
 
   const toggleSubmenu = (label: string) => {

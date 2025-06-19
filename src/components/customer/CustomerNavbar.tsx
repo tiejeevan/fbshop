@@ -59,7 +59,7 @@ export function CustomerNavbar() {
 
   const handleLogout = () => {
     logout();
-    router.push('/login');
+    router.push('/'); // Redirect to the main landing page
   };
 
   const UserMenu = () => (
