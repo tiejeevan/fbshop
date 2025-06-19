@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag, User, LogOut, Home, Menu, ShoppingCart, PackageSearch, Heart, History } from 'lucide-react';
+import { ShoppingBag, User, LogOut, Home, Menu, ShoppingCart, PackageSearch, Heart, History, LayoutDashboard } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -25,7 +25,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { LoginModal } from '@/components/auth/LoginModal'; // Import the new LoginModal
 
 const navLinks = [
-  { href: '/products', label: 'Home', icon: Home },
+  // { href: '/products', label: 'Home', icon: Home }, // Removed as per previous request
 ];
 
 export function CustomerNavbar() {
@@ -122,6 +122,14 @@ export function CustomerNavbar() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {currentUser && currentUser.role === 'admin' && (
+            <Button variant="outline" size="sm" asChild className="hidden sm:flex">
+              <Link href="/admin/dashboard">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                Admin
+              </Link>
+            </Button>
+          )}
           <ThemeToggle />
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
@@ -137,7 +145,7 @@ export function CustomerNavbar() {
           {currentUser ? (
             <UserMenu />
           ) : (
-            <LoginModal /> // Replace old Login button with LoginModal trigger
+            <LoginModal />
           )}
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild className="md:hidden">
@@ -148,6 +156,11 @@ export function CustomerNavbar() {
             </SheetTrigger>
             <SheetContent side="left" className="w-[300px] sm:w-[400px]">
               <nav className="mt-8 flex flex-col gap-4">
+                {currentUser && currentUser.role === 'admin' && (
+                     <Link href="/admin/dashboard" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.startsWith("/admin") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}>
+                        <LayoutDashboard className="mr-2 h-5 w-5" /> Admin Panel
+                    </Link>
+                )}
                 {navLinks.map(link => ( 
                   <Link
                     key={link.label}
@@ -162,7 +175,7 @@ export function CustomerNavbar() {
                     {link.label}
                   </Link>
                 ))}
-                 {currentUser && (
+                 {currentUser && currentUser.role === 'customer' && (
                    <>
                     <DropdownMenuSeparator />
                      <Link href="/profile" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><User className="mr-2 h-5 w-5" /> Profile</Link>
@@ -178,3 +191,5 @@ export function CustomerNavbar() {
     </header>
   );
 }
+
+    

@@ -96,7 +96,11 @@ export default function AdminProductsPage() {
                           data-ai-hint="admin product thumbnail"
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/products/${product.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-primary">
+                            {product.name}
+                        </Link>
+                      </TableCell>
                       <TableCell><Badge variant="outline">{getCategoryName(product.categoryId)}</Badge></TableCell>
                       <TableCell className="hidden md:table-cell">${product.price.toFixed(2)}</TableCell>
                       <TableCell className="hidden md:table-cell">{product.stock}</TableCell>
@@ -134,3 +138,5 @@ export default function AdminProductsPage() {
     </div>
   );
 }
+
+    
