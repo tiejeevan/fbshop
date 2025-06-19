@@ -5,7 +5,7 @@ export type Theme = 'light' | 'dark' | 'system';
 export interface User {
   id: string;
   email: string;
-  password?: string; // Password stored in plain text for this demo, not secure for production
+  password?: string; 
   role: UserRole;
   name?: string;
   createdAt: string;
@@ -25,13 +25,12 @@ export interface Product {
   id:string;
   name: string;
   description: string;
-  imageUrl: string; // Primary image URL, mandatory
-  imageUrls?: string[]; // Additional image URLs, up to 9
+  primaryImageDataUri?: string | null; // Stores the Base64 Data URI of the primary image
+  additionalImageDataUris?: string[] | null; // Stores an array of Base64 Data URIs for additional images
   price: number;
   stock: number;
-  categoryId: string; // Ensure this links to a Category.id
-  categoryName?: string; // For display convenience
-  icon?: string | null; // CSS class name for the icon, or null
+  categoryId: string; 
+  categoryName?: string; 
   createdAt: string;
   updatedAt: string;
   views: number;
@@ -43,10 +42,9 @@ export interface Product {
 export interface CartItem {
   productId: string;
   quantity: number;
-  price: number; // Price at the time of adding to cart
-  name: string; // For display
-  imageUrl?: string; // For display - will use product's primary imageUrl
-  icon?: string | null; // For display
+  price: number; 
+  name: string; 
+  primaryImageDataUri?: string | null; // For display
 }
 
 export interface Cart {
@@ -58,10 +56,9 @@ export interface Cart {
 export interface OrderItem {
   productId: string;
   quantity: number;
-  priceAtPurchase: number; // Price at the time of order
-  name: string; // For display
-  imageUrl?: string; // For display - will use product's primary imageUrl
-  icon?: string | null; // For display
+  priceAtPurchase: number; 
+  name: string; 
+  primaryImageDataUri?: string | null; // For display
 }
 
 export interface Order {
@@ -70,9 +67,9 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   orderDate: string;
-  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Completed'; // Simulated status
-  shippingAddress?: any; // Placeholder for shipping info
-  paymentDetails?: any; // Placeholder for payment info
+  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Completed'; 
+  shippingAddress?: any; 
+  paymentDetails?: any; 
 }
 
 export interface LoginActivity {
@@ -93,7 +90,7 @@ export interface Review {
   id: string;
   productId: string;
   userId: string;
-  userName: string; // Store userName at time of review for denormalization
+  userName: string; 
   rating: number; // 1 to 5
   comment: string;
   createdAt: string;
@@ -106,5 +103,5 @@ export interface RecentlyViewedItem {
 
 export interface UserRecentlyViewed {
   userId: string;
-  items: RecentlyViewedItem[]; // Store an array of product IDs, ordered by most recent
+  items: RecentlyViewedItem[]; 
 }

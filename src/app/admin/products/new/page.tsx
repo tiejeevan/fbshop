@@ -24,8 +24,8 @@ export default function NewProductPage() {
     try {
       localStorageService.addProduct({
         ...data,
-        imageUrl: data.imageUrl, // Mandatory from form schema
-        imageUrls: (data.imageUrls || []).filter(url => url && url.trim() !== ''),
+        primaryImageDataUri: data.primaryImageDataUri || null,
+        additionalImageDataUris: (data.additionalImageDataUris || []).filter(uri => uri && uri.trim() !== ''),
       });
       toast({ title: "Product Created", description: `"${data.name}" has been successfully added.` });
       router.push('/admin/products');

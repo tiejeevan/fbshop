@@ -5,16 +5,18 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { localStorageService } from '@/lib/localStorage';
-import type { Cart, CartItem, OrderItem, Product } from '@/types';
+import type { Cart, OrderItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CreditCard, Lock, Loader2, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, CreditCard, Lock, Loader2, ShoppingBag, ImageOff } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { cn } from '@/lib/utils';
+
+const PLACEHOLDER_IMAGE_CHECKOUT_ITEM = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZWNlZjFhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEwcHgiIGZpbGw9IiNjY2MiPkltYWdlPC90ZXh0Pjwvc3ZnPg==";
+
 
 export default function CheckoutPage() {
   const { currentUser } = useAuth();
@@ -45,7 +47,7 @@ export default function CheckoutPage() {
   }, [currentUser, router, toast]);
 
   const subtotal = cart?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
-  const shippingCost = 0; // Mock free shipping
+  const shippingCost = 0; 
   const totalAmount = subtotal + shippingCost;
 
   const handleMockPayment = async (e: React.FormEvent) => {
@@ -53,8 +55,6 @@ export default function CheckoutPage() {
     if (!currentUser || !cart || cart.items.length === 0) return;
 
     setIsProcessingPayment(true);
-
-    // Simulate payment processing
     await new Promise(resolve => setTimeout(resolve, 2500));
 
     const orderItems: OrderItem[] = cart.items.map(item => ({
@@ -62,8 +62,7 @@ export default function CheckoutPage() {
       quantity: item.quantity,
       priceAtPurchase: item.price,
       name: item.name,
-      imageUrl: item.imageUrl,
-      icon: item.icon,
+      primaryImageDataUri: item.primaryImageDataUri,
     }));
 
     try {
@@ -71,14 +70,13 @@ export default function CheckoutPage() {
         userId: currentUser.id,
         items: orderItems,
         totalAmount: totalAmount,
-        status: 'Completed', // Or 'Processing'
-        // Mock shipping/payment details if needed
+        status: 'Completed', 
         shippingAddress: { name: currentUser.name || 'Customer', line1: '123 Mock Street', city: 'Fakeville', country: 'Neverland' },
         paymentDetails: { method: 'MockCard', transactionId: `mock_txn_${crypto.randomUUID()}` }
       });
 
       localStorageService.clearCart(currentUser.id);
-      window.dispatchEvent(new CustomEvent('cartUpdated')); // Notify navbar
+      window.dispatchEvent(new CustomEvent('cartUpdated')); 
       
       toast({ title: "Payment Successful!", description: "Your order has been placed." });
       router.push(`/order-confirmation/${newOrder.id}`);
@@ -95,7 +93,6 @@ export default function CheckoutPage() {
   }
 
   if (!cart || cart.items.length === 0) {
-    // This case should be handled by the redirect in useEffect, but as a fallback:
     return (
         <div className="text-center py-20 space-y-6">
             <ShoppingBag className="h-24 w-24 mx-auto text-muted-foreground" />
@@ -173,43 +170,22 @@ export default function CheckoutPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {cart.items.map(item => {
-                const productDetails = localStorageService.findProductById(item.productId);
-                const hasRealImage = item.imageUrl && !item.imageUrl.startsWith('https://placehold.co');
-
+                const imageSrc = item.primaryImageDataUri || PLACEHOLDER_IMAGE_CHECKOUT_ITEM;
                 return (
                 <div key={item.productId} className="flex items-center gap-3 border-b pb-3 last:border-b-0 last:pb-0">
-                    {hasRealImage ? (
+                    {imageSrc === PLACEHOLDER_IMAGE_CHECKOUT_ITEM && !item.primaryImageDataUri ? (
+                       <div className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="checkout item placeholder">
+                          <ImageOff className="w-8 h-8 text-muted-foreground" />
+                       </div>
+                    ) : (
                         <Image
-                        src={item.imageUrl!}
+                        src={imageSrc}
                         alt={item.name}
                         width={60}
                         height={60}
                         className="w-16 h-16 object-cover rounded-md border"
                         data-ai-hint="checkout item image"
-                        />
-                    ) : item.icon ? (
-                        <div 
-                            className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" 
-                            data-ai-hint="product icon"
-                            style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                        >
-                            <span
-                                className={cn(item.icon, 'css-icon-base text-primary')}
-                                style={{ transform: 'scale(1.2)' }}
-                            >
-                                {item.icon === 'css-icon-settings' && <span />}
-                                {item.icon === 'css-icon-trash' && <i><em /></i>}
-                                {item.icon === 'css-icon-file' && <span />}
-                            </span>
-                        </div>
-                    ) : (
-                        <Image
-                        src={`https://placehold.co/60x60.png?text=${encodeURIComponent(item.name.charAt(0))}`}
-                        alt={item.name}
-                        width={60}
-                        height={60}
-                        className="w-16 h-16 object-cover rounded-md border"
-                        data-ai-hint="checkout item placeholder"
+                        unoptimized={imageSrc.startsWith('data:image')}
                         />
                     )}
                   <div className="flex-grow">
@@ -240,4 +216,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-

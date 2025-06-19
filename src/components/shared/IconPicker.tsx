@@ -1,6 +1,10 @@
 
 'use client';
 
+// This component is currently not used as products now use uploaded images.
+// Keeping the file in case CSS icons are needed elsewhere or as a future fallback.
+// If it's confirmed to be entirely unused, it can be deleted.
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -8,17 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// CSS Icon definitions are now in globals.css
-
-// Define the structure for our CSS icons (must match definitions in globals.css)
 interface CssIconDefinition {
-  name: string; // Unique identifier/name for the icon
-  className: string; // The CSS class that renders the icon
-  displayName: string; // User-friendly name for display and search
-  tags?: string[]; // Optional tags for searching
+  name: string; 
+  className: string; 
+  displayName: string; 
+  tags?: string[]; 
 }
 
-// This list must be kept in sync with the CSS definitions in globals.css
 const ALL_CSS_ICONS: CssIconDefinition[] = [
   { name: 'home', className: 'css-icon-home', displayName: 'Home', tags: ['house', 'main'] },
   { name: 'settings', className: 'css-icon-settings', displayName: 'Settings', tags: ['gear', 'options', 'configure'] },
@@ -58,22 +58,20 @@ interface IconPickerProps {
 
 export function IconPicker({ selectedIconClassName, onIconSelect, className }: IconPickerProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [cardBgColorForCutout, setCardBgColorForCutout] = useState('hsl(var(--card))'); // Default to card background
+  const [cardBgColorForCutout, setCardBgColorForCutout] = useState('hsl(var(--card))'); 
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
         const rootStyle = getComputedStyle(document.documentElement);
-        let cardColor = rootStyle.getPropertyValue('--card').trim(); // HSL string like "0 0% 100%"
+        let cardColor = rootStyle.getPropertyValue('--card').trim(); 
         
         if (cardColor) {
-            // Check if it's an HSL string without hsl() wrapper
             if (cardColor.split(' ').length === 3 && !cardColor.includes('(')) {
                  setCardBgColorForCutout(`hsl(${cardColor})`);
             } else {
-                 setCardBgColorForCutout(cardColor); // Assumes it's already a valid CSS color (e.g. hsl(0 0% 100%))
+                 setCardBgColorForCutout(cardColor); 
             }
         } else {
-            // Fallback if --card is not found, try --background
             let bgColor = rootStyle.getPropertyValue('--background').trim();
             if (bgColor) {
                 if (bgColor.split(' ').length === 3 && !bgColor.includes('(')) {
@@ -82,7 +80,7 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
                     setCardBgColorForCutout(bgColor);
                 }
             } else {
-                setCardBgColorForCutout('white'); // Ultimate fallback
+                setCardBgColorForCutout('white'); 
             }
         }
     }
@@ -103,20 +101,20 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
 
   return (
     <>
-      {/* CSS Icon Styles are now in globals.css */}
       <Card
         className={cn("w-full", className)}
         style={{
-          '--icon-cutout-bg': cardBgColorForCutout, // Used by icons within this picker
+          '--icon-cutout-bg': cardBgColorForCutout, 
         } as React.CSSProperties}
       >
         <CardHeader>
-          <CardTitle className="text-lg">Select an Icon (Optional)</CardTitle>
+          <CardTitle className="text-lg">Select an Icon (Optional - Deprecated for Products)</CardTitle>
           <CardDescription>
-            Search and select a CSS-based icon. ({ALL_CSS_ICONS.length} icons available)
+            This component is no longer used for product images. Product images are now uploaded directly.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {/* Content hidden as it's deprecated for products */}
+        {/* <CardContent className="space-y-4">
           <Input
             type="text"
             placeholder={`Search ${ALL_CSS_ICONS.length} icons...`}
@@ -127,7 +125,7 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
           <div
             className="mb-4 p-4 border rounded-md flex flex-col items-center justify-center bg-muted min-h-[100px]"
             style={{
-              '--icon-cutout-bg': 'hsl(var(--muted))', // Preview uses muted background for its cutout
+              '--icon-cutout-bg': 'hsl(var(--muted))', 
             } as React.CSSProperties}
           >
             {selectedIconClassName ? (
@@ -173,7 +171,7 @@ export function IconPicker({ selectedIconClassName, onIconSelect, className }: I
               ))}
             </div>
           </ScrollArea>
-        </CardContent>
+        </CardContent> */}
       </Card>
     </>
   );

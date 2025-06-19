@@ -8,12 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { localStorageService } from '@/lib/localStorage';
-import type { Cart, CartItem, Product } from '@/types';
-import { ArrowLeft, Trash2, ShoppingBag, Minus, Plus } from 'lucide-react';
+import type { Cart, CartItem } from '@/types';
+import { ArrowLeft, Trash2, ShoppingBag, Minus, Plus, ImageOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+
+const PLACEHOLDER_IMAGE_CART_ITEM = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2VjZWYxYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm95dC1zaXplPSIxMnB4IiBmaWxsPSIjY2NjIj5JbWFnZTwvdGV4dD48L3N2Zz4=";
+
 
 export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
@@ -62,7 +64,7 @@ export default function CartPage() {
       item.productId === productId ? { ...item, quantity: updatedQuantity } : item
     );
     const updatedCart = { ...cart, items: updatedItems };
-    setCart(updatedCart); // Optimistic update for UI
+    setCart(updatedCart); 
     localStorageService.updateCart(updatedCart);
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
@@ -71,7 +73,7 @@ export default function CartPage() {
     if (!currentUser || !cart) return;
     const updatedItems = cart.items.filter(item => item.productId !== productId);
     const updatedCart = { ...cart, items: updatedItems };
-    setCart(updatedCart); // Optimistic update
+    setCart(updatedCart); 
     localStorageService.updateCart(updatedCart);
     toast({ title: "Item Removed", description: "Product removed from your cart." });
     window.dispatchEvent(new CustomEvent('cartUpdated'));
@@ -110,43 +112,23 @@ export default function CartPage() {
         <div className="lg:col-span-2 space-y-6">
           {cart.items.map(item => {
             const productDetails = localStorageService.findProductById(item.productId);
-            const hasRealImage = item.imageUrl && !item.imageUrl.startsWith('https://placehold.co');
-            const iconToShow = item.icon; // Icon from cart item, which should be from product
-
+            const imageSrc = item.primaryImageDataUri || PLACEHOLDER_IMAGE_CART_ITEM;
+            
             return (
             <Card key={item.productId} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-md">
-              {hasRealImage ? (
+              {imageSrc === PLACEHOLDER_IMAGE_CART_ITEM && !item.primaryImageDataUri ? (
+                 <div className="w-24 h-24 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="product image placeholder">
+                    <ImageOff className="w-10 h-10 text-muted-foreground" />
+                 </div>
+              ) : (
                 <Image
-                  src={item.imageUrl!}
+                  src={imageSrc}
                   alt={item.name}
                   width={100}
                   height={100}
                   className="w-24 h-24 object-cover rounded-md border"
                   data-ai-hint="product thumbnail"
-                />
-              ) : iconToShow ? (
-                <div 
-                  className="w-24 h-24 flex items-center justify-center bg-muted rounded-md border" 
-                  data-ai-hint="product icon"
-                  style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                >
-                  <span
-                    className={cn(iconToShow, 'css-icon-base text-primary')}
-                    style={{ transform: 'scale(1.5)' }}
-                  >
-                    {iconToShow === 'css-icon-settings' && <span />}
-                    {iconToShow === 'css-icon-trash' && <i><em /></i>}
-                    {iconToShow === 'css-icon-file' && <span />}
-                  </span>
-                </div>
-              ) : (
-                <Image
-                  src={`https://placehold.co/100x100.png?text=${encodeURIComponent(item.name)}`}
-                  alt={item.name}
-                  width={100}
-                  height={100}
-                  className="w-24 h-24 object-cover rounded-md border"
-                  data-ai-hint="product thumbnail placeholder"
+                  unoptimized={imageSrc.startsWith('data:image')}
                 />
               )}
               <div className="flex-grow text-center sm:text-left">

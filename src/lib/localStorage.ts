@@ -33,7 +33,10 @@ function setItem<T>(key: string, value: T): void {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
-    console.error(`Error setting item ${key} in localStorage`, error);
+    console.error(`Error setting item ${key} in localStorage: `, error);
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      alert('Local storage quota exceeded. Please free up space or reduce image sizes.');
+    }
   }
 }
 
@@ -86,18 +89,20 @@ function initializeDataOnce() {
   if (products.length === 0 && categories.length > 0) {
     const electronicsCat = categories.find(c => c.id === 'cat1_electronics');
     const booksCat = categories.find(c => c.id === 'cat2_books');
+    // Using very small placeholder Data URIs for mock data to avoid exceeding quota quickly.
+    // A 1x1 transparent PNG
+    const tinyPlaceholderDataUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
     const mockProducts: Product[] = [
       {
         id: crypto.randomUUID(),
         name: 'Wireless Headphones X2000',
         description: 'Experience immersive sound with these noise-cancelling wireless headphones. Long battery life and comfortable design for all-day listening.',
-        imageUrl: 'https://placehold.co/600x400.png?text=Primary+Headphones',
-        imageUrls: ['https://placehold.co/600x400.png?text=Headphones+Angle+1', 'https://placehold.co/600x400.png?text=Headphones+Angle+2', 'https://placehold.co/600x400.png?text=Headphones+On+Ear'],
+        primaryImageDataUri: tinyPlaceholderDataUri, // Using tiny placeholder
+        additionalImageDataUris: [tinyPlaceholderDataUri],
         price: 149.99,
         stock: 50,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'css-icon-home',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 120,
@@ -107,12 +112,11 @@ function initializeDataOnce() {
         id: crypto.randomUUID(),
         name: 'Smartwatch ProConnect',
         description: 'Stay connected and track your fitness with this feature-packed smartwatch. GPS, heart rate monitor, and a vibrant display.',
-        imageUrl: 'https://placehold.co/600x400.png?text=Smartwatch+Main',
-        imageUrls: ['https://placehold.co/600x400.png?text=Smartwatch+Screen', 'https://placehold.co/600x400.png?text=Smartwatch+Side'],
+        primaryImageDataUri: tinyPlaceholderDataUri, // Using tiny placeholder
+        additionalImageDataUris: [],
         price: 249.50,
         stock: 30,
         categoryId: electronicsCat?.id || categories[0].id,
-        icon: 'css-icon-settings',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 250,
@@ -122,18 +126,18 @@ function initializeDataOnce() {
         id: crypto.randomUUID(),
         name: 'The Enigmatic Cipher',
         description: 'A thrilling mystery novel that will keep you on the edge of your seat until the very last page. By acclaimed author A. N. Other.',
-        imageUrl: 'https://placehold.co/600x400.png?text=Book+Cover',
+        primaryImageDataUri: null, // No image for this one initially
+        additionalImageDataUris: [],
         price: 19.99,
         stock: 100,
         categoryId: booksCat?.id || categories[1].id,
-        icon: 'css-icon-file',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         views: 85,
         purchases: 22,
       },
     ];
-    products = mockProducts.map(p => ({ ...p, averageRating: 0, reviewCount: 0, imageUrls: (p.imageUrls || []).filter(Boolean) }));
+    products = mockProducts.map(p => ({ ...p, averageRating: 0, reviewCount: 0, additionalImageDataUris: (p.additionalImageDataUris || []).filter(Boolean) }));
     setItem(KEYS.PRODUCTS, products);
   }
 
@@ -205,13 +209,12 @@ const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'v
   const newProduct: Product = {
     ...product,
     id: crypto.randomUUID(),
-    imageUrl: product.imageUrl, // Primary URL is now mandatory from form
-    imageUrls: (product.imageUrls || []).filter(url => url && url.trim() !== ''),
+    primaryImageDataUri: product.primaryImageDataUri || null,
+    additionalImageDataUris: (product.additionalImageDataUris || []).filter(uri => uri && uri.trim() !== ''),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     views: 0,
     purchases: 0,
-    icon: product.icon || null,
     averageRating: 0,
     reviewCount: 0,
   };
@@ -226,9 +229,8 @@ const updateProduct = (updatedProduct: Product): Product | null => {
     products[index] = { 
         ...products[index], 
         ...updatedProduct, 
-        imageUrl: updatedProduct.imageUrl, // Primary URL is mandatory
-        imageUrls: (updatedProduct.imageUrls || []).filter(url => url && url.trim() !== ''),
-        icon: updatedProduct.icon || null,
+        primaryImageDataUri: updatedProduct.primaryImageDataUri || null,
+        additionalImageDataUris: (updatedProduct.additionalImageDataUris || []).filter(uri => uri && uri.trim() !== ''),
         updatedAt: new Date().toISOString() 
     };
     setItem(KEYS.PRODUCTS, products);
@@ -314,8 +316,7 @@ const updateCart = (cart: Cart): void => {
       return {
         ...item,
         name: product?.name || item.name,
-        imageUrl: product?.imageUrl || item.imageUrl, // Use product's primary image
-        icon: product?.icon || item.icon,
+        primaryImageDataUri: product?.primaryImageDataUri || item.primaryImageDataUri,
       };
     });
 
@@ -352,8 +353,7 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
       return {
         ...item,
         name: product?.name || 'Unknown Product',
-        imageUrl: product?.imageUrl, // Use product's primary image
-        icon: product?.icon,
+        primaryImageDataUri: product?.primaryImageDataUri,
       };
     });
 
@@ -470,6 +470,10 @@ const getRecentlyViewed = (userId: string): RecentlyViewedItem[] => {
 const addRecentlyViewed = (userId: string, productId: string): void => {
   let allLogs = getAllRecentlyViewed();
   let userLog = allLogs.find(log => log.userId === userId);
+
+  const product = findProductById(productId);
+  if (!product) return; // Don't add if product doesn't exist
+
   if (!userLog) {
     userLog = { userId, items: [] };
     allLogs.push(userLog);
@@ -478,6 +482,10 @@ const addRecentlyViewed = (userId: string, productId: string): void => {
   userLog.items.unshift({ productId, viewedAt: new Date().toISOString() });
   userLog.items = userLog.items.slice(0, MAX_RECENTLY_VIEWED);
   setItem(KEYS.RECENTLY_VIEWED, allLogs);
+
+  // Increment product view count
+  product.views = (product.views || 0) + 1;
+  updateProduct(product);
 };
 
 const getGlobalTheme = (): Theme => getItem<Theme>(KEYS.THEME) || 'system';

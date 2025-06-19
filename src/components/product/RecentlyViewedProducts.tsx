@@ -8,8 +8,11 @@ import type { Product, RecentlyViewedItem } from '@/types';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-import { Eye } from 'lucide-react';
+import { Eye, ImageOff } from 'lucide-react'; // Added ImageOff
+import { Skeleton } from '@/components/ui/skeleton';
+
+const PLACEHOLDER_RECENTLY_VIEWED = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIyNSIgdmlld0JveD0iMCAwIDMwMCAyMjUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2VjZWYxYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm95dC1zaXplPSIxNnB4IiBmaWxsPSIjY2NjIj5JbWFnZTwvdGV4dD48L3N2Zz4=";
+
 
 export function RecentlyViewedProducts() {
   const { currentUser } = useAuth();
@@ -26,13 +29,13 @@ export function RecentlyViewedProducts() {
       setViewedProducts(productDetails);
       setIsLoading(false);
     } else {
-      setViewedProducts([]); // Clear if user logs out
+      setViewedProducts([]); 
       setIsLoading(false);
     }
   }, [currentUser]);
 
   if (!currentUser || viewedProducts.length === 0) {
-    return null; // Don't render if no user or no recently viewed items
+    return null; 
   }
 
   if (isLoading) {
@@ -41,7 +44,7 @@ export function RecentlyViewedProducts() {
         <h2 className="font-headline text-2xl text-primary mb-4 flex items-center"><Eye className="mr-2 h-6 w-6"/>Recently Viewed</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {[...Array(3)].map((_, i) => (
-            <Card key={i} className="animate-pulse bg-muted h-[200px]"></Card>
+            <Card key={i} className="bg-muted h-[200px]"><Skeleton className="w-full h-full" /></Card>
           ))}
         </div>
       </div>
@@ -53,43 +56,24 @@ export function RecentlyViewedProducts() {
       <h2 className="font-headline text-2xl text-primary mb-4 flex items-center"><Eye className="mr-2 h-6 w-6"/>Recently Viewed</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {viewedProducts.map(product => {
-          const hasRealImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
+          const imageSrc = product.primaryImageDataUri || PLACEHOLDER_RECENTLY_VIEWED;
           return (
             <Link href={`/products/${product.id}`} key={product.id} className="block group">
               <Card className="overflow-hidden h-full flex flex-col hover:shadow-lg transition-shadow">
                 <CardHeader className="p-0 relative aspect-[4/3]">
-                  {hasRealImage ? (
+                  {imageSrc === PLACEHOLDER_RECENTLY_VIEWED && !product.primaryImageDataUri ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-t-md" data-ai-hint="product placeholder">
+                        <ImageOff className="w-10 h-10 text-muted-foreground"/>
+                    </div>
+                  ) : (
                     <Image
-                      src={product.imageUrl}
+                      src={imageSrc}
                       alt={product.name}
                       fill
                       className="object-cover transition-transform duration-300 group-hover:scale-105"
                       sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
                       data-ai-hint="recently viewed product"
-                    />
-                  ) : product.icon ? (
-                    <div 
-                      className="w-full h-full flex items-center justify-center bg-muted rounded-t-md group-hover:bg-accent/20 transition-colors" 
-                      data-ai-hint="product icon"
-                      style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                    >
-                      <span
-                        className={cn(product.icon, 'css-icon-base text-primary group-hover:text-accent-foreground')}
-                        style={{ transform: 'scale(2)' }} 
-                      >
-                        {product.icon === 'css-icon-settings' && <span />}
-                        {product.icon === 'css-icon-trash' && <i><em /></i>}
-                        {product.icon === 'css-icon-file' && <span />}
-                      </span>
-                    </div>
-                  ) : (
-                    <Image
-                      src={`https://placehold.co/300x225.png?text=${encodeURIComponent(product.name)}`}
-                      alt={product.name}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                       sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
-                      data-ai-hint="product placeholder"
+                      unoptimized={imageSrc.startsWith('data:image')}
                     />
                   )}
                 </CardHeader>

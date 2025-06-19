@@ -8,17 +8,18 @@ import type { Order } from '@/types';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge'; // Added this import
-import { PackageSearch, ArrowLeft, ShoppingCart } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { PackageSearch, ArrowLeft, ImageOff } from 'lucide-react'; // Added ImageOff
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+
+const PLACEHOLDER_IMAGE_ORDER_ITEM = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZWNlZjFhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjEwcHgiIGZpbGw9IiNjY2MiPkltYWdlPC90ZXh0Pjwvc3ZnPg==";
+
 
 export default function OrderHistoryPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
@@ -84,40 +85,22 @@ export default function OrderHistoryPage() {
               <h4 className="text-md font-semibold mb-2 text-foreground">Items in this order:</h4>
               <ul className="space-y-3">
                 {order.items.map(item => {
-                   const hasRealImage = item.imageUrl && !item.imageUrl.startsWith('https://placehold.co');
+                   const imageSrc = item.primaryImageDataUri || PLACEHOLDER_IMAGE_ORDER_ITEM;
                    return (
                     <li key={item.productId} className="flex items-center gap-3 p-2 border-b last:border-b-0">
-                      {hasRealImage ? (
+                      {imageSrc === PLACEHOLDER_IMAGE_ORDER_ITEM && !item.primaryImageDataUri ? (
+                        <div className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="order item placeholder">
+                           <ImageOff className="w-8 h-8 text-muted-foreground" />
+                        </div>
+                      ) : (
                         <Image 
-                            src={item.imageUrl!} 
+                            src={imageSrc} 
                             alt={item.name} 
                             width={60} height={60} 
                             className="w-16 h-16 object-cover rounded-md border"
                             data-ai-hint="order item image"
+                            unoptimized={imageSrc.startsWith('data:image')}
                         />
-                      ) : item.icon ? (
-                         <div 
-                            className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" 
-                            data-ai-hint="product icon"
-                            style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                          >
-                            <span
-                              className={cn(item.icon, 'css-icon-base text-primary')}
-                              style={{ transform: 'scale(1.2)' }} 
-                            >
-                              {item.icon === 'css-icon-settings' && <span />}
-                              {item.icon === 'css-icon-trash' && <i><em /></i>}
-                              {item.icon === 'css-icon-file' && <span />}
-                            </span>
-                          </div>
-                      ) : (
-                         <Image 
-                            src={`https://placehold.co/60x60.png?text=${encodeURIComponent(item.name.charAt(0))}`} 
-                            alt={item.name} 
-                            width={60} height={60} 
-                            className="w-16 h-16 object-cover rounded-md border"
-                            data-ai-hint="order item placeholder"
-                          />
                       )}
                       <div className="flex-grow">
                         <Link href={`/products/${item.productId}`} className="font-medium hover:text-primary hover:underline">{item.name}</Link>
@@ -128,7 +111,6 @@ export default function OrderHistoryPage() {
                    )
                 })}
               </ul>
-              {/* Future: Add shipping/payment details if implemented */}
             </AccordionContent>
           </AccordionItem>
         ))}

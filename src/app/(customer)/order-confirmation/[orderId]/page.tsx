@@ -5,14 +5,16 @@ import React, { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { localStorageService } from '@/lib/localStorage';
-import type { Order, OrderItem } from '@/types';
+import type { Order } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Package, ArrowLeft, ShoppingBag } from 'lucide-react';
+import { CheckCircle, Package, ArrowLeft, ShoppingBag, ImageOff } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+
+const PLACEHOLDER_IMAGE_CONFIRMATION_ITEM = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZWNlZjFhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjZweCIgZmlsbD0iI2NjYyI+SW1hZ2U8L3RleHQ+PC9zdmc+";
+
 
 export default function OrderConfirmationPage({ params: paramsPromise }: { params: Promise<{ orderId: string }> }) {
   const params = use(paramsPromise);
@@ -27,7 +29,6 @@ export default function OrderConfirmationPage({ params: paramsPromise }: { param
       if (fetchedOrder) {
         setOrder(fetchedOrder);
       } else {
-        // Order not found or doesn't belong to user
         router.replace('/profile/orders'); 
       }
     } else if (!currentUser) {
@@ -76,40 +77,22 @@ export default function OrderConfirmationPage({ params: paramsPromise }: { param
             <h3 className="font-headline text-xl text-primary mb-3 text-left">Items Purchased:</h3>
             <ul className="space-y-3 text-left">
               {order.items.map(item => {
-                const hasRealImage = item.imageUrl && !item.imageUrl.startsWith('https://placehold.co');
+                const imageSrc = item.primaryImageDataUri || PLACEHOLDER_IMAGE_CONFIRMATION_ITEM;
                 return (
                 <li key={item.productId} className="flex items-center gap-3 p-3 border rounded-md bg-background/50">
-                     {hasRealImage ? (
+                     {imageSrc === PLACEHOLDER_IMAGE_CONFIRMATION_ITEM && !item.primaryImageDataUri ? (
+                        <div className="w-12 h-12 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="confirmation item placeholder">
+                           <ImageOff className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                     ) : (
                         <Image 
-                            src={item.imageUrl!} 
+                            src={imageSrc} 
                             alt={item.name} 
                             width={50} height={50} 
                             className="w-12 h-12 object-cover rounded border"
                             data-ai-hint="confirmation item image"
+                            unoptimized={imageSrc.startsWith('data:image')}
                         />
-                      ) : item.icon ? (
-                         <div 
-                            className="w-12 h-12 flex items-center justify-center bg-muted rounded border" 
-                            data-ai-hint="product icon"
-                            style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                          >
-                            <span
-                              className={cn(item.icon, 'css-icon-base text-primary')}
-                              style={{ transform: 'scale(1)' }} 
-                            >
-                              {item.icon === 'css-icon-settings' && <span />}
-                              {item.icon === 'css-icon-trash' && <i><em /></i>}
-                              {item.icon === 'css-icon-file' && <span />}
-                            </span>
-                          </div>
-                      ) : (
-                         <Image 
-                            src={`https://placehold.co/50x50.png?text=${encodeURIComponent(item.name.charAt(0))}`} 
-                            alt={item.name} 
-                            width={50} height={50} 
-                            className="w-12 h-12 object-cover rounded border"
-                            data-ai-hint="confirmation item placeholder"
-                          />
                       )}
                   <div className="flex-grow">
                     <p className="font-medium text-sm text-foreground">{item.name}</p>
@@ -138,4 +121,3 @@ export default function OrderConfirmationPage({ params: paramsPromise }: { param
     </div>
   );
 }
-

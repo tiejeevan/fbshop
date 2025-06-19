@@ -9,9 +9,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { HeartCrack, ShoppingCart, ArrowLeft } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { HeartCrack, ShoppingCart, ArrowLeft, ImageOff } from 'lucide-react'; // Added ImageOff
 import { useToast } from '@/hooks/use-toast';
+
+const PLACEHOLDER_IMAGE_WISHLIST_ITEM = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDYwMCA0MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2VjZWYxYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm95dC1zaXplPSIyMHB4IiBmaWxsPSIjY2NjIj5JbWFnZTwvdGV4dD48L3N2Zz4=";
+
 
 export default function WishlistPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
@@ -25,7 +27,7 @@ export default function WishlistPage() {
       const productDetails: Product[] = userWishlistItems
         .map(item => localStorageService.findProductById(item.productId))
         .filter((product): product is Product => product !== undefined)
-        .sort((a,b) => { // Sort by when it was added to wishlist (newest first)
+        .sort((a,b) => { 
             const itemA = userWishlistItems.find(i => i.productId === a.id);
             const itemB = userWishlistItems.find(i => i.productId === b.id);
             return new Date(itemB?.addedAt || 0).getTime() - new Date(itemA?.addedAt || 0).getTime();
@@ -40,7 +42,7 @@ export default function WishlistPage() {
     localStorageService.removeFromWishlist(currentUser.id, productId);
     setWishlistProducts(prev => prev.filter(p => p.id !== productId));
     toast({ title: "Removed from Wishlist", description: "Product removed from your wishlist." });
-    window.dispatchEvent(new CustomEvent('wishlistUpdated')); // For WishlistButton to update
+    window.dispatchEvent(new CustomEvent('wishlistUpdated')); 
   };
 
   const handleAddToCart = (product: Product) => {
@@ -61,7 +63,7 @@ export default function WishlistPage() {
       }
     } else {
       if (product.stock > 0) {
-        cart.items.push({ productId: product.id, quantity: 1, price: product.price, name: product.name, imageUrl: product.imageUrl, icon: product.icon });
+        cart.items.push({ productId: product.id, quantity: 1, price: product.price, name: product.name, primaryImageDataUri: product.primaryImageDataUri });
       } else {
         toast({ title: "Out of Stock", description: `${product.name} is currently out of stock.`, variant: "destructive" });
         return;
@@ -104,44 +106,25 @@ export default function WishlistPage() {
       </header>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {wishlistProducts.map(product => {
-          const hasRealImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
+          const imageSrc = product.primaryImageDataUri || PLACEHOLDER_IMAGE_WISHLIST_ITEM;
           return (
             <Card key={product.id} className="overflow-hidden flex flex-col group">
               <Link href={`/products/${product.id}`} className="block">
                 <CardHeader className="p-0 relative">
-                  {hasRealImage ? (
+                  {imageSrc === PLACEHOLDER_IMAGE_WISHLIST_ITEM && !product.primaryImageDataUri ? (
+                    <div className="w-full h-48 flex items-center justify-center bg-muted rounded-t-md" data-ai-hint="product image placeholder">
+                       <ImageOff className="w-12 h-12 text-muted-foreground" />
+                    </div>
+                  ) : (
                     <Image
-                      src={product.imageUrl}
+                      src={imageSrc}
                       alt={product.name}
                       width={600}
                       height={400}
                       className="object-cover w-full h-48"
                       data-ai-hint="wishlist product image"
+                      unoptimized={imageSrc.startsWith('data:image')}
                     />
-                  ) : product.icon ? (
-                    <div 
-                      className="w-full h-48 flex items-center justify-center bg-muted rounded-t-md" 
-                      data-ai-hint="product icon"
-                      style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                      >
-                      <span
-                        className={cn(product.icon, 'css-icon-base text-primary')}
-                        style={{ transform: 'scale(3)' }} 
-                      >
-                        {product.icon === 'css-icon-settings' && <span />}
-                        {product.icon === 'css-icon-trash' && <i><em /></i>}
-                        {product.icon === 'css-icon-file' && <span />}
-                      </span>
-                    </div>
-                  ) : (
-                     <Image
-                        src={`https://placehold.co/600x400.png?text=${encodeURIComponent(product.name)}`}
-                        alt={product.name}
-                        width={600}
-                        height={400}
-                        className="object-cover w-full h-48"
-                        data-ai-hint="product image placeholder"
-                      />
                   )}
                 </CardHeader>
                 <CardContent className="p-4 flex-grow">

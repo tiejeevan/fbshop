@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category, Review as ReviewType } from '@/types';
-import { ArrowLeft, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, ImageOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,8 +17,12 @@ import { WishlistButton } from '@/components/customer/WishlistButton';
 import { ReviewList } from '@/components/product/ReviewList';
 import { ReviewForm } from '@/components/product/ReviewForm';
 import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) { 
+const PLACEHOLDER_IMAGE_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQ1MCIgdmlld0JveD0iMCAwIDYwMCA0NTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm95dC1zaXplPSIyNHB4IiBmaWxsPSIjYWFhIj5Qcm9kdWN0IEltYWdlPC90ZXh0Pjwvc3ZnPg==";
+
+
+export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id:string }> }) { 
   const params = use(paramsPromise); 
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
@@ -32,20 +36,24 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [allProductImages, setAllProductImages] = useState<string[]>([]);
+  const [allProductImages, setAllProductImages] = useState<string[]>([]); // Will store Data URIs
   const [isZoomed, setIsZoomed] = useState(false);
 
   const fetchProductData = useCallback(() => {
     const fetchedProduct = localStorageService.findProductById(params.id); 
     if (fetchedProduct) {
       setProduct(fetchedProduct);
-      const images = [fetchedProduct.imageUrl, ...(fetchedProduct.imageUrls || [])].filter(Boolean);
+      const images = [
+        fetchedProduct.primaryImageDataUri, 
+        ...(fetchedProduct.additionalImageDataUris || [])
+      ].filter((img): img is string => !!img); // Filter out null/undefined and ensure type is string
       setAllProductImages(images);
+
       if (fetchedProduct.categoryId) {
         const fetchedCategory = localStorageService.findCategoryById(fetchedProduct.categoryId);
         setCategory(fetchedCategory || null);
       }
-      if(currentUser) {
+      if(currentUser) { // Record view only if product exists and user is logged in
         localStorageService.addRecentlyViewed(currentUser.id, fetchedProduct.id);
       }
       const productReviews = localStorageService.getReviewsForProduct(params.id);
@@ -83,6 +91,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     }
     const cart = localStorageService.getCart(currentUser.id) || { userId: currentUser.id, items: [], updatedAt: new Date().toISOString() };
     const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
+    
     if (existingItemIndex > -1) {
       const newQuantity = cart.items[existingItemIndex].quantity + quantity;
       if (newQuantity <= product.stock) {
@@ -98,8 +107,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
             quantity, 
             price: product.price, 
             name: product.name, 
-            imageUrl: product.imageUrl, 
-            icon: product.icon 
+            primaryImageDataUri: product.primaryImageDataUri 
         });
       } else {
         toast({ title: "Stock Limit", description: `Cannot add ${quantity}. Max stock available: ${product.stock}.`, variant: "destructive" });
@@ -126,29 +134,24 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     }
   };
 
-  // Image Viewer Handlers
   const openImageViewer = (index: number) => {
-    setSelectedImageIndex(index);
-    setIsViewerOpen(true);
-    setIsZoomed(false); 
+    if (allProductImages.length > 0) {
+      setSelectedImageIndex(index);
+      setIsViewerOpen(true);
+      setIsZoomed(false);
+    }
   };
-
-  const closeImageViewer = useCallback(() => {
-    setIsViewerOpen(false);
-  }, []);
-
+  const closeImageViewer = useCallback(() => setIsViewerOpen(false), []);
   const nextImage = useCallback(() => {
     if (!allProductImages.length) return;
     setSelectedImageIndex((prevIndex) => (prevIndex + 1) % allProductImages.length);
     setIsZoomed(false);
   }, [allProductImages.length]);
-
   const prevImage = useCallback(() => {
     if (!allProductImages.length) return;
     setSelectedImageIndex((prevIndex) => (prevIndex - 1 + allProductImages.length) % allProductImages.length);
     setIsZoomed(false);
   }, [allProductImages.length]);
-
   const toggleZoom = useCallback(() => setIsZoomed(prev => !prev), []);
 
   useEffect(() => {
@@ -165,14 +168,38 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   }, [isViewerOpen, closeImageViewer, nextImage, prevImage, toggleZoom]);
 
   if (isLoading) {
-    return <div className="text-center py-20">Loading product details...</div>;
+    return (
+      <div className="container mx-auto py-8 px-4">
+         <Button variant="outline" className="mb-8 group w-40"><Skeleton className="h-4 w-full" /></Button>
+         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
+            <div className="space-y-3">
+                <Skeleton className="aspect-[4/3] w-full rounded-lg" />
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                    {[...Array(4)].map((_, i) => <Skeleton key={i} className="aspect-square rounded-md" />)}
+                </div>
+            </div>
+            <div className="space-y-6">
+                <Skeleton className="h-6 w-1/4 rounded-md" /> {/* Category Badge */}
+                <Skeleton className="h-12 w-3/4 rounded-md" /> {/* Product Name */}
+                <Skeleton className="h-6 w-1/3 rounded-md" /> {/* Rating */}
+                <Skeleton className="h-8 w-1/4 rounded-md" /> {/* Price */}
+                <Skeleton className="h-20 w-full rounded-md" /> {/* Description */}
+                <Skeleton className="h-6 w-1/5 rounded-md" /> {/* Stock */}
+                <div className="flex items-center gap-4 pt-4">
+                    <Skeleton className="h-10 w-28 rounded-md" />
+                    <Skeleton className="h-12 w-40 rounded-md" />
+                </div>
+            </div>
+         </div>
+      </div>
+    );
   }
 
   if (!product) {
     return <div className="text-center py-20 text-destructive">Product not found.</div>;
   }
   
-  const hasRealPrimaryImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
+  const primaryImageSrc = product.primaryImageDataUri || PLACEHOLDER_IMAGE_DATA_URI;
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -181,46 +208,26 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       </Button>
 
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-        {/* Image Gallery Section */}
         <div className="space-y-3">
           <div
             className="bg-card p-1 rounded-lg shadow-lg aspect-[4/3] relative overflow-hidden cursor-pointer group"
             onClick={() => openImageViewer(0)}
           >
-            {hasRealPrimaryImage ? (
+            {primaryImageSrc === PLACEHOLDER_IMAGE_DATA_URI && !product.primaryImageDataUri ? (
+                 <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-md" data-ai-hint="product image placeholder">
+                    <ImageOff className="w-16 h-16 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                </div>
+            ) : (
               <Image
-                src={product.imageUrl}
+                src={primaryImageSrc}
                 alt={product.name}
                 fill
                 className="object-contain rounded-md transition-transform duration-300 group-hover:scale-105"
                 data-ai-hint="product image"
                 priority
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px"
-              />
-            ) : product.icon ? (
-              <div 
-                className="w-full h-full flex items-center justify-center bg-muted rounded-md transition-colors duration-300 group-hover:bg-accent/20" 
-                data-ai-hint="product icon"
-                style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-              >
-                <span
-                  className={cn(product.icon, 'css-icon-base text-primary group-hover:text-accent-foreground')}
-                  style={{ transform: 'scale(5)' }}
-                >
-                  {product.icon === 'css-icon-settings' && <span />}
-                  {product.icon === 'css-icon-trash' && <i><em /></i>}
-                  {product.icon === 'css-icon-file' && <span />}
-                </span>
-              </div>
-            ) : (
-              <Image
-                src={`https://placehold.co/600x450.png?text=${encodeURIComponent(product.name)}`}
-                alt={product.name}
-                fill
-                className="object-contain rounded-md transition-transform duration-300 group-hover:scale-105"
-                data-ai-hint="product image placeholder"
-                priority
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 600px"
+                unoptimized={primaryImageSrc.startsWith('data:image')} // Important for Data URIs
               />
             )}
              <div className="absolute bottom-2 right-2 bg-black/50 text-white p-2 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center">
@@ -229,9 +236,9 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
             {currentUser && <WishlistButton productId={product.id} userId={currentUser.id} className="absolute top-2 right-2 bg-card/80 hover:bg-card p-1" />}
           </div>
 
-          {allProductImages.length > 1 && (
+          {allProductImages.length > 1 && ( // Only show thumbnails if there's more than one image (primary is at index 0)
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-              {allProductImages.map((imgUrl, index) => (
+              {allProductImages.map((imgUri, index) => (
                 <div
                   key={index}
                   className={cn(
@@ -241,12 +248,13 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                   onClick={() => openImageViewer(index)}
                 >
                   <Image
-                    src={imgUrl}
+                    src={imgUri}
                     alt={`${product.name} - image ${index + 1}`}
                     width={100}
                     height={100}
                     className="w-full h-full object-cover"
                     data-ai-hint="product thumbnail"
+                    unoptimized={imgUri.startsWith('data:image')}
                   />
                 </div>
               ))}
@@ -254,7 +262,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           )}
         </div>
 
-        {/* Product Details Section */}
         <div className="space-y-6">
           {category && (
              <Link href={`/products?category=${category.id}`} passHref>
@@ -306,7 +313,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         </div>
       </div>
 
-      {/* Image Viewer Modal */}
       {isViewerOpen && allProductImages.length > 0 && (
         <div 
             className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4 animate-in fade-in"
@@ -327,7 +333,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
             <div className="flex-grow flex items-center justify-center overflow-hidden relative aspect-video sm:aspect-[4/3] md:aspect-video">
                 <Image
-                    key={allProductImages[selectedImageIndex]} // Force re-render on image change for transition
+                    key={allProductImages[selectedImageIndex]} 
                     src={allProductImages[selectedImageIndex]}
                     alt={`${product?.name || 'Product'} - Image ${selectedImageIndex + 1}`}
                     fill
@@ -338,6 +344,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                     onClick={toggleZoom}
                     data-ai-hint="product detail large image"
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 70vw, 1000px"
+                    unoptimized={allProductImages[selectedImageIndex].startsWith('data:image')}
                 />
             </div>
             

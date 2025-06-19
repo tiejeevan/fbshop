@@ -11,15 +11,19 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from '@/components/ui/input';
-import { ShoppingCart, Search, Star } from 'lucide-react';
+import { ShoppingCart, Search, Star, ImageOff } from 'lucide-react'; // Added ImageOff
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { WishlistButton } from '@/components/customer/WishlistButton';
 import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
 import { RecentlyViewedProducts } from '@/components/product/RecentlyViewedProducts';
+import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'views-desc' | 'purchases-desc' | 'rating-desc';
+
+const PLACEHOLDER_IMAGE_DATA_URI_CARD = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDYwMCA0MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2VjZWYxYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm95dC1zaXplPSIyMHB4IiBmaWxsPSIjY2NjIj5JbWFnZTwvdGV4dD48L3N2Zz4=";
+
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -62,8 +66,7 @@ export default function ProductsPage() {
 
     const cart = localStorageService.getCart(currentUser.id) || { userId: currentUser.id, items: [], updatedAt: new Date().toISOString() };
     const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
-    const productDetails = localStorageService.findProductById(product.id); // Get fresh details for icon/imageurl
-
+    
     if (existingItemIndex > -1) {
       if (cart.items[existingItemIndex].quantity < product.stock) {
         cart.items[existingItemIndex].quantity += 1;
@@ -78,8 +81,7 @@ export default function ProductsPage() {
           quantity: 1, 
           price: product.price, 
           name: product.name, 
-          imageUrl: productDetails?.imageUrl, 
-          icon: productDetails?.icon 
+          primaryImageDataUri: product.primaryImageDataUri,
         });
       } else {
         toast({ title: "Out of Stock", description: `${product.name} is currently out of stock.`, variant: "destructive" });
@@ -101,16 +103,47 @@ export default function ProductsPage() {
           case 'name-desc': return b.name.localeCompare(a.name);
           case 'price-asc': return a.price - b.price;
           case 'price-desc': return b.price - a.price;
+          case 'rating-desc': return (b.averageRating || 0) - (a.averageRating || 0);
           case 'views-desc': return (b.views || 0) - (a.views || 0);
           case 'purchases-desc': return (b.purchases || 0) - (a.purchases || 0);
-          case 'rating-desc': return (b.averageRating || 0) - (a.averageRating || 0);
           default: return 0;
         }
       });
   }, [products, selectedCategory, searchTerm, sortOption]);
 
   if (isLoading) {
-    return <div className="text-center py-10">Loading products...</div>;
+    return (
+      <div className="space-y-8">
+        <header className="text-center space-y-2">
+          <Skeleton className="h-12 w-3/4 mx-auto rounded-md" />
+          <Skeleton className="h-6 w-1/2 mx-auto rounded-md" />
+        </header>
+        <div className="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-card rounded-lg shadow">
+          <Skeleton className="h-10 flex-grow rounded-md" />
+          <Skeleton className="h-10 w-full md:w-[200px] rounded-md" />
+          <Skeleton className="h-10 w-full md:w-[220px] rounded-md" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[...Array(8)].map((_, i) => (
+            <Card key={i} className="overflow-hidden flex flex-col">
+              <Skeleton className="w-full h-48" />
+              <CardContent className="p-4 flex-grow space-y-2">
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+              </CardContent>
+              <CardFooter className="p-4 border-t mt-auto">
+                <div className="flex items-center justify-between w-full">
+                  <Skeleton className="h-8 w-1/3" />
+                  <Skeleton className="h-9 w-1/2" />
+                </div>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -163,43 +196,24 @@ export default function ProductsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {sortedAndFilteredProducts.map(product => {
-            const hasRealImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
+            const imageSrc = product.primaryImageDataUri || PLACEHOLDER_IMAGE_DATA_URI_CARD;
             return (
               <Card key={product.id} className="overflow-hidden flex flex-col group transform hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <Link href={`/products/${product.id}`} className="block">
                   <CardHeader className="p-0 relative">
-                    {hasRealImage ? (
+                    {imageSrc === PLACEHOLDER_IMAGE_DATA_URI_CARD && !product.primaryImageDataUri ? (
+                       <div className="w-full h-48 flex flex-col items-center justify-center bg-muted rounded-t-md" data-ai-hint="product image placeholder">
+                          <ImageOff className="w-12 h-12 text-muted-foreground" />
+                       </div>
+                    ) : (
                       <Image
-                        src={product.imageUrl}
+                        src={imageSrc}
                         alt={product.name}
                         width={600}
                         height={400}
                         className="object-cover w-full h-48 transition-transform duration-300 group-hover:scale-105"
                         data-ai-hint="product image"
-                      />
-                    ) : product.icon ? (
-                      <div 
-                        className="w-full h-48 flex items-center justify-center bg-muted rounded-t-md group-hover:bg-accent/20 transition-colors" 
-                        data-ai-hint="product icon"
-                        style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                      >
-                        <span
-                          className={cn(product.icon, 'css-icon-base text-primary group-hover:text-accent-foreground')}
-                          style={{ transform: 'scale(3)' }} 
-                        >
-                          {product.icon === 'css-icon-settings' && <span />}
-                          {product.icon === 'css-icon-trash' && <i><em /></i>}
-                          {product.icon === 'css-icon-file' && <span />}
-                        </span>
-                      </div>
-                    ) : (
-                      <Image
-                        src={`https://placehold.co/600x400.png?text=${encodeURIComponent(product.name)}`}
-                        alt={product.name}
-                        width={600}
-                        height={400}
-                        className="object-cover w-full h-48 transition-transform duration-300 group-hover:scale-105"
-                        data-ai-hint="product image placeholder"
+                        unoptimized={imageSrc.startsWith('data:image')}
                       />
                     )}
                     {product.stock === 0 && <Badge variant="destructive" className="absolute top-2 right-2">Out of Stock</Badge>}

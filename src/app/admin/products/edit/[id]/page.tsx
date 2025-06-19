@@ -35,11 +35,11 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
     if (!id) return; 
     try {
       const updatedProductData: Product = {
-        ...(product as Product), 
-        ...data,
-        id,
-        imageUrl: data.imageUrl, // It's mandatory from form schema now
-        imageUrls: (data.imageUrls || []).filter(url => url && url.trim() !== ''), 
+        ...(product as Product), // Spread existing product to keep fields like views, purchases
+        ...data, // Spread form data which includes name, desc, price, stock, categoryId
+        id, // Ensure ID is maintained
+        primaryImageDataUri: data.primaryImageDataUri || null, 
+        additionalImageDataUris: (data.additionalImageDataUris || []).filter(uri => uri && uri.trim() !== ''), 
       };
       localStorageService.updateProduct(updatedProductData);
       toast({ title: "Product Updated", description: `"${data.name}" has been successfully updated.` });

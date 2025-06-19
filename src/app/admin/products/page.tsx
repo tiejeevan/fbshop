@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye, ImageOff } from 'lucide-react'; // Added ImageOff
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +24,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
+
+const PLACEHOLDER_THUMB_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZWNlZjFhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2cHgiIGZpbGw9IiNjY2MiPlBFPC90ZXh0Pjwvc3ZnPg==";
+
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -109,41 +112,23 @@ export default function AdminProductsPage() {
               </TableHeader>
               <TableBody>
                 {products.map((product) => {
-                  const hasRealImage = product.imageUrl && !product.imageUrl.startsWith('https://placehold.co');
+                  const imageSrc = product.primaryImageDataUri || PLACEHOLDER_THUMB_DATA_URI;
                   return (
                     <TableRow key={product.id}>
                       <TableCell className="hidden sm:table-cell">
-                        {hasRealImage ? (
-                          <Image
-                            alt={product.name}
-                            className="aspect-square rounded-md object-cover"
-                            height="64"
-                            src={product.imageUrl}
-                            width="64"
-                            data-ai-hint="product thumbnail"
-                          />
-                        ) : product.icon ? (
-                          <div 
-                            className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" 
-                            data-ai-hint="product icon"
-                            style={{'--icon-cutout-bg': 'hsl(var(--muted))'} as React.CSSProperties}
-                          >
-                            <span
-                              className={cn(product.icon, 'css-icon-base text-primary')}
-                              style={{ transform: 'scale(1.2)' }}
-                            >
-                              {product.icon === 'css-icon-settings' && <span />}
-                              {product.icon === 'css-icon-trash' && <i><em /></i>}
-                            </span>
-                          </div>
+                        {imageSrc === PLACEHOLDER_THUMB_DATA_URI && !product.primaryImageDataUri ? (
+                             <div className="w-16 h-16 flex items-center justify-center bg-muted rounded-md border" data-ai-hint="product image placeholder">
+                                <ImageOff className="w-8 h-8 text-muted-foreground" />
+                             </div>
                         ) : (
                           <Image
                             alt={product.name}
                             className="aspect-square rounded-md object-cover"
                             height="64"
-                            src={`https://placehold.co/64x64.png?text=${product.name.charAt(0)}`}
+                            src={imageSrc}
                             width="64"
-                            data-ai-hint="product thumbnail placeholder"
+                            data-ai-hint="product thumbnail"
+                            unoptimized={imageSrc.startsWith('data:image')}
                           />
                         )}
                       </TableCell>
