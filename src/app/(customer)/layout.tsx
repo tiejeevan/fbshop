@@ -10,7 +10,7 @@ import { Loader2 } from 'lucide-react';
 // Publicly accessible paths within the customer layout
 // /login is removed as it's no longer a page.
 // All product-related paths and the root (which redirects to products) are public.
-const publicPaths = ['/products', '/products/category/[slug]', '/products/[id]']; 
+const publicPaths = ['/products', '/products/category/[slug]', '/products/[id]'];
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading } = useAuth();
@@ -27,16 +27,18 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const isRootPath = pathname === '/'; // Root path handling is now in page.tsx
 
   useEffect(() => {
-    if (!isLoading && !isRootPath && !isPublicPath) { 
-      if (!currentUser || currentUser.role !== 'customer') {
-        // If trying to access a protected customer route (e.g. /cart, /profile) without being a logged-in customer,
-        // redirect to /products. The LoginModal can be accessed from there.
-        router.replace('/products'); 
+    if (!isLoading && !isRootPath && !isPublicPath) {
+      // If it's not a public path and the user is not logged in at all,
+      // redirect to products (where they can login via modal).
+      if (!currentUser) {
+        router.replace('/products'); // Or show login modal more directly
       }
+      // If currentUser exists (they are logged in as customer OR admin),
+      // they can access these customer-specific protected paths (e.g. /cart, /profile, /checkout).
     }
   }, [currentUser, isLoading, router, pathname, isPublicPath, isRootPath]);
 
-  if (isLoading && !isRootPath && !isPublicPath) {
+  if (isLoading && !isRootPath && !isPublicPath && !currentUser) { // Only show full page loader if not logged in yet on protected route
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -44,8 +46,8 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     );
   }
 
-  // If redirecting (because user is not a customer for a protected route)
-  if (!isLoading && !isRootPath && !isPublicPath && (!currentUser || currentUser.role !== 'customer')) {
+  // If trying to access a protected route while not logged in (and not public/root)
+  if (!isLoading && !isRootPath && !isPublicPath && !currentUser) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
