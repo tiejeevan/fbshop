@@ -1,3 +1,4 @@
+
 'use client';
 
 import { LoginForm } from '@/components/auth/LoginForm';
@@ -11,29 +12,33 @@ export default function AdminLoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && currentUser && currentUser.role === 'admin') {
-      router.replace('/admin/dashboard');
+    if (!isLoading) { // Only act once initial auth check is done
+      if (currentUser) { // If any user is logged in
+        if (currentUser.role === 'admin') {
+          router.replace('/admin/dashboard'); // Admin is logged in, go to dashboard
+        } else {
+          // Another role (e.g., customer) is logged in.
+          // Redirect them away from the admin login page.
+          // The root page will then direct them to their appropriate area.
+          router.replace('/');
+        }
+      }
+      // If no currentUser, this is an unauthenticated session, so admin login form should be shown.
     }
   }, [currentUser, isLoading, router]);
 
-  if (isLoading) {
+  // Show loader while isLoading is true, OR
+  // if isLoading is false BUT currentUser exists (meaning a redirect is about to happen).
+  if (isLoading || (!isLoading && currentUser)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
-  }
-  
-  if (!isLoading && currentUser && currentUser.role === 'admin') {
-     // Already handled by useEffect, but good for initial render before effect runs
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4">Redirecting to dashboard...</p>
+        <p className="ml-4 text-muted-foreground">Verifying session...</p>
       </div>
     );
   }
 
+  // This content is only rendered if isLoading is false AND there is no currentUser.
   return (
     <LoginForm
       role="admin"
