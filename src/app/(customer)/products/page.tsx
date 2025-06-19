@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-// Removed direct Image import, will use ProductImage component
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +10,7 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from '@/components/ui/input';
-import { ShoppingCart, Search, Star } from 'lucide-react';
+import { ShoppingCart, Search, Star, Eye } from 'lucide-react'; // Added Eye icon
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -19,7 +18,8 @@ import { WishlistButton } from '@/components/customer/WishlistButton';
 import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
 import { RecentlyViewedProducts } from '@/components/product/RecentlyViewedProducts';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ProductImage } from '@/components/product/ProductImage'; // Import new component
+import { ProductImage } from '@/components/product/ProductImage';
+import { ProductQuickViewModal } from '@/components/product/ProductQuickViewModal'; // New import
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'views-desc' | 'purchases-desc' | 'rating-desc';
 
@@ -32,6 +32,9 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { currentUser } = useAuth();
+
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [isQuickViewModalOpen, setIsQuickViewModalOpen] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -56,9 +59,9 @@ export default function ProductsPage() {
     setIsLoading(false);
   }, []);
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: Product, quantity: number = 1) => { // Added quantity parameter
     if (!currentUser) {
-      toast({ title: "Login Required", variant: "destructive" });
+      toast({ title: "Login Required", variant: "destructive", description: "Please log in to add items to your cart." });
       return;
     }
 
@@ -66,28 +69,29 @@ export default function ProductsPage() {
     const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
 
     if (existingItemIndex > -1) {
-      if (cart.items[existingItemIndex].quantity < product.stock) {
-        cart.items[existingItemIndex].quantity += 1;
+      const newQuantity = cart.items[existingItemIndex].quantity + quantity;
+      if (newQuantity <= product.stock) {
+        cart.items[existingItemIndex].quantity = newQuantity;
       } else {
-        toast({ title: "Stock Limit", variant: "destructive" });
+        toast({ title: "Stock Limit", variant: "destructive", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.` });
         return;
       }
     } else {
-      if (product.stock > 0) {
+      if (quantity <= product.stock) {
         cart.items.push({
           productId: product.id,
-          quantity: 1,
+          quantity,
           price: product.price,
           name: product.name,
           primaryImageId: product.primaryImageId,
         });
       } else {
-        toast({ title: "Out of Stock", variant: "destructive" });
+        toast({ title: "Stock Limit", variant: "destructive", description: `Only ${product.stock} units available.` });
         return;
       }
     }
     localStorageService.updateCart(cart);
-    toast({ title: "Added to Cart", description: `${product.name} added.` });
+    toast({ title: "Added to Cart", description: `${quantity} x ${product.name} added.` });
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
@@ -108,6 +112,17 @@ export default function ProductsPage() {
         }
       });
   }, [products, selectedCategory, searchTerm, sortOption]);
+
+  const openQuickView = (product: Product) => {
+    setQuickViewProduct(product);
+    setIsQuickViewModalOpen(true);
+  };
+
+  const closeQuickView = () => {
+    setIsQuickViewModalOpen(false);
+    setQuickViewProduct(null);
+  };
+
 
   if (isLoading) {
     return (
@@ -184,24 +199,36 @@ export default function ProductsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {sortedAndFilteredProducts.map(product => (
               <Card key={product.id} className="overflow-hidden flex flex-col group transform hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                <Link href={`/products/${product.id}`} className="block">
-                  <CardHeader className="p-0 relative">
-                    <ProductImage
-                      imageId={product.primaryImageId}
-                      alt={product.name}
-                      className="w-full h-48" // Wrapper class
-                      imageClassName="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105" // Image class
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      fill={false} // explicit width/height can be better for grid if aspect ratio is fixed
-                      width={600} // Example base width
-                      height={400} // Example base height
-                      placeholderIconSize="w-12 h-12"
-                      data-ai-hint="product image"
-                    />
-                    {product.stock === 0 && <Badge variant="destructive" className="absolute top-2 right-2">Out of Stock</Badge>}
-                    {product.categoryName && <Badge className="absolute top-2 left-2 bg-primary/80 text-primary-foreground">{product.categoryName}</Badge>}
-                    {currentUser && <WishlistButton productId={product.id} userId={currentUser.id} className="absolute top-14 right-2 bg-transparent hover:bg-transparent p-1"/>}
-                  </CardHeader>
+                <div className="relative">
+                  <Link href={`/products/${product.id}`} className="block">
+                    <CardHeader className="p-0 relative">
+                      <ProductImage
+                        imageId={product.primaryImageId}
+                        alt={product.name}
+                        className="w-full h-48"
+                        imageClassName="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                        fill={false}
+                        width={600}
+                        height={400}
+                        placeholderIconSize="w-12 h-12"
+                        data-ai-hint="product image"
+                      />
+                      {product.stock === 0 && <Badge variant="destructive" className="absolute top-2 right-2">Out of Stock</Badge>}
+                      {product.categoryName && <Badge className="absolute top-2 left-2 bg-primary/80 text-primary-foreground">{product.categoryName}</Badge>}
+                    </CardHeader>
+                  </Link>
+                  {currentUser && <WishlistButton productId={product.id} userId={currentUser.id} className="absolute top-14 right-2 bg-transparent hover:bg-transparent p-1"/>}
+                   <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openQuickView(product)}
+                      className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background text-foreground"
+                    >
+                      <Eye className="mr-2 h-4 w-4" /> Quick View
+                    </Button>
+                </div>
+                <Link href={`/products/${product.id}`} className="block flex-grow flex flex-col">
                   <CardContent className="p-4 flex-grow">
                     <CardTitle className="font-headline text-xl mb-1 group-hover:text-primary transition-colors">{product.name}</CardTitle>
                      {product.reviewCount && product.reviewCount > 0 && product.averageRating ? (
@@ -227,6 +254,14 @@ export default function ProductsPage() {
         </div>
       )}
       <RecentlyViewedProducts />
+      {quickViewProduct && (
+        <ProductQuickViewModal
+          product={quickViewProduct}
+          isOpen={isQuickViewModalOpen}
+          onClose={closeQuickView}
+          onAddToCart={handleAddToCart}
+        />
+      )}
     </div>
   );
 }
