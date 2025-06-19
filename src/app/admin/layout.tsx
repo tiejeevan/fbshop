@@ -12,6 +12,7 @@ import {
   Sidebar,
   SidebarTrigger,
   SidebarInset,
+  SidebarRail, // Added SidebarRail import
 } from '@/components/ui/sidebar';
 import { AdminSidebarContent } from '@/components/admin/AdminSidebarContent';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -23,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Settings, LogOut as LogOutIcon, ChevronDown } from 'lucide-react'; // Renamed LogOut to avoid conflict
+import { Settings, LogOut as LogOutIcon, ChevronDown } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading, logout } = useAuth();
@@ -68,11 +69,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <SidebarProvider defaultOpen>
         <Sidebar
           collapsible="icon"
-          className="border-sidebar-border data-[variant=inset]:bg-transparent"
           variant="sidebar"
+          className="border-sidebar-border" 
         >
           <AdminSidebarContent />
         </Sidebar>
+        <SidebarRail /> {/* Added the SidebarRail component */}
         <div className="flex flex-col flex-1">
           <header className="flex h-14 lg:h-[60px] items-center justify-between gap-4 border-b bg-card px-6 sticky top-0 z-30">
             <div className="flex items-center gap-2">
@@ -100,7 +102,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled> {/* Link to profile/settings if implemented */}
+                <DropdownMenuItem disabled>
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
                 </DropdownMenuItem>
@@ -113,7 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </DropdownMenu>
           </header>
           <SidebarInset>
-            <div className="p-4 md:p-6 overflow-auto"> {/* Added overflow-auto here */}
+            <div className="p-4 md:p-6 overflow-auto">
               {children}
             </div>
           </SidebarInset>
