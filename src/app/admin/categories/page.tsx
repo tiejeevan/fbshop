@@ -25,7 +25,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { ProductImage } from '@/components/product/ProductImage'; // Reusing for category image display
+import { ProductImage } from '@/components/product/ProductImage';
+import { cn } from '@/lib/utils'; // Added missing import
 
 
 interface DisplayCategory extends Category {
@@ -77,25 +78,19 @@ export default function AdminCategoriesPage() {
       return searchMatch && statusMatch && hierarchyMatch;
     });
 
-    // Build hierarchy for display
     const buildHierarchy = (parentId: string | null, level: number): DisplayCategory[] => {
       return filtered
         .filter(cat => cat.parentId === parentId)
-        .sort((a,b) => a.displayOrder - b.displayOrder) // ensure children are sorted too
+        .sort((a,b) => a.displayOrder - b.displayOrder)
         .map(cat => ({
           ...cat,
           level,
           productCount: localStorageService.getProducts().filter(p => p.categoryId === cat.id).length,
           children: buildHierarchy(cat.id, level + 1),
-          isExpanded: expandedCategories[cat.id] === undefined ? true : expandedCategories[cat.id], // Default to expanded
+          isExpanded: expandedCategories[cat.id] === undefined ? true : expandedCategories[cat.id], 
         }));
     };
     
-    // If filtering for subcategories, we need to ensure their parents are included for context,
-    // but only show the subcategories that match other filters.
-    // This simple filter applied before hierarchy build might hide subcategories if their parents don't match search.
-    // For a robust subcategory filter, one might need to filter after hierarchy build or adjust logic.
-    // For now, this filters the flat list, then builds hierarchy.
     return buildHierarchy(null, 0);
 
   }, [allCategories, searchTerm, filterStatus, filterHierarchy, expandedCategories]);
@@ -109,7 +104,6 @@ export default function AdminCategoriesPage() {
         setCategoryToDelete(null);
         return;
     }
-    // Product check is done by default in localStorageService.deleteCategory, but an explicit check here is fine too.
     const productsUsingCategory = localStorageService.getProducts().filter(p => p.categoryId === categoryToDelete.id);
     if (productsUsingCategory.length > 0) {
         toast({ title: "Cannot Delete", description: `Category "${categoryToDelete.name}" is used by ${productsUsingCategory.length} product(s). Reassign them first.`, variant: "destructive", duration: 5000 });
@@ -135,6 +129,9 @@ export default function AdminCategoriesPage() {
     }
 
     let successCount = 0;
+    let skippedCount = 0;
+    let skippedMessages: string[] = [];
+
     for (const catId of categoriesToBatchAction) {
       const category = allCategories.find(c => c.id === catId);
       if (!category) continue;
@@ -143,7 +140,11 @@ export default function AdminCategoriesPage() {
         const children = localStorageService.getChildCategories(catId);
         const products = localStorageService.getProducts().filter(p => p.categoryId === catId);
         if (children.length > 0 || products.length > 0) {
-          toast({ title: `Skipped: ${category.name}`, description: "Has subcategories or products.", variant: "destructive" });
+          skippedCount++;
+          let reason = "";
+          if (children.length > 0) reason += `${children.length} subcategories`;
+          if (products.length > 0) reason += `${children.length > 0 ? ' and ' : ''}${products.length} products`;
+          skippedMessages.push(`Skipped "${category.name}": Has ${reason}.`);
           continue;
         }
         if (await localStorageService.deleteCategory(catId)) successCount++;
@@ -155,14 +156,29 @@ export default function AdminCategoriesPage() {
         successCount++;
       }
     }
-    toast({ title: "Batch Action Complete", description: `${successCount} categories affected.` });
+    if (skippedCount > 0) {
+        toast({
+            title: `Batch Action: ${successCount} affected, ${skippedCount} skipped`,
+            description: (
+            <div className="text-xs">
+                {skippedMessages.slice(0,3).map((msg, i) => <p key={i}>{msg}</p>)}
+                {skippedMessages.length > 3 && <p>...and {skippedMessages.length - 3} more.</p>}
+            </div>
+            ),
+            variant: successCount > 0 ? "default" : "destructive",
+            duration: 7000
+        });
+    } else if (successCount > 0) {
+        toast({ title: "Batch Action Complete", description: `${successCount} categories affected.` });
+    } else {
+        toast({ title: "Batch Action", description: "No categories were affected."})
+    }
     fetchCategories();
     setCategoriesToBatchAction([]);
   };
   
   const toggleSelectAll = (checked: boolean) => {
     if (checked) {
-      // When selecting all, only select visible categories from the current filtered view
       const visibleIds: string[] = [];
       const collectVisibleIds = (cats: DisplayCategory[]) => {
           cats.forEach(c => {
@@ -188,7 +204,7 @@ export default function AdminCategoriesPage() {
     collectVisibleIds(filteredAndStructuredCategories);
     if (visibleIds.length === 0) return false;
     return visibleIds.every(id => categoriesToBatchAction.includes(id));
-  }, [filteredAndStructuredCategories, categoriesToBatchAction, expandedCategories]);
+  }, [filteredAndStructuredCategories, categoriesToBatchAction]);
 
 
   const renderCategoryRow = (category: DisplayCategory) => (
@@ -292,7 +308,7 @@ export default function AdminCategoriesPage() {
         <CardContent className="pt-4">
           {allCategories.length === 0 ? (
             <div className="text-center py-10"><p className="text-muted-foreground mb-4">No categories yet.</p><Button asChild variant="secondary"><Link href="/admin/categories/new"><PlusCircle className="mr-2 h-4 w-4" /> Add First Category</Link></Button></div>
-          ) : filteredAndStructuredCategories.length === 0 && searchTerm ? (
+          ) : filteredAndStructuredCategories.length === 0 && (searchTerm || filterStatus !== 'all' || filterHierarchy !== 'all') ? (
              <div className="text-center py-10"><p className="text-muted-foreground mb-4">No categories match your search/filters.</p></div>
           ) : (
             <Table>
@@ -301,7 +317,7 @@ export default function AdminCategoriesPage() {
                   <TableHead className="w-[50%] sm:w-[40%]">
                     <div className="flex items-center gap-2">
                       <Checkbox 
-                        checked={isAllVisibleSelected} 
+                        checked={isAllVisibleSelected && filteredAndStructuredCategories.length > 0} 
                         onCheckedChange={toggleSelectAll}
                         aria-label="Select all visible categories" 
                         disabled={filteredAndStructuredCategories.length === 0}
@@ -316,7 +332,11 @@ export default function AdminCategoriesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAndStructuredCategories.map(category => renderCategoryRow(category))}
+                {filteredAndStructuredCategories.length > 0 ? 
+                    filteredAndStructuredCategories.map(category => renderCategoryRow(category)) :
+                    (searchTerm || filterStatus !== 'all' || filterHierarchy !== 'all') ? null : // No explicit message if empty due to filters but not no categories overall
+                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">No categories found.</TableCell></TableRow> 
+                }
               </TableBody>
             </Table>
           )}
@@ -349,8 +369,11 @@ export default function AdminCategoriesPage() {
 }
 
 // Helper for Button variant size - you might need to define this if not already
+// Assuming ButtonProps is already extended in your actual ui/button.tsx
+// For type safety, if ButtonProps needs 'xs-icon'
 declare module '@/components/ui/button' {
     interface ButtonProps {
-        size?: 'default' | 'sm' | 'lg' | 'icon' | 'xs-icon';
+        size?: 'default' | 'sm' | 'lg' | 'icon' | 'xs-icon'; // Ensure 'xs-icon' is a valid size if used
     }
 }
+
