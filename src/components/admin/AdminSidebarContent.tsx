@@ -34,7 +34,8 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar, // Import useSidebar
+  useSidebar, 
+  SidebarTrigger, // Import SidebarTrigger
 } from '@/components/ui/sidebar';
 
 
@@ -56,7 +57,7 @@ export function AdminSidebarContent() {
   const pathname = usePathname();
   const { logout, currentUser } = useAuth();
   const router = useRouter();
-  const { state: sidebarState, isMobile } = useSidebar(); // Get sidebar state from context
+  const { state: sidebarState, isMobile } = useSidebar(); 
 
   const handleLogout = () => {
     logout();
@@ -65,11 +66,12 @@ export function AdminSidebarContent() {
 
   return (
     <>
-      <SidebarHeader className="border-b border-sidebar-border h-[60px] flex items-center px-4">
+      <SidebarHeader className="border-b border-sidebar-border h-[60px] flex items-center justify-between px-4">
         <Link href="/admin/dashboard" className="flex items-center gap-2 font-semibold text-sidebar-primary-foreground overflow-hidden">
           <ShoppingBag className="h-7 w-7 text-sidebar-primary shrink-0" />
           {(sidebarState === 'expanded' || isMobile) && <span className="font-headline text-xl truncate">Local Commerce</span>}
         </Link>
+        <SidebarTrigger className="hidden md:flex text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent" /> {/* Desktop Trigger */}
       </SidebarHeader>
 
       <SidebarContent className="p-2">

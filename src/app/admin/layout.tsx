@@ -12,7 +12,7 @@ import {
   Sidebar,
   SidebarTrigger,
   SidebarInset,
-  SidebarRail, // Added SidebarRail import
+  SidebarRail, 
 } from '@/components/ui/sidebar';
 import { AdminSidebarContent } from '@/components/admin/AdminSidebarContent';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -74,7 +74,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <AdminSidebarContent />
         </Sidebar>
-        <SidebarRail /> {/* Added the SidebarRail component */}
+        <SidebarRail /> 
         <div className="flex flex-col flex-1">
           <header className="flex h-14 lg:h-[60px] items-center justify-between gap-4 border-b bg-card px-6 sticky top-0 z-30">
             <div className="flex items-center gap-2">
