@@ -29,7 +29,7 @@ import { Settings, LogOut as LogOutIcon, ChevronDown } from 'lucide-react';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading, logout } = useAuth();
   const router = useRouter();
-  const pathname = usePathname(); // Keep pathname for other logic if needed
+  const pathname = usePathname(); 
 
   const handleLogout = () => {
     logout();
@@ -39,12 +39,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   React.useEffect(() => {
     if (!isLoading) {
       if (!currentUser || currentUser.role !== 'admin') {
-        // If not an admin, redirect to the main products page
-        // The login modal can be accessed from there if needed.
         router.replace('/products'); 
       }
-      // If user is admin, they can stay on admin pages.
-      // No need to redirect from /admin/login as it won't exist.
     }
   }, [currentUser, isLoading, router]);
 
@@ -56,8 +52,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  // If after loading, still no admin user, show loader briefly before redirect (useEffect handles redirect)
-  // This prevents rendering children if user isn't an admin
   if (!currentUser || currentUser.role !== 'admin') {
      return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -67,7 +61,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
   
-  // Only render admin layout if currentUser is an admin
   return (
     <SidebarProvider defaultOpen>
       <Sidebar
@@ -119,10 +112,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
         <SidebarInset>
           <div className="p-4 md:p-6 overflow-auto">
-            {children}
+            <div key={pathname} className="animate-page-enter">
+              {children}
+            </div>
           </div>
         </SidebarInset>
       </div>
     </SidebarProvider>
   );
 }
+

@@ -97,6 +97,23 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Page Transition Animation */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: pageEnter 0.4s ease-out forwards;
+}
+
+
 /* Pure CSS Icon Definitions */
 .css-icon-base {
   display: inline-block;
@@ -688,3 +705,4 @@ h1, h2, h3, h4, h5, h6 {
     left: 2px;
      box-shadow: 0 5px 0 currentColor; /* Second line */
 }
+

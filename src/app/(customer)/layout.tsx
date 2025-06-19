@@ -61,7 +61,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       <CustomerNavbar />
       <main className="flex-1 bg-background">
         <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
-          {children}
+          <div key={pathname} className="animate-page-enter">
+            {children}
+          </div>
         </div>
       </main>
       <footer className="py-8 text-center border-t bg-card">
@@ -72,3 +74,4 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     </div>
   );
 }
+
