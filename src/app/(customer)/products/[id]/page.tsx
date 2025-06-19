@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category, Review as ReviewType } from '@/types';
-import { ArrowLeft, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, ImageOff, Edit3, Trash2, Save, Ban, UploadCloud, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, ImageOff, Edit3, Trash2, Save, Ban, UploadCloud, AlertTriangle, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ProductImage } from '@/components/product/ProductImage';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label'; // Added import for Label
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -57,7 +58,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [allProductImageIdsState, setAllProductImageIdsState] = useState<string[]>([]); // Renamed to avoid conflict
+  const [allProductImageIdsState, setAllProductImageIdsState] = useState<string[]>([]);
   const [isZoomed, setIsZoomed] = useState(false);
 
   const fetchProductData = useCallback((productId: string) => {
@@ -100,8 +101,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     fetchProductData(params.id);
   }, [params.id, fetchProductData]);
 
-
-  // Calculate currentDisplayableImageIds using useMemo, defined before usage in callbacks
   const currentDisplayableImageIds = useMemo(() => {
     if (isEditing) {
         let ids: (string | null | undefined)[] = [];
@@ -109,24 +108,22 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
             ids.push(editablePrimaryImage.file ? editablePrimaryImage.previewUrl : editablePrimaryImage.id);
         }
         editableAdditionalImages.forEach(img => {
-            if (!img.toBeDeleted) { // Only include if not marked for deletion
+            if (!img.toBeDeleted) {
                 ids.push(img.file ? img.previewUrl : img.id);
             }
         });
         return ids.filter(Boolean) as string[];
     }
-    return allProductImageIdsState; // Use state variable for non-editing mode
+    return allProductImageIdsState;
   }, [isEditing, editablePrimaryImage, editableAdditionalImages, allProductImageIdsState]);
 
-
-  // Image Viewer Logic
   const openImageViewer = useCallback((index: number) => {
     if (currentDisplayableImageIds.length > 0) {
       setSelectedImageIndex(index);
       setIsViewerOpen(true);
       setIsZoomed(false);
     }
-  }, [currentDisplayableImageIds]); // Depends on memoized value
+  }, [currentDisplayableImageIds]);
 
   const closeImageViewer = useCallback(() => setIsViewerOpen(false), []);
 
@@ -134,13 +131,13 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     if (!currentDisplayableImageIds.length) return;
     setSelectedImageIndex((prevIndex) => (prevIndex + 1) % currentDisplayableImageIds.length);
     setIsZoomed(false);
-  }, [currentDisplayableImageIds]); // Depends on memoized value
+  }, [currentDisplayableImageIds]);
 
   const prevImage = useCallback(() => {
     if (!currentDisplayableImageIds.length) return;
     setSelectedImageIndex((prevIndex) => (prevIndex - 1 + currentDisplayableImageIds.length) % currentDisplayableImageIds.length);
     setIsZoomed(false);
-  }, [currentDisplayableImageIds]); // Depends on memoized value
+  }, [currentDisplayableImageIds]);
 
   const toggleZoom = useCallback(() => setIsZoomed(prev => !prev), []);
 
@@ -170,8 +167,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     if (!product) return;
     if (!currentUser) {
       toast({ title: "Login Required", description: "Please log in to add items to your cart.", variant: "destructive" });
-      // The LoginModal should be used, typically triggered from CustomerNavbar or a specific Login button
-      // For now, we just toast and return. The user should use the global login modal.
       return;
     }
     const cart = localStorageService.getCart(currentUser.id) || { userId: currentUser.id, items: [], updatedAt: new Date().toISOString() };
@@ -221,7 +216,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    if (product) fetchProductData(product.id); // Refetch to discard changes
+    if (product) fetchProductData(product.id);
   };
 
   const handleSaveEdits = async () => {
@@ -231,9 +226,8 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     let finalPrimaryImageId = editablePrimaryImage?.id || null;
     let finalAdditionalImageIds: string[] = [];
 
-    // 1. Handle Primary Image
     if (editablePrimaryImage?.file) { 
-      if (finalPrimaryImageId && editablePrimaryImage.id === finalPrimaryImageId) { // if replacing an existing image, its ID must be deleted
+      if (finalPrimaryImageId && editablePrimaryImage.id === finalPrimaryImageId) { 
           await deleteImageFromDB(finalPrimaryImageId);
       }
       finalPrimaryImageId = await saveImageToDB(product.id, 'primary', editablePrimaryImage.file);
@@ -242,21 +236,19 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       finalPrimaryImageId = null;
     }
 
-    // 2. Handle Additional Images
     const imagesToKeepOrAddNew: string[] = [];
     for (const imgData of editableAdditionalImages) {
-      if (imgData.file) { // New file uploaded for this slot
-        if (imgData.id && !imgData.toBeDeleted) { // If it was replacing an existing image, delete the old one.
+      if (imgData.file) { 
+        if (imgData.id && !imgData.toBeDeleted) { 
           await deleteImageFromDB(imgData.id);
         }
         const newId = await saveImageToDB(product.id, Date.now() + Math.random().toString(36).substring(2,7), imgData.file);
         imagesToKeepOrAddNew.push(newId);
-      } else if (imgData.id && !imgData.toBeDeleted) { // Existing image, not changed, not deleted
+      } else if (imgData.id && !imgData.toBeDeleted) { 
         imagesToKeepOrAddNew.push(imgData.id);
-      } else if (imgData.id && imgData.toBeDeleted) { // Existing image, marked for deletion
+      } else if (imgData.id && imgData.toBeDeleted) { 
         await deleteImageFromDB(imgData.id);
       }
-      // If it's a new slot without a file and without an ID, it's just an empty slot and ignored.
     }
     finalAdditionalImageIds = imagesToKeepOrAddNew;
 
@@ -280,7 +272,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     toast({ title: "Product Updated Successfully" });
     setIsEditing(false);
     fetchProductData(product.id); 
-    // No need for setIsLoading(false) here as fetchProductData sets it.
   };
 
   const handleEditableFieldChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -304,7 +295,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const removeEditablePrimaryImage = () => {
     if (editablePrimaryImage) {
       if (editablePrimaryImage.previewUrl && editablePrimaryImage.previewUrl.startsWith('blob:')) URL.revokeObjectURL(editablePrimaryImage.previewUrl);
-      // Mark for deletion only if it had an ID. If it was just a preview of a new file, clearing is enough.
       setEditablePrimaryImage({ ...editablePrimaryImage, file: null, previewUrl: null, toBeDeleted: !!editablePrimaryImage.id });
     }
   };
@@ -368,10 +358,10 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     setEditableAdditionalImages(prev => {
         let newAdditionals = [...prev];
         newAdditionals.splice(index, 1); 
-        if(oldPrimaryCandidate.id || oldPrimaryCandidate.file) { // Only add old primary if it existed
-            newAdditionals.push({ ...oldPrimaryCandidate, toBeDeleted: false }); // Ensure it's not marked for deletion
+        if(oldPrimaryCandidate.id || oldPrimaryCandidate.file) {
+            newAdditionals.push({ ...oldPrimaryCandidate, toBeDeleted: false });
         }
-        return newAdditionals.filter(img => img.id || img.file || img.previewUrl); // Clean up completely empty slots if any result
+        return newAdditionals.filter(img => img.id || img.file || img.previewUrl);
     });
     toast({title: "Primary Image Swapped", description: "Changes will be applied on save."});
   };
@@ -384,7 +374,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
   const handleDeleteProduct = async () => {
     if (!product) return;
-    await localStorageService.deleteProduct(product.id); // This also handles deleting images from IndexedDB
+    await localStorageService.deleteProduct(product.id);
     toast({ title: "Product Deleted" });
     router.push('/admin/products'); 
   };
@@ -453,7 +443,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
       )}
 
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-        {/* Image Section */}
         <div className="space-y-3">
           {isEditing ? (
             <>
@@ -480,7 +469,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                     return (
                        <div key={imgData.id || `del-marker-${index}`} className="border-t pt-3 mt-3 text-xs text-destructive p-2 bg-destructive/10 rounded flex items-center gap-2">
                          <ImageOff className="h-5 w-5 inline-block"/>
-                         Image <ProductImage imageId={imgData.id} alt="to delete" className="w-10 h-10 inline-block rounded border" /> will be removed on save.
+                         Image <ProductImage imageId={imgData.id} alt="to delete" className="w-10 h-10 inline-block rounded border" data-ai-hint="image delete" /> will be removed on save.
                        </div>
                     );
                   }
@@ -508,11 +497,10 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
               </div>
             </>
           ) : (
-            // VIEWING IMAGES
             <>
               <div
                 className="bg-card p-1 rounded-lg shadow-lg aspect-[4/3] relative overflow-hidden cursor-pointer group"
-                onClick={() => currentDisplayableImageIds.length > 0 && openImageViewer(0)} // Ensure images before opening
+                onClick={() => currentDisplayableImageIds.length > 0 && openImageViewer(0)}
               >
                 <ProductImage
                     imageId={product.primaryImageId}
@@ -535,7 +523,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
               {currentDisplayableImageIds.length > 1 && (
                 <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                  {currentDisplayableImageIds.map((imgIdOrUrl, index) => ( // Use currentDisplayableImageIds
+                  {currentDisplayableImageIds.map((imgIdOrUrl, index) => (
                     <div
                       key={imgIdOrUrl || `thumb-${index}`}
                       className={cn(
@@ -544,8 +532,8 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                       )}
                       onClick={() => openImageViewer(index)}
                     >
-                      <ProductImage // Use ProductImage for thumbnails too for consistency
-                        imageId={imgIdOrUrl} // This will correctly handle Object URLs or DB IDs
+                      <ProductImage 
+                        imageId={imgIdOrUrl} 
                         alt={`${product.name} - image ${index + 1}`}
                         fill
                         className="w-full h-full"
@@ -562,7 +550,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           )}
         </div>
 
-        {/* Product Info Section */}
         <div className="space-y-6">
           {category && !isEditing && (
              <Link href={`/products?category=${category.id}`} passHref>
@@ -597,7 +584,10 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           </div>
           
           {isEditing ? (
-            <Input name="stock" type="number" min="0" value={editableProductData?.stock || 0} onChange={handleEditableFieldChange} className="h-auto p-2"/>
+             <div className="space-y-1">
+                <Label htmlFor="stock">Stock Quantity</Label>
+                <Input id="stock" name="stock" type="number" min="0" value={editableProductData?.stock || 0} onChange={handleEditableFieldChange} className="h-auto p-2"/>
+             </div>
           ) : product.stock > 0 ? (
             <Badge className="text-sm">In Stock: {product.stock} units</Badge>
           ) : (
@@ -642,15 +632,14 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         </div>
       </div>
 
-      {/* Image Viewer Modal */}
       {isViewerOpen && currentDisplayableImageIds.length > 0 && (
         <div
             className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-2 sm:p-4 animate-in fade-in"
-            onClick={closeImageViewer} // Click on backdrop closes
+            onClick={closeImageViewer}
         >
           <div
             className="bg-card rounded-lg shadow-2xl relative max-w-4xl max-h-[95vh] w-full flex flex-col p-2 sm:p-4 overflow-hidden"
-            onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+            onClick={(e) => e.stopPropagation()}
           >
             <Button variant="ghost" size="icon" onClick={closeImageViewer} className="absolute top-2 right-2 z-[70] bg-card/50 hover:bg-card/80 h-8 w-8 sm:h-10 sm:w-10 rounded-full">
               <X className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -660,10 +649,10 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
                     imageId={currentDisplayableImageIds[selectedImageIndex]}
                     alt={`${product?.name || 'Product'} - Image ${selectedImageIndex + 1}`}
                     fill
-                    className="w-full h-full" // Container class
-                    imageClassName={cn("object-contain transition-transform duration-300 ease-in-out", isZoomed ? "scale-125 sm:scale-150 md:scale-175" : "scale-100")} // Actual image class
+                    className="w-full h-full" 
+                    imageClassName={cn("object-contain transition-transform duration-300 ease-in-out", isZoomed ? "scale-125 sm:scale-150 md:scale-175" : "scale-100")} 
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 70vw, 1000px"
-                    priority={selectedImageIndex === 0} // Prioritize first image in viewer
+                    priority={selectedImageIndex === 0}
                     placeholderIconSize="w-32 h-32"
                     data-ai-hint="product detail large"
                 />
@@ -683,7 +672,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         </div>
       )}
 
-      {/* Reviews Section */}
       <div className="mt-12 space-y-8">
         <h2 className="font-headline text-3xl text-primary border-b pb-2">Customer Reviews</h2>
         {currentUser && currentUser.role === 'customer' && !isEditing && ( 
@@ -692,9 +680,9 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         {!currentUser && !isEditing && (
           <p className="text-muted-foreground">Please <LoginModalTrigger /> to leave a review.</p>
         )}
-        {(reviews.length > 0 || product.reviewCount > 0) ? (
+        {(reviews.length > 0 || (product.reviewCount && product.reviewCount > 0)) ? (
           <ReviewList
-            reviews={reviews} // Show currently loaded reviews (or fetch if needed)
+            reviews={reviews} 
             adminView={isEditing && currentUser?.role === 'admin'}
             onDeleteReview={handleDeleteReview}
           />
@@ -706,19 +694,8 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   );
 }
 
-// A small component to trigger the LoginModal, keeping ProductDetailPage cleaner
 const LoginModalTrigger = () => {
-    // The LoginModal component itself usually contains its DialogTrigger
-    // For this specific context where we just want text to act as a trigger,
-    // if LoginModal is context-based or globally available, you might call a function to open it.
-    // Assuming LoginModal is self-contained with its own trigger:
-    return <LoginModal />; // This will render the LoginModal's DialogTrigger (e.g., a "Login" button)
-                           // If you need just a text link, LoginModal's trigger needs to be adaptable
-                           // or you use a global modal state.
-                           // For now, rendering the full LoginModal component which includes its trigger.
-                           // A more elegant solution would be a text link that opens the modal,
-                           // for which LoginModal's DialogTrigger might need to be <Button variant="link">.
-                           // Or, simply:
-    // return <Link href="#" className="text-primary hover:underline">login</Link>; // if LoginModal is not used this way
+    return <LoginModal />; 
 };
+
 
