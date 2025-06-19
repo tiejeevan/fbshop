@@ -23,10 +23,10 @@ import type { Cart } from '@/types';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 
+// Updated navLinks: Home points to /products, Products link removed.
 const navLinks = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/products', label: 'Products', icon: PackageSearch },
-  // Add more links like About, Contact if needed
+  { href: '/products', label: 'Home', icon: Home },
+  // Example: { href: '/about', label: 'About Us', icon: InfoIcon }, // Add more links as needed
 ];
 
 export function CustomerNavbar() {
@@ -102,7 +102,8 @@ export function CustomerNavbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-        <Link href="/" className="flex items-center gap-2" onClick={() => setIsSheetOpen(false)}>
+        {/* Logo/Brand link now points to /products */}
+        <Link href="/products" className="flex items-center gap-2" onClick={() => setIsSheetOpen(false)}>
           <ShoppingBag className="h-7 w-7 text-primary" />
           <span className="font-headline text-2xl font-semibold text-primary">Local Commerce</span>
         </Link>
@@ -151,7 +152,7 @@ export function CustomerNavbar() {
             </SheetTrigger>
             <SheetContent side="left" className="w-[300px] sm:w-[400px]">
               <nav className="mt-8 flex flex-col gap-4">
-                {navLinks.map(link => (
+                {navLinks.map(link => ( // This will now use the updated navLinks
                   <Link
                     key={link.label}
                     href={link.href}
@@ -181,3 +182,4 @@ export function CustomerNavbar() {
     </header>
   );
 }
+
