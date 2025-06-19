@@ -1,4 +1,3 @@
-
 export type UserRole = 'admin' | 'customer';
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -138,4 +137,3 @@ export interface AdminActionLog {
   timestamp: string;
   description: string;
 }
-    

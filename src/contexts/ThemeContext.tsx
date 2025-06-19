@@ -1,12 +1,12 @@
-
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode, useCallback, useContext } from 'react';
 import { localStorageService } from '@/lib/localStorage';
-import type { Theme } from '@/types';
+import type { Theme, User } from '@/types';
+import { AuthContext } from './AuthContext'; // Import AuthContext to access user
 
 interface ThemeContextType {
-  theme: Theme;
+  theme: Theme; // User's choice (light, dark, system) or global choice
   setTheme: (theme: Theme) => void;
   appliedTheme: 'light' | 'dark'; // Actual theme applied after considering system preference
 }
@@ -14,16 +14,17 @@ interface ThemeContextType {
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>(() => localStorageService.getGlobalTheme());
+  const authContext = useContext(AuthContext);
+  const [theme, setThemeState] = useState<Theme>('system'); // Default to system, will be overridden
   const [appliedTheme, setAppliedTheme] = useState<'light' | 'dark'>('light');
 
-
-  const applyThemePreference = useCallback((currentTheme: Theme) => {
+  // Function to determine and apply the correct theme
+  const applyThemePreference = useCallback((currentThemeChoice: Theme) => {
     let finalTheme: 'light' | 'dark';
-    if (currentTheme === 'system') {
+    if (currentThemeChoice === 'system') {
       finalTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     } else {
-      finalTheme = currentTheme;
+      finalTheme = currentThemeChoice;
     }
     
     const root = window.document.documentElement;
@@ -32,26 +33,47 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setAppliedTheme(finalTheme);
   }, []);
 
+  // Effect to initialize theme based on user preference or global storage
   useEffect(() => {
-    applyThemePreference(theme);
-  }, [theme, applyThemePreference]);
+    if (authContext && !authContext.isLoading) { // Ensure auth context is loaded
+      if (authContext.currentUser && authContext.currentUser.themePreference) {
+        setThemeState(authContext.currentUser.themePreference);
+        applyThemePreference(authContext.currentUser.themePreference);
+      } else {
+        const globalTheme = localStorageService.getGlobalTheme();
+        setThemeState(globalTheme);
+        applyThemePreference(globalTheme);
+      }
+    } else if (!authContext) { // Fallback if AuthContext is not yet available (e.g., initial SSR or context not wrapped)
+        const globalTheme = localStorageService.getGlobalTheme();
+        setThemeState(globalTheme);
+        applyThemePreference(globalTheme);
+    }
+  }, [authContext, applyThemePreference]);
 
-  // Listener for system theme changes
+
+  // Effect to listen for system theme changes
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
-      if (theme === 'system') {
-        applyThemePreference('system');
+      // Re-apply theme only if the current choice is 'system' or derived from it
+      if (theme === 'system' || (authContext?.currentUser?.themePreference === 'system' && !authContext?.currentUser)) {
+         applyThemePreference('system');
       }
     };
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme, applyThemePreference]);
+  }, [theme, authContext, applyThemePreference]);
 
-
-  const setTheme = (newTheme: Theme) => {
-    localStorageService.setGlobalTheme(newTheme);
-    setThemeState(newTheme);
+  // setTheme function that updates user preference if logged in, else global
+  const setTheme = (newThemeChoice: Theme) => {
+    if (authContext && authContext.currentUser) {
+      authContext.updateUserThemePreference(newThemeChoice); // This will trigger user update & context refresh
+    } else {
+      localStorageService.setGlobalTheme(newThemeChoice); // Update global theme
+    }
+    setThemeState(newThemeChoice); // Update local state for immediate UI reflection if needed
+    applyThemePreference(newThemeChoice); // Apply the new theme choice directly
   };
 
   return (

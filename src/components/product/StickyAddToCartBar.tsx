@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -96,7 +95,7 @@ export function StickyAddToCartBar({
               </div>
               <Button
                 size="sm"
-                md-size="default" // For potentially larger button on md+
+                // md-size="default" // For potentially larger button on md+
                 onClick={onAddToCart}
                 className="shrink-0"
               >

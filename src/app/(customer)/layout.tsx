@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect } from 'react';
@@ -74,4 +73,3 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     </div>
   );
 }
-

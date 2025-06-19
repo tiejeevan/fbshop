@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, use, useCallback, ChangeEvent, useMemo, useRef } from 'react';
@@ -15,8 +14,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { WishlistButton } from '@/components/customer/WishlistButton';
 import { ReviewList } from '@/components/product/ReviewList';
-import { ReviewForm } from '@/components/product/ReviewForm';
-import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
+import { ReviewForm } from '@/components/product/StarRatingDisplay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductImage } from '@/components/product/ProductImage';
 import { Input } from '@/components/ui/input';
