@@ -9,9 +9,27 @@ import Link from 'next/link';
 import { Loader2, UserCog, ShoppingBag, UserPlus } from 'lucide-react';
 
 export default function HomePage() {
-  const { isLoading } = useAuth(); // Only need isLoading to show a loading state initially
+  const { currentUser, isLoading } = useAuth();
+  const router = useRouter();
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading) {
+      if (currentUser) {
+        if (currentUser.role === 'customer') {
+          router.replace('/products');
+        } else if (currentUser.role === 'admin') {
+          router.replace('/admin/dashboard');
+        }
+        // If currentUser exists but role is unexpected or not handled,
+        // they might see the landing page, or you could add specific error handling/redirect.
+      }
+      // If !currentUser, they remain on this page to see login/signup options.
+    }
+  }, [currentUser, isLoading, router]);
+
+  // Show loader while isLoading is true, OR
+  // if isLoading is false BUT currentUser exists (meaning a redirect is about to happen).
+  if (isLoading || (!isLoading && currentUser)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -20,9 +38,7 @@ export default function HomePage() {
     );
   }
 
-  // Always show this landing page, regardless of auth state.
-  // Navigation to appropriate dashboards (admin/customer) will happen
-  // when users explicitly try to access those areas or after they log in.
+  // This content is only rendered if isLoading is false AND there is no currentUser.
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-secondary p-6 text-center">
       <ShoppingBag className="h-20 w-20 text-primary mb-6" />
