@@ -10,7 +10,7 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from '@/components/ui/input';
-import { ShoppingCart, Search, Star, Eye } from 'lucide-react'; // Added Eye icon
+import { ShoppingCart, Search, Star, Eye, Camera, Loader2 } from 'lucide-react'; // Added Camera, Loader2
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -19,7 +19,8 @@ import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
 import { RecentlyViewedProducts } from '@/components/product/RecentlyViewedProducts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductImage } from '@/components/product/ProductImage';
-import { ProductQuickViewModal } from '@/components/product/ProductQuickViewModal'; // New import
+import { ProductQuickViewModal } from '@/components/product/ProductQuickViewModal';
+import { describeImageForSearch } from '@/ai/flows/describe-image-for-search'; // New Genkit flow import
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'views-desc' | 'purchases-desc' | 'rating-desc';
 
@@ -35,6 +36,7 @@ export default function ProductsPage() {
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isQuickViewModalOpen, setIsQuickViewModalOpen] = useState(false);
+  const [isVisualSearching, setIsVisualSearching] = useState(false); // For Genkit loading
 
   useEffect(() => {
     setIsLoading(true);
@@ -59,7 +61,7 @@ export default function ProductsPage() {
     setIsLoading(false);
   }, []);
 
-  const handleAddToCart = (product: Product, quantity: number = 1) => { // Added quantity parameter
+  const handleAddToCart = (product: Product, quantity: number = 1) => {
     if (!currentUser) {
       toast({ title: "Login Required", variant: "destructive", description: "Please log in to add items to your cart." });
       return;
@@ -98,7 +100,7 @@ export default function ProductsPage() {
   const sortedAndFilteredProducts = useMemo(() => {
     return products
       .filter(product => (selectedCategory && selectedCategory !== 'all') ? product.categoryId === selectedCategory : true)
-      .filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()) || product.description?.toLowerCase().includes(searchTerm.toLowerCase())) // Search in description too
       .sort((a, b) => {
         switch (sortOption) {
           case 'name-asc': return a.name.localeCompare(b.name);
@@ -123,6 +125,27 @@ export default function ProductsPage() {
     setQuickViewProduct(null);
   };
 
+  const handleMockVisualSearch = async () => {
+    setIsVisualSearching(true);
+    toast({ title: "Visual Search Activated", description: "AI is 'analyzing' a hypothetical image..." });
+    try {
+      // In a real scenario, you might pass some context or an actual (downscaled/mocked) image data URI.
+      // For this mock, we'll call it without specific input for the AI to be creative.
+      const result = await describeImageForSearch();
+      if (result && result.description) {
+        setSearchTerm(result.description);
+        toast({ title: "AI Search Complete", description: `Searching for: "${result.description}"` });
+      } else {
+        toast({ title: "AI Search Error", description: "Could not generate a search term.", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Visual search error:", error);
+      toast({ title: "AI Error", description: "Visual search failed.", variant: "destructive" });
+    } finally {
+      setIsVisualSearching(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -133,6 +156,7 @@ export default function ProductsPage() {
         </header>
         <div className="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-card rounded-lg shadow">
           <Skeleton className="h-10 flex-grow rounded-md" />
+          <Skeleton className="h-10 w-10 rounded-md shrink-0" /> {/* For visual search button */}
           <Skeleton className="h-10 w-full md:w-[200px] rounded-md" />
           <Skeleton className="h-10 w-full md:w-[220px] rounded-md" />
         </div>
@@ -166,12 +190,23 @@ export default function ProductsPage() {
         <p className="text-lg text-muted-foreground">Discover a wide range of items, stored locally!</p>
       </header>
 
-      <div className="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-card rounded-lg shadow">
-        <div className="relative flex-grow">
+      <div className="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-card rounded-lg shadow items-center">
+        <div className="relative flex-grow w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input type="search" placeholder="Search products..." value={searchTerm}
+          <Input type="search" placeholder="Search products by name or description..." value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full" />
         </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleMockVisualSearch}
+          disabled={isVisualSearching}
+          aria-label="Mock Visual Search"
+          title="Mock Visual Search (AI Powered)"
+          className="shrink-0"
+        >
+          {isVisualSearching ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+        </Button>
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
           <SelectTrigger className="w-full md:w-[200px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
           <SelectContent>
