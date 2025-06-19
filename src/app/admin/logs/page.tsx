@@ -1,56 +1,69 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { localStorageService } from '@/lib/localStorage';
 import type { AdminActionLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { FileText, Filter, ArrowLeft } from 'lucide-react';
+import { FileText, Filter, ArrowLeft, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ITEMS_PER_PAGE = 15;
 
 export default function AdminLogsPage() {
-  const [logs, setLogs] = useState<AdminActionLog[]>([]);
+  const [allLogs, setAllLogs] = useState<AdminActionLog[]>([]); // Store all logs from DB
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterAdminEmail, setFilterAdminEmail] = useState('');
   const [filterActionType, setFilterActionType] = useState('');
   const [filterEntityType, setFilterEntityType] = useState('');
 
-  useEffect(() => {
+  const fetchLogs = useCallback(async () => {
     setIsLoading(true);
-    const fetchedLogs = localStorageService.getAdminActionLogs();
-    setLogs(fetchedLogs);
+    try {
+      const fetchedLogs = await localStorageService.getAdminActionLogs(); // Now async
+      setAllLogs(fetchedLogs);
+    } catch (error) {
+      console.error("Failed to fetch admin logs:", error);
+      setAllLogs([]); // Set to empty on error
+    }
     setIsLoading(false);
   }, []);
 
-  const uniqueAdminEmails = Array.from(new Set(logs.map(log => log.adminEmail))).sort();
-  const uniqueActionTypes = Array.from(new Set(logs.map(log => log.actionType))).sort();
-  const uniqueEntityTypes = Array.from(new Set(logs.map(log => log.entityType).filter(Boolean) as string[])).sort();
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  const uniqueAdminEmails = useMemo(() => Array.from(new Set(allLogs.map(log => log.adminEmail))).sort(), [allLogs]);
+  const uniqueActionTypes = useMemo(() => Array.from(new Set(allLogs.map(log => log.actionType))).sort(), [allLogs]);
+  const uniqueEntityTypes = useMemo(() => Array.from(new Set(allLogs.map(log => log.entityType).filter(Boolean) as string[])).sort(), [allLogs]);
 
 
-  const filteredLogs = logs.filter(log => {
+  const filteredLogs = useMemo(() => allLogs.filter(log => {
     return (
       (filterAdminEmail === '' || log.adminEmail === filterAdminEmail) &&
       (filterActionType === '' || log.actionType === filterActionType) &&
       (filterEntityType === '' || log.entityType === filterEntityType)
     );
-  });
+  }), [allLogs, filterAdminEmail, filterActionType, filterEntityType]);
 
   const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
-  const paginatedLogs = filteredLogs.slice(
+  const paginatedLogs = useMemo(() => filteredLogs.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
-  );
+  ), [filteredLogs, currentPage]);
+  
+  useEffect(() => {
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [filterAdminEmail, filterActionType, filterEntityType]);
+
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-64">Loading logs...</div>;
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />Loading logs...</div>;
   }
 
   return (
@@ -70,7 +83,7 @@ export default function AdminLogsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
-          <CardDescription>Review of actions performed by administrators.</CardDescription>
+          <CardDescription>Review of actions performed by administrators. Logs are stored in IndexedDB.</CardDescription>
            <div className="mt-4 flex flex-col sm:flex-row gap-2 items-center border-t pt-4">
             <Filter className="h-5 w-5 text-muted-foreground mr-2 hidden sm:block" />
             <Select value={filterAdminEmail} onValueChange={setFilterAdminEmail}>
@@ -94,7 +107,7 @@ export default function AdminLogsPage() {
                 {uniqueEntityTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => { setFilterAdminEmail(''); setFilterActionType(''); setFilterEntityType(''); setCurrentPage(1);}} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={() => { setFilterAdminEmail(''); setFilterActionType(''); setFilterEntityType('');}} className="w-full sm:w-auto">
               Clear Filters
             </Button>
           </div>
@@ -102,7 +115,7 @@ export default function AdminLogsPage() {
         <CardContent>
           {paginatedLogs.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
-              No logs found matching your criteria.
+              {allLogs.length === 0 ? "No logs found in the database." : "No logs found matching your criteria."}
             </div>
           ) : (
             <>
@@ -144,7 +157,7 @@ export default function AdminLogsPage() {
             </Table>
             <div className="flex items-center justify-between mt-4">
                 <span className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} ({filteredLogs.length} total logs)
+                  Page {currentPage} of {totalPages} ({filteredLogs.length} total logs shown)
                 </span>
                 <div className="flex gap-2">
                 <Button
@@ -172,3 +185,4 @@ export default function AdminLogsPage() {
     </div>
   );
 }
+

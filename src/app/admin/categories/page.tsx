@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter, ChevronDown, ChevronRight, Folder, FolderOpen, ImageOff, CheckCircle, XCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter, ChevronDown, ChevronRight, CheckCircle, XCircle } from 'lucide-react';
 import { localStorageService } from '@/lib/localStorage';
 import type { Category } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +21,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger, // Added AlertDialogTrigger here
+  AlertDialogTrigger, 
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,10 +49,11 @@ export default function AdminCategoriesPage() {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   const { toast } = useToast();
+  const { currentUser } = useAuth();
 
   const fetchCategories = useCallback(() => {
     setIsLoading(true);
-    const fetchedCategories = localStorageService.getCategories(); // Already sorted by displayOrder
+    const fetchedCategories = localStorageService.getCategories(); 
     setAllCategories(fetchedCategories);
     setIsLoading(false);
   }, []);
@@ -97,7 +99,7 @@ export default function AdminCategoriesPage() {
   }, [allCategories, searchTerm, filterStatus, filterHierarchy, expandedCategories]);
 
   const handleDeleteCategory = async () => {
-    if (!categoryToDelete) return;
+    if (!categoryToDelete || !currentUser) return;
     
     const children = localStorageService.getChildCategories(categoryToDelete.id);
     if (children.length > 0) {
@@ -114,6 +116,14 @@ export default function AdminCategoriesPage() {
 
     const success = await localStorageService.deleteCategory(categoryToDelete.id);
     if (success) {
+      await localStorageService.addAdminActionLog({
+        adminId: currentUser.id,
+        adminEmail: currentUser.email,
+        actionType: 'CATEGORY_DELETE',
+        entityType: 'Category',
+        entityId: categoryToDelete.id,
+        description: `Deleted category "${categoryToDelete.name}" (ID: ${categoryToDelete.id.substring(0,8)}...).`
+      });
       toast({ title: "Category Deleted" });
       fetchCategories(); 
       setCategoriesToBatchAction(prev => prev.filter(id => id !== categoryToDelete.id));
@@ -124,14 +134,15 @@ export default function AdminCategoriesPage() {
   };
 
   const handleBatchAction = async (action: 'delete' | 'setActive' | 'setInactive') => {
-    if (categoriesToBatchAction.length === 0) {
-      toast({ title: "No categories selected", variant: "destructive" });
+    if (categoriesToBatchAction.length === 0 || !currentUser) {
+      toast({ title: "No categories selected or admin not found", variant: "destructive" });
       return;
     }
 
     let successCount = 0;
     let skippedCount = 0;
     let skippedMessages: string[] = [];
+    const actionLogs: Omit<AdminActionLog, 'id'|'timestamp'>[] = [];
 
     for (const catId of categoriesToBatchAction) {
       const category = allCategories.find(c => c.id === catId);
@@ -148,26 +159,30 @@ export default function AdminCategoriesPage() {
           skippedMessages.push(`Skipped "${category.name}": Has ${reason}.`);
           continue;
         }
-        if (await localStorageService.deleteCategory(catId)) successCount++;
+        if (await localStorageService.deleteCategory(catId)) {
+            successCount++;
+            actionLogs.push({ adminId: currentUser.id, adminEmail: currentUser.email, actionType: 'CATEGORY_DELETE_BATCH', entityType: 'Category', entityId: catId, description: `Batch deleted category "${category.name}".`});
+        }
       } else if (action === 'setActive') {
         localStorageService.updateCategory({ ...category, isActive: true });
         successCount++;
+        actionLogs.push({ adminId: currentUser.id, adminEmail: currentUser.email, actionType: 'CATEGORY_SET_ACTIVE_BATCH', entityType: 'Category', entityId: catId, description: `Batch set category "${category.name}" to active.`});
       } else if (action === 'setInactive') {
         localStorageService.updateCategory({ ...category, isActive: false });
         successCount++;
+        actionLogs.push({ adminId: currentUser.id, adminEmail: currentUser.email, actionType: 'CATEGORY_SET_INACTIVE_BATCH', entityType: 'Category', entityId: catId, description: `Batch set category "${category.name}" to inactive.`});
       }
     }
+
+    for (const log of actionLogs) {
+        await localStorageService.addAdminActionLog(log);
+    }
+
     if (skippedCount > 0) {
         toast({
             title: `Batch Action: ${successCount} affected, ${skippedCount} skipped`,
-            description: (
-            <div className="text-xs">
-                {skippedMessages.slice(0,3).map((msg, i) => <p key={i}>{msg}</p>)}
-                {skippedMessages.length > 3 && <p>...and {skippedMessages.length - 3} more.</p>}
-            </div>
-            ),
-            variant: successCount > 0 ? "default" : "destructive",
-            duration: 7000
+            description: ( <div className="text-xs max-h-20 overflow-y-auto">{skippedMessages.map((msg, i) => <p key={i}>{msg}</p>)}</div> ),
+            variant: successCount > 0 ? "default" : "destructive", duration: 7000
         });
     } else if (successCount > 0) {
         toast({ title: "Batch Action Complete", description: `${successCount} categories affected.` });
@@ -205,7 +220,7 @@ export default function AdminCategoriesPage() {
     collectVisibleIds(filteredAndStructuredCategories);
     if (visibleIds.length === 0) return false;
     return visibleIds.every(id => categoriesToBatchAction.includes(id));
-  }, [filteredAndStructuredCategories, categoriesToBatchAction]);
+  }, [filteredAndStructuredCategories, categoriesToBatchAction, expandedCategories]);
 
 
   const renderCategoryRow = (category: DisplayCategory) => (
@@ -215,32 +230,33 @@ export default function AdminCategoriesPage() {
           <div className="flex items-center gap-2">
             <Checkbox
               checked={categoriesToBatchAction.includes(category.id)}
-              onCheckedChange={(checked) => {
+              onCheckedChange={(checkedState) => {
+                const isChecked = !!checkedState; // Ensure boolean
                 setCategoriesToBatchAction(prev => 
-                  checked ? [...prev, category.id] : prev.filter(id => id !== category.id)
+                  isChecked ? [...prev, category.id] : prev.filter(id => id !== category.id)
                 );
               }}
               aria-label={`Select category ${category.name}`}
             />
             {category.children && category.children.length > 0 ? (
-              <Button variant="ghost" size="xs-icon" onClick={() => toggleExpand(category.id)} className="p-1 h-6 w-6">
+              <Button variant="ghost" size="icon" onClick={() => toggleExpand(category.id)} className="p-1 h-6 w-6">
                 {category.isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </Button>
-            ) : <span className="w-6"></span>}
-             <ProductImage imageId={category.imageId} alt={category.name} className="w-10 h-10 rounded-sm border" imageClassName="object-contain" placeholderIconSize="w-5 h-5" data-ai-hint="category list"/>
-            <Link href={`/admin/categories/edit/${category.id}`} className="font-medium hover:underline">{category.name}</Link>
+            ) : <span className="w-6 inline-block shrink-0"></span>}
+             <ProductImage imageId={category.imageId} alt={category.name} className="w-10 h-10 rounded-sm border shrink-0" imageClassName="object-contain" placeholderIconSize="w-5 h-5" data-ai-hint="category list"/>
+            <Link href={`/admin/categories/edit/${category.id}`} className="font-medium hover:underline ml-1 truncate" title={category.name}>{category.name}</Link>
           </div>
         </TableCell>
         <TableCell className="hidden md:table-cell text-xs text-muted-foreground truncate max-w-xs">{category.description || 'N/A'}</TableCell>
         <TableCell className="hidden sm:table-cell">{category.productCount}</TableCell>
         <TableCell className="hidden md:table-cell">{category.displayOrder}</TableCell>
         <TableCell>
-          <Badge variant={category.isActive ? "default" : "outline"} className={cn(category.isActive ? "bg-green-100 text-green-700 border-green-300" : "bg-red-100 text-red-700 border-red-300")}>
+          <Badge variant={category.isActive ? "default" : "outline"} className={cn("text-xs", category.isActive ? "bg-green-100 text-green-700 border-green-300 dark:bg-green-800/30 dark:text-green-300 dark:border-green-700" : "bg-red-100 text-red-700 border-red-300 dark:bg-red-800/30 dark:text-red-300 dark:border-red-700")}>
              {category.isActive ? <CheckCircle className="mr-1 h-3 w-3"/> : <XCircle className="mr-1 h-3 w-3"/>}
              {category.isActive ? 'Active' : 'Inactive'}
           </Badge>
         </TableCell>
-        <TableCell>
+        <TableCell className="text-right">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -312,34 +328,35 @@ export default function AdminCategoriesPage() {
           ) : filteredAndStructuredCategories.length === 0 && (searchTerm || filterStatus !== 'all' || filterHierarchy !== 'all') ? (
              <div className="text-center py-10"><p className="text-muted-foreground mb-4">No categories match your search/filters.</p></div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50%] sm:w-[40%]">
-                    <div className="flex items-center gap-2">
-                      <Checkbox 
-                        checked={isAllVisibleSelected && filteredAndStructuredCategories.length > 0} 
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Select all visible categories" 
-                        disabled={filteredAndStructuredCategories.length === 0}
-                      /> Name
-                    </div>
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">Description</TableHead>
-                  <TableHead className="hidden sm:table-cell">Products</TableHead>
-                  <TableHead className="hidden md:table-cell">Order</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAndStructuredCategories.length > 0 ? 
-                    filteredAndStructuredCategories.map(category => renderCategoryRow(category)) :
-                    (searchTerm || filterStatus !== 'all' || filterHierarchy !== 'all') ? null : // No explicit message if empty due to filters but not no categories overall
-                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">No categories found.</TableCell></TableRow> 
-                }
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[250px] sm:w-[40%]">
+                      <div className="flex items-center gap-2">
+                        <Checkbox 
+                          checked={isAllVisibleSelected && filteredAndStructuredCategories.length > 0} 
+                          onCheckedChange={toggleSelectAll}
+                          aria-label="Select all visible categories" 
+                          disabled={filteredAndStructuredCategories.length === 0}
+                        /> Name
+                      </div>
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell min-w-[200px]">Description</TableHead>
+                    <TableHead className="hidden sm:table-cell">Products</TableHead>
+                    <TableHead className="hidden md:table-cell">Order</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAndStructuredCategories.length > 0 ? 
+                      filteredAndStructuredCategories.map(category => renderCategoryRow(category)) :
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">No categories match your filters.</TableCell></TableRow> 
+                  }
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -368,13 +385,3 @@ export default function AdminCategoriesPage() {
     </div>
   );
 }
-
-// Helper for Button variant size - you might need to define this if not already
-// Assuming ButtonProps is already extended in your actual ui/button.tsx
-// For type safety, if ButtonProps needs 'xs-icon'
-declare module '@/components/ui/button' {
-    interface ButtonProps {
-        size?: 'default' | 'sm' | 'lg' | 'icon' | 'xs-icon'; // Ensure 'xs-icon' is a valid size if used
-    }
-}
-

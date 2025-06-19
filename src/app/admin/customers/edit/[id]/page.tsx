@@ -7,6 +7,7 @@ import { localStorageService } from '@/lib/localStorage';
 import type { User } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -17,6 +18,8 @@ export default function EditCustomerPage({ params: paramsPromise }: { params: Pr
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
+  const { currentUser: adminUserPerformingAction, refreshUser } = useAuth();
+
 
   useEffect(() => {
     const fetchedCustomer = localStorageService.findUserById(params.id);
@@ -30,9 +33,11 @@ export default function EditCustomerPage({ params: paramsPromise }: { params: Pr
   }, [params.id, router, toast]);
 
   const handleEditCustomer = async (data: EditCustomerFormValues, id?: string) => {
-    if (!id || !customer) return;
+    if (!id || !customer || !adminUserPerformingAction) {
+        toast({ title: "Error", description: "Missing data or admin session.", variant: "destructive" });
+        return;
+    }
 
-    // Check if email is being changed and if the new email already exists for another user
     if (data.email !== customer.email) {
         const existingUserWithNewEmail = localStorageService.findUserByEmail(data.email);
         if (existingUserWithNewEmail && existingUserWithNewEmail.id !== id) {
@@ -47,18 +52,26 @@ export default function EditCustomerPage({ params: paramsPromise }: { params: Pr
         name: data.name,
         email: data.email,
         role: data.role,
-        // Only update password if a new one is provided
-        password: data.password ? data.password : customer.password,
+        password: data.password && data.password.length > 0 ? data.password : customer.password, // Only update if new password is provided
       };
       localStorageService.updateUser(updatedCustomerData);
+      
+      await localStorageService.addAdminActionLog({
+          adminId: adminUserPerformingAction.id,
+          adminEmail: adminUserPerformingAction.email,
+          actionType: 'USER_UPDATE',
+          entityType: 'User',
+          entityId: id,
+          description: `Updated user "${data.name || data.email}" (ID: ${id.substring(0,8)}...). Role: ${data.role}.`
+      });
+
       toast({ title: "Customer Updated", description: `Customer "${data.name || data.email}" has been successfully updated.` });
-      router.push('/admin/customers');
-       // If current user is the one being edited, refresh auth context to reflect changes
-      const sessionUser = localStorageService.getCurrentUser();
-      if (sessionUser && sessionUser.id === id) {
-        localStorageService.setCurrentUser(updatedCustomerData); // Update session
-        // Potentially trigger a global state update if your AuthContext listens for it
+      
+      if (adminUserPerformingAction && adminUserPerformingAction.id === id) {
+        refreshUser(); // If admin edits their own profile
       }
+      router.push('/admin/customers');
+
     } catch (error) {
       console.error("Error updating customer:", error);
       toast({ title: "Error Updating Customer", description: "Could not update the customer. Please try again.", variant: "destructive" });

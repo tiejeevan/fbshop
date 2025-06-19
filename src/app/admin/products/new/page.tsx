@@ -7,17 +7,17 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Category, Product } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth'; // Import useAuth
+import { useAuth } from '@/hooks/useAuth'; 
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
+import { saveImage as saveImageToDB } from '@/lib/indexedDbService';
 
 export default function NewProductPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser } = useAuth(); // Get current admin user
+  const { currentUser } = useAuth(); 
 
   useEffect(() => {
     setCategories(localStorageService.getCategories());
@@ -36,13 +36,13 @@ export default function NewProductPage() {
     try {
       let primaryImageId: string | null = null;
       const additionalImageIds: string[] = [];
-      const tempProductId = `temp_${crypto.randomUUID()}`; // Temporary ID for image association before product ID is final
+      const tempProductId = `temp_product_${crypto.randomUUID()}`; 
 
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {
           const savedImageId = await saveImageToDB(
             tempProductId, 
-            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index ?? Date.now()),
+            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index ?? Date.now().toString()),
             imgInfo.file
           );
           if (imgInfo.type === 'primary') {
@@ -59,10 +59,10 @@ export default function NewProductPage() {
         additionalImageIds,
       };
       
-      const newProduct = localStorageService.addProduct(productDataForStorage); // This will generate the final ID
+      const newProduct = localStorageService.addProduct(productDataForStorage); 
 
       // Log the action
-      localStorageService.addAdminActionLog({
+      await localStorageService.addAdminActionLog({ // Make sure this call is awaited
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'PRODUCT_CREATE',
@@ -90,3 +90,4 @@ export default function NewProductPage() {
     </div>
   );
 }
+

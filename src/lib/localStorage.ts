@@ -2,7 +2,12 @@
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem, AdminActionLog } from '@/types';
-import { deleteImagesForProduct as deleteImagesFromDB, deleteImage as deleteSingleImageFromDB } from './indexedDbService';
+import { 
+    deleteImagesForProduct as deleteImagesFromDB, 
+    deleteImage as deleteSingleImageFromDB,
+    addAdminActionLogToDB, // Import new IndexedDB log functions
+    getAdminActionLogsFromDB 
+} from './indexedDbService';
 
 
 const KEYS = {
@@ -17,7 +22,7 @@ const KEYS = {
   REVIEWS: 'localcommerce_reviews',
   RECENTLY_VIEWED: 'localcommerce_recently_viewed',
   THEME: 'localcommerce_theme', 
-  ADMIN_ACTION_LOGS: 'localcommerce_admin_action_logs', // New key for admin logs
+  // ADMIN_ACTION_LOGS: 'localcommerce_admin_action_logs', // Removed, now in IndexedDB
 };
 
 function getItem<T>(key: string): T | null {
@@ -85,9 +90,14 @@ function initializeDataOnce() {
       { name: 'Home Goods', slug: 'home-goods', description: 'For your lovely home.', parentId: null, imageId: null, displayOrder: 3, isActive: true },
       { name: 'Apparel', slug: 'apparel', description: 'Clothing and accessories.', parentId: null, imageId: null, displayOrder: 4, isActive: true },
     ];
-    categories = mockCategoryData.map((cat) => ({
+    categories = mockCategoryData.map((cat, index) => ({
         ...cat,
         id: `cat_${cat.slug}_${crypto.randomUUID().slice(0,4)}`,
+        slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
+        parentId: cat.parentId || null,
+        imageId: cat.imageId || null,
+        displayOrder: cat.displayOrder || index + 1,
+        isActive: cat.isActive === undefined ? true : cat.isActive,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     }));
@@ -160,7 +170,7 @@ function initializeDataOnce() {
   if (!getItem(KEYS.REVIEWS)) setItem(KEYS.REVIEWS, []);
   if (!getItem(KEYS.RECENTLY_VIEWED)) setItem(KEYS.RECENTLY_VIEWED, []);
   if (!getItem(KEYS.THEME)) setItem(KEYS.THEME, 'system');
-  if (!getItem(KEYS.ADMIN_ACTION_LOGS)) setItem(KEYS.ADMIN_ACTION_LOGS, []); // Initialize admin logs
+  // No need to initialize Admin Action Logs in localStorage anymore
 
   isDataInitialized = true;
 }
@@ -341,7 +351,7 @@ const deleteCategory = async (categoryId: string): Promise<boolean> => {
       }
     });
     
-    const childCategories = categories.filter(c => c.parentId === categoryId);
+    const childCategories = getCategories().filter(c => c.parentId === categoryId); // Use getCategories to ensure we're working with the current list
     for (const child of childCategories) {
         child.parentId = null; 
         updateCategory(child);
@@ -546,23 +556,23 @@ const setGlobalTheme = (theme: Theme): void => {
   setItem(KEYS.THEME, theme);
 };
 
-// Admin Action Logs
-const MAX_ADMIN_LOGS = 200; // Keep the last 200 logs for performance
-const getAdminActionLogs = (): AdminActionLog[] => {
-  const logs = getItem<AdminActionLog[]>(KEYS.ADMIN_ACTION_LOGS) || [];
-  return logs.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+// Admin Action Logs - Delegating to IndexedDB service
+const getAdminActionLogs = async (): Promise<AdminActionLog[]> => {
+  try {
+    return await getAdminActionLogsFromDB();
+  } catch (error) {
+    console.error("Error fetching admin logs from IndexedDB via localStorageService:", error);
+    return []; // Return empty array on error
+  }
 };
 
-const addAdminActionLog = (logData: Omit<AdminActionLog, 'id' | 'timestamp'>): void => {
-  let logs = getItem<AdminActionLog[]>(KEYS.ADMIN_ACTION_LOGS) || [];
-  const newLog: AdminActionLog = {
-    ...logData,
-    id: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
-  };
-  logs.unshift(newLog); // Add to the beginning for chronological order (newest first)
-  logs = logs.slice(0, MAX_ADMIN_LOGS); // Keep only the most recent logs
-  setItem(KEYS.ADMIN_ACTION_LOGS, logs);
+const addAdminActionLog = async (logData: Omit<AdminActionLog, 'id' | 'timestamp'>): Promise<void> => {
+  try {
+    await addAdminActionLogToDB(logData);
+  } catch (error) {
+    console.error("Error adding admin log to IndexedDB via localStorageService:", error);
+    // Optionally, implement a fallback or further error handling
+  }
 };
 
 
@@ -609,8 +619,9 @@ const localStorageService = {
   addRecentlyViewed,
   getGlobalTheme,
   setGlobalTheme,
-  getAdminActionLogs,
-  addAdminActionLog,
+  getAdminActionLogs, // Now async
+  addAdminActionLog, // Now async
 };
 
 export { localStorageService };
+

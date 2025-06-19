@@ -7,32 +7,47 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { saveImage as saveImageToDB } from '@/lib/indexedDbService'; // Assuming reuse of product image save
+import { saveImage as saveImageToDB } from '@/lib/indexedDbService'; 
 
 export default function NewCategoryPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     setAllCategories(localStorageService.getCategories());
   }, []);
 
   const handleCreateCategory = async (data: CategoryFormValues, imageFile: File | null) => {
+    if (!currentUser) {
+      toast({ title: "Authentication Error", variant: "destructive" });
+      return;
+    }
     try {
       let imageId: string | null = null;
       if (imageFile) {
-        // Use a distinct prefix or method for category images if needed
         imageId = await saveImageToDB(`category_${data.slug}`, 'main', imageFile);
       }
 
-      localStorageService.addCategory({
-        ...data, // slug, parentId, displayOrder, isActive are in data
-        imageId, // Set the saved imageId
+      const newCategory = localStorageService.addCategory({
+        ...data, 
+        imageId, 
       });
+
+      await localStorageService.addAdminActionLog({
+        adminId: currentUser.id,
+        adminEmail: currentUser.email,
+        actionType: 'CATEGORY_CREATE',
+        entityType: 'Category',
+        entityId: newCategory.id,
+        description: `Created category "${newCategory.name}" (ID: ${newCategory.id.substring(0,8)}...).`
+      });
+
       toast({ title: "Category Created", description: `"${data.name}" has been successfully added.` });
       router.push('/admin/categories');
     } catch (error) {

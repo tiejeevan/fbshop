@@ -7,11 +7,11 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth'; // Import useAuth
+import { useAuth } from '@/hooks/useAuth'; 
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB, getImage } from '@/lib/indexedDbService';
+import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
 
 export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = use(paramsPromise);
@@ -20,7 +20,7 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser } = useAuth(); // Get current admin user
+  const { currentUser } = useAuth(); 
 
   useEffect(() => {
     const fetchedProduct = localStorageService.findProductById(params.id);
@@ -46,52 +46,69 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
     }
 
     try {
-      let finalPrimaryImageId = product.primaryImageId;
-      let finalAdditionalImageIds = [...(product.additionalImageIds || [])];
+      let finalPrimaryImageId = data.primaryImageId; // Use ID from form data as base (RHF value)
+      let finalAdditionalImageIds = [...(data.additionalImageIds || [])]; // Use IDs from form data
 
-      
+      // Handle deletions first
       if (imagesToDelete && imagesToDelete.length > 0) {
         for (const imgId of imagesToDelete) {
           await deleteImageFromDB(imgId);
+          if (finalPrimaryImageId === imgId) finalPrimaryImageId = null;
+          finalAdditionalImageIds = finalAdditionalImageIds.filter(fid => fid !== imgId);
         }
       }
       
-      
+      // Handle new/replacement images
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {
-          
           const savedImageId = await saveImageToDB(
             id, 
-            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index ?? Date.now()), 
+            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index?.toString() ?? Date.now().toString()), 
             imgInfo.file
           );
 
           if (imgInfo.type === 'primary') {
+            // If there was an old primary image different from current and not in imagesToDelete, delete it
+            if (product.primaryImageId && product.primaryImageId !== savedImageId && !imagesToDelete?.includes(product.primaryImageId)) {
+                await deleteImageFromDB(product.primaryImageId);
+            }
             finalPrimaryImageId = savedImageId;
           } else {
-            
-            if (imgInfo.index !== undefined && finalAdditionalImageIds[imgInfo.index]) {
+            // For additional images, if replacing, the old ID should have been in imagesToDelete
+            // If adding new, just push
+            if (imgInfo.index !== undefined && finalAdditionalImageIds[imgInfo.index] && finalAdditionalImageIds[imgInfo.index] !== savedImageId && !imagesToDelete?.includes(finalAdditionalImageIds[imgInfo.index])) {
+               // This case implies replacing an image not explicitly marked for deletion via UI but is being overwritten by a new file
+               // The RHF value for additionalImageIds might not reflect this old ID if it was a file previously
+               // For simplicity, if imagesToSave has an item, it implies it's new or replacing.
+               // The `imagesToDelete` should ideally handle explicit UI-driven "remove" actions.
+            }
+
+            if (imgInfo.index !== undefined && imgInfo.index < finalAdditionalImageIds.length) {
+                 // If there was an image at this slot and it's different from the new one, and wasn't in imagesToDelete, delete it.
+                if(finalAdditionalImageIds[imgInfo.index] && finalAdditionalImageIds[imgInfo.index] !== savedImageId && !imagesToDelete?.includes(finalAdditionalImageIds[imgInfo.index])){
+                    await deleteImageFromDB(finalAdditionalImageIds[imgInfo.index]);
+                }
                 finalAdditionalImageIds[imgInfo.index] = savedImageId;
             } else {
                 finalAdditionalImageIds.push(savedImageId);
             }
+
           }
         }
       }
       
-      
       const updatedProductData: Product = {
-        ...product,
-        ...data, 
-        id,
-        primaryImageId: finalPrimaryImageId,
-        additionalImageIds: finalAdditionalImageIds.filter(imgId => !!imgId && !imagesToDelete?.includes(imgId)), 
+        ...product, // Start with original product data
+        ...data,    // Overlay with form data (name, desc, price, stock, categoryId)
+        id,         // Ensure ID is correct
+        primaryImageId: finalPrimaryImageId, // Set the resolved primary image ID
+        additionalImageIds: finalAdditionalImageIds.filter(imgId => !!imgId), // Set resolved additional image IDs
+        updatedAt: new Date().toISOString(), // Update timestamp
       };
 
       localStorageService.updateProduct(updatedProductData);
       
-      // Log the action
-      localStorageService.addAdminActionLog({
+      await localStorageService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'PRODUCT_UPDATE',

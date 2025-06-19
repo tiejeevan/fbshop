@@ -6,6 +6,7 @@ import { CustomerForm, type CreateCustomerFormValues } from '../CustomerForm';
 import { localStorageService } from '@/lib/localStorage';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -13,20 +14,35 @@ import Link from 'next/link';
 export default function NewCustomerPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { currentUser: adminUserPerformingAction } = useAuth();
 
   const handleCreateCustomer = async (data: CreateCustomerFormValues) => {
+     if (!adminUserPerformingAction) {
+        toast({ title: "Authentication Error", variant: "destructive" });
+        return;
+     }
     try {
       const existingUser = localStorageService.findUserByEmail(data.email);
       if (existingUser) {
         toast({ title: "Creation Failed", description: "A customer with this email already exists.", variant: "destructive" });
         return;
       }
-      localStorageService.addUser({
+      const newUser = localStorageService.addUser({
         name: data.name,
         email: data.email,
-        password: data.password, // Password is required by CreateCustomerFormValues
+        password: data.password, 
         role: data.role,
       });
+
+      await localStorageService.addAdminActionLog({
+          adminId: adminUserPerformingAction.id,
+          adminEmail: adminUserPerformingAction.email,
+          actionType: 'USER_CREATE',
+          entityType: 'User',
+          entityId: newUser.id,
+          description: `Created user "${newUser.name || newUser.email}" (ID: ${newUser.id.substring(0,8)}...). Role: ${newUser.role}.`
+      });
+
       toast({ title: "Customer Created", description: `Customer "${data.name || data.email}" has been successfully added.` });
       router.push('/admin/customers');
     } catch (error) {

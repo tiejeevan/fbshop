@@ -7,10 +7,11 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService'; // Assuming reuse
+import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
 
 export default function EditCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = use(paramsPromise);
@@ -19,6 +20,7 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     const fetchedCategory = localStorageService.findCategoryById(params.id);
@@ -33,31 +35,42 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
   }, [params.id, router, toast]);
 
   const handleEditCategory = async (data: CategoryFormValues, imageFile: File | null, id?: string) => {
-    if (!id || !category) return; 
+    if (!id || !category || !currentUser) {
+      toast({ title: "Error", description: "Missing data or admin session.", variant: "destructive" });
+      return;
+    }
     
-    let newImageId = category.imageId; // Start with existing imageId
+    let newImageId = category.imageId; 
 
     try {
-      if (imageFile) { // New image uploaded
-        if (category.imageId) { // If there was an old image, delete it
+      if (imageFile) { 
+        if (category.imageId) { 
           await deleteImageFromDB(category.imageId);
         }
-        // Save new image
         newImageId = await saveImageToDB(`category_${data.slug || category.slug}`, 'main', imageFile);
       } else if (data.imageId === null && category.imageId) { 
-        // This case means the form explicitly set imageId to null (e.g. remove button was clicked)
         await deleteImageFromDB(category.imageId);
         newImageId = null;
       }
 
       const updatedCategoryData: Category = {
         ...category, 
-        ...data, // Form values
-        imageId: newImageId, // Updated imageId
+        ...data, 
+        imageId: newImageId, 
         id, 
         updatedAt: new Date().toISOString(),
       };
       localStorageService.updateCategory(updatedCategoryData);
+
+      await localStorageService.addAdminActionLog({
+        adminId: currentUser.id,
+        adminEmail: currentUser.email,
+        actionType: 'CATEGORY_UPDATE',
+        entityType: 'Category',
+        entityId: id,
+        description: `Updated category "${data.name}" (ID: ${id.substring(0,8)}...).`
+      });
+
       toast({ title: "Category Updated", description: `"${data.name}" has been successfully updated.` });
       router.push('/admin/categories');
     } catch (error) {

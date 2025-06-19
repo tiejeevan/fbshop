@@ -11,6 +11,7 @@ import { MoreHorizontal, Trash2, UserX, Edit, PlusCircle } from 'lucide-react';
 import { localStorageService } from '@/lib/localStorage';
 import type { User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth'; 
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,22 +23,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
-import { useAuth } from '@/hooks/useAuth'; // Import useAuth
+
 
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [customerToDelete, setCustomerToDelete] = useState<User | null>(null);
   const { toast } = useToast();
-  const { currentUser: adminUser } = useAuth(); // Get current admin user
+  const { currentUser: adminUserPerformingAction } = useAuth(); 
 
   const fetchCustomers = useCallback(() => {
     setIsLoading(true);
     const allUsers = localStorageService.getUsers();
-    // Filter out the currently logged-in admin if they are in the list of customers (though roles should prevent this)
-    // Or simply list all users and rely on roles for what they can do.
-    // For "Customer Management", we typically only list 'customer' role.
-    const fetchedCustomers = allUsers.filter(user => user.role === 'customer' || user.role === 'admin'); // Show both for now for completeness
+    const fetchedCustomers = allUsers.filter(user => user.role === 'customer' || user.role === 'admin'); 
     setCustomers(fetchedCustomers);
     setIsLoading(false);
   }, []);
@@ -46,9 +44,13 @@ export default function AdminCustomersPage() {
     fetchCustomers();
   }, [fetchCustomers]);
 
-  const handleDeleteCustomer = () => {
-    if (!customerToDelete) return;
-    if (adminUser && customerToDelete.id === adminUser.id) {
+  const handleDeleteCustomer = async () => {
+    if (!customerToDelete || !adminUserPerformingAction) {
+      toast({ title: "Action Denied", description: "Cannot delete user without proper authorization or selection.", variant: "destructive" });
+      setCustomerToDelete(null);
+      return;
+    }
+    if (adminUserPerformingAction && customerToDelete.id === adminUserPerformingAction.id) {
       toast({ title: "Action Denied", description: "You cannot delete your own admin account.", variant: "destructive" });
       setCustomerToDelete(null);
       return;
@@ -56,13 +58,21 @@ export default function AdminCustomersPage() {
     
     const success = localStorageService.deleteUser(customerToDelete.id);
     if (success) {
+      await localStorageService.addAdminActionLog({
+          adminId: adminUserPerformingAction.id,
+          adminEmail: adminUserPerformingAction.email,
+          actionType: 'USER_DELETE',
+          entityType: 'User',
+          entityId: customerToDelete.id,
+          description: `Deleted user "${customerToDelete.name || customerToDelete.email}" (ID: ${customerToDelete.id.substring(0,8)}...).`
+      });
       toast({ title: "User Deleted", description: `User "${customerToDelete.name || customerToDelete.email}" has been successfully deleted.` });
-      fetchCustomers(); // Refresh list
-      localStorageService.clearCart(customerToDelete.id); // Clear cart of deleted user
+      fetchCustomers(); 
+      localStorageService.clearCart(customerToDelete.id); 
     } else {
       toast({ title: "Error Deleting User", description: "Could not delete the user. Please try again.", variant: "destructive" });
     }
-    setCustomerToDelete(null); // Close dialog
+    setCustomerToDelete(null); 
   };
 
   if (isLoading) {
@@ -107,7 +117,7 @@ export default function AdminCustomersPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead className="hidden md:table-cell">Joined On</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -117,7 +127,7 @@ export default function AdminCustomersPage() {
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            customer.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                            customer.role === 'admin' ? 'bg-red-100 text-red-700 dark:bg-red-800/30 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-800/30 dark:text-green-300'
                         }`}>
                             {customer.role.charAt(0).toUpperCase() + customer.role.slice(1)}
                         </span>
@@ -125,7 +135,7 @@ export default function AdminCustomersPage() {
                     <TableCell className="hidden md:table-cell">
                       {customer.createdAt ? format(new Date(customer.createdAt), 'PPP') : 'N/A'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button aria-haspopup="true" size="icon" variant="ghost">
@@ -142,7 +152,7 @@ export default function AdminCustomersPage() {
                           <DropdownMenuItem 
                             onClick={() => setCustomerToDelete(customer)} 
                             className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10"
-                            disabled={adminUser?.id === customer.id} // Disable deleting self
+                            disabled={adminUserPerformingAction?.id === customer.id} 
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Delete User
                           </DropdownMenuItem>

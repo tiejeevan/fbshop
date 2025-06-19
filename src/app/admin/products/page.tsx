@@ -12,7 +12,7 @@ import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth'; // Import useAuth
+import { useAuth } from '@/hooks/useAuth'; 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ProductImage } from '@/components/product/ProductImage'; 
 
@@ -22,7 +22,7 @@ export default function AdminProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const { toast } = useToast();
-  const { currentUser } = useAuth(); // Get current admin user
+  const { currentUser } = useAuth(); 
 
   const fetchProductsAndCategories = useCallback(() => {
     setIsLoading(true);
@@ -49,7 +49,7 @@ export default function AdminProductsPage() {
     }
     const success = await localStorageService.deleteProduct(productToDelete.id); 
     if (success) {
-      localStorageService.addAdminActionLog({
+      await localStorageService.addAdminActionLog({ // Ensure this call is awaited
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'PRODUCT_DELETE',
