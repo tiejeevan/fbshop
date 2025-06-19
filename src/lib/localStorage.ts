@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem, AdminActionLog } from '@/types';
+import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem, AdminActionLog, Address } from '@/types';
 import {
     deleteImagesForProduct as deleteImagesFromDB,
     deleteImage as deleteSingleImageFromDB,
@@ -61,12 +61,10 @@ function initializeDataOnce() {
   let adminUser = users.find(user => user.role === 'admin' && user.email === 'admin@localcommerce.com');
 
   if (adminUser) {
-    if (adminUser.password !== 'password') { // Ensure admin password is 'password' for easy access
+    if (adminUser.password !== 'password') {
       adminUser.password = 'password';
-      const userIndex = users.findIndex(u => u.id === adminUser!.id);
-      if (userIndex !== -1) users[userIndex] = adminUser;
-      setItem(KEYS.USERS, users);
     }
+    if (adminUser.addresses === undefined) adminUser.addresses = []; // Initialize addresses for existing admin
   } else {
     adminUser = {
       id: crypto.randomUUID(),
@@ -75,12 +73,15 @@ function initializeDataOnce() {
       role: 'admin',
       name: 'Administrator',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(), // Added for consistency
+      updatedAt: new Date().toISOString(),
       themePreference: 'system',
+      addresses: [], // Initialize addresses for new admin
     };
     users.push(adminUser);
-    setItem(KEYS.USERS, users);
   }
+  users = users.map(u => ({ ...u, addresses: u.addresses || [] })); // Ensure all users have addresses array
+  setItem(KEYS.USERS, users);
+
 
   let categories = getItem<Category[]>(KEYS.CATEGORIES) || [];
   if (categories.length === 0) {
@@ -102,7 +103,7 @@ function initializeDataOnce() {
         updatedAt: new Date().toISOString(),
     }));
     setItem(KEYS.CATEGORIES, categories);
-  } else { // Ensure existing categories have all new fields
+  } else {
      categories = categories.map((cat, index) => ({
         ...cat,
         slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
@@ -110,7 +111,7 @@ function initializeDataOnce() {
         imageId: cat.imageId === undefined ? null : cat.imageId,
         displayOrder: cat.displayOrder === undefined ? index + 1 : cat.displayOrder,
         isActive: cat.isActive === undefined ? true : cat.isActive,
-        updatedAt: cat.updatedAt || new Date().toISOString(), // Add if missing
+        updatedAt: cat.updatedAt || new Date().toISOString(),
     }));
     setItem(KEYS.CATEGORIES, categories);
   }
@@ -180,7 +181,7 @@ if (typeof window !== 'undefined') {
 }
 
 const getUsers = (): User[] => getItem<User[]>(KEYS.USERS) || [];
-const addUser = (user: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'role'> & { role?: UserRole }): User => {
+const addUser = (user: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'role' | 'addresses'> & { role?: UserRole }): User => {
   const users = getUsers();
   const now = new Date().toISOString();
   const newUser: User = {
@@ -190,6 +191,7 @@ const addUser = (user: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'role'> & {
     updatedAt: now,
     role: user.role || 'customer',
     themePreference: user.themePreference || 'system',
+    addresses: [], // Initialize empty addresses array
   };
   users.push(newUser);
   setItem(KEYS.USERS, users);
@@ -205,6 +207,7 @@ const updateUser = (updatedUser: User): User | null => {
       password: updatedUser.password || users[index].password,
       themePreference: updatedUser.themePreference || users[index].themePreference,
       updatedAt: new Date().toISOString(),
+      addresses: updatedUser.addresses || users[index].addresses || [], // Ensure addresses array is present
     };
     setItem(KEYS.USERS, users);
     const sessionUser = getCurrentUser();
@@ -227,6 +230,94 @@ const deleteUser = (userId: string): boolean => {
 };
 const findUserByEmail = (email: string): User | undefined => getUsers().find(u => u.email === email);
 const findUserById = (userId: string): User | undefined => getUsers().find(u => u.id === userId);
+
+// Address Book functions
+const getUserAddresses = (userId: string): Address[] => {
+  const user = findUserById(userId);
+  return user?.addresses || [];
+};
+
+const addAddressToUser = (userId: string, addressData: Omit<Address, 'id' | 'userId' | 'isDefault'> & { isDefault?: boolean }): Address | null => {
+  const user = findUserById(userId);
+  if (!user) return null;
+
+  const newAddress: Address = {
+    ...addressData,
+    id: crypto.randomUUID(),
+    userId,
+    isDefault: addressData.isDefault || false,
+  };
+
+  user.addresses = user.addresses || [];
+
+  if (newAddress.isDefault) {
+    user.addresses.forEach(addr => addr.isDefault = false);
+  } else if (user.addresses.length === 0) {
+    // If it's the first address and not explicitly set as default, make it default.
+    newAddress.isDefault = true;
+  }
+
+
+  user.addresses.push(newAddress);
+  updateUser(user);
+  return newAddress;
+};
+
+const updateUserAddress = (userId: string, updatedAddress: Address): Address | null => {
+  const user = findUserById(userId);
+  if (!user || !user.addresses) return null;
+
+  const addressIndex = user.addresses.findIndex(addr => addr.id === updatedAddress.id);
+  if (addressIndex === -1) return null;
+
+  if (updatedAddress.isDefault) {
+    user.addresses.forEach(addr => addr.isDefault = false);
+  }
+
+  user.addresses[addressIndex] = updatedAddress;
+
+  // Ensure at least one address is default if there are addresses
+  if (!user.addresses.some(addr => addr.isDefault) && user.addresses.length > 0) {
+    user.addresses[0].isDefault = true;
+  }
+
+  updateUser(user);
+  return updatedAddress;
+};
+
+const deleteUserAddress = (userId: string, addressId: string): boolean => {
+  const user = findUserById(userId);
+  if (!user || !user.addresses) return false;
+
+  const initialLength = user.addresses.length;
+  const addressToDelete = user.addresses.find(addr => addr.id === addressId);
+  user.addresses = user.addresses.filter(addr => addr.id !== addressId);
+
+  if (user.addresses.length < initialLength) {
+    if (addressToDelete?.isDefault && user.addresses.length > 0) {
+      user.addresses[0].isDefault = true; // Set the first remaining address as default
+    }
+    updateUser(user);
+    return true;
+  }
+  return false;
+};
+
+const setDefaultUserAddress = (userId: string, addressId: string): void => {
+  const user = findUserById(userId);
+  if (!user || !user.addresses) return;
+
+  user.addresses.forEach(addr => {
+    addr.isDefault = addr.id === addressId;
+  });
+  updateUser(user);
+};
+
+const findUserAddressById = (userId: string, addressId: string): Address | undefined => {
+    const user = findUserById(userId);
+    return user?.addresses?.find(addr => addr.id === addressId);
+};
+
 
 const getProducts = (): Product[] => getItem<Product[]>(KEYS.PRODUCTS) || [];
 const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'>): Product => {
@@ -349,14 +440,14 @@ const deleteCategory = async (categoryId: string): Promise<boolean> => {
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = '';
+        p.categoryId = ''; // Or some 'uncategorized' ID
         updateProduct(p);
       }
     });
 
     const childCategories = getCategories().filter(c => c.parentId === categoryId);
     for (const child of childCategories) {
-        child.parentId = null;
+        child.parentId = null; // Make them top-level or reassign as needed
         updateCategory(child);
     }
     return true;
@@ -389,7 +480,7 @@ const updateCart = (cart: Cart): void => {
       const product = findProductById(item.productId);
       return {
         ...item,
-        name: product?.name || item.name,
+        name: product?.name || item.name, // Fallback to cart item name if product not found
         primaryImageId: product?.primaryImageId || item.primaryImageId,
       };
     });
@@ -416,13 +507,13 @@ const getOrders = (userId?: string): Order[] => {
 };
 
 const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }): Order => {
-    const orders = getOrders();
+    const orders = getOrders(); // Get all orders to append
 
     const orderItemsWithDetails: OrderItem[] = orderData.items.map(item => {
       const product = findProductById(item.productId);
       return {
         ...item,
-        name: product?.name || 'Unknown Product',
+        name: product?.name || 'Unknown Product', // Fallback name
         primaryImageId: product?.primaryImageId,
       };
     });
@@ -430,12 +521,14 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
     const newOrder: Order = {
         ...orderData,
         items: orderItemsWithDetails,
+        shippingAddress: orderData.shippingAddress, // Ensure this is passed correctly
         id: crypto.randomUUID(),
         orderDate: new Date().toISOString(),
     };
     orders.push(newOrder);
     setItem(KEYS.ORDERS, orders);
 
+    // Update product stock and purchases
     newOrder.items.forEach(item => {
       const product = findProductById(item.productId);
       if (product) {
@@ -458,20 +551,19 @@ const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'lo
         timestamp: now,
         type,
     });
-    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100)); // Keep last 100 activities
+    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100));
 
-    // Update lastLogin for the user
     const user = findUserById(userId);
     if (user && type === 'login') {
         user.lastLogin = now;
-        user.updatedAt = now; // Also update updatedAt timestamp
+        user.updatedAt = now;
         updateUser(user);
     }
 };
 
 const setCurrentUser = (user: User | null): void => {
   if (user) {
-    setItem(KEYS.CURRENT_USER, { id: user.id, role: user.role, email: user.email, name: user.name, themePreference: user.themePreference });
+    setItem(KEYS.CURRENT_USER, { id: user.id, role: user.role, email: user.email, name: user.name, themePreference: user.themePreference, addresses: user.addresses || [] });
   } else {
     removeItem(KEYS.CURRENT_USER);
   }
@@ -600,6 +692,12 @@ const localStorageService = {
   deleteUser,
   findUserByEmail,
   findUserById,
+  getUserAddresses,
+  addAddressToUser,
+  updateUserAddress,
+  deleteUserAddress,
+  setDefaultUserAddress,
+  findUserAddressById,
   getProducts,
   addProduct,
   updateProduct,

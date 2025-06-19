@@ -5,18 +5,21 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { localStorageService } from '@/lib/localStorage';
-import type { Cart, OrderItem } from '@/types';
+import type { Cart, OrderItem, Address } from '@/types'; // Added Address
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CreditCard, Lock, Loader2, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, CreditCard, Lock, Loader2, ShoppingBag, PlusCircle, Home, MapPin } from 'lucide-react';
 import Link from 'next/link';
-import { ProductImage } from '@/components/product/ProductImage'; // Import new component
+import { ProductImage } from '@/components/product/ProductImage';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { AddressForm, AddressFormValues } from '@/components/customer/AddressForm'; // Import AddressForm
 
 export default function CheckoutPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshUser } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [cart, setCart] = useState<Cart | null>(null);
@@ -28,6 +31,12 @@ export default function CheckoutPage() {
   const [expiryDate, setExpiryDate] = useState('');
   const [cvc, setCvc] = useState('');
 
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | undefined>(undefined);
+  const [isAddressFormModalOpen, setIsAddressFormModalOpen] = useState(false);
+  const [addressToEdit, setAddressToEdit] = useState<Address | null>(null);
+  const [isAddressFormSubmitting, setIsAddressFormSubmitting] = useState(false);
+
   useEffect(() => {
     if (currentUser) {
       const userCart = localStorageService.getCart(currentUser.id);
@@ -36,19 +45,79 @@ export default function CheckoutPage() {
         toast({ title: "Empty Cart", variant: "destructive" });
         router.replace('/products');
       }
+
+      const userAddresses = localStorageService.getUserAddresses(currentUser.id);
+      setAddresses(userAddresses);
+      const defaultAddress = userAddresses.find(addr => addr.isDefault);
+      setSelectedAddressId(defaultAddress?.id || (userAddresses.length > 0 ? userAddresses[0].id : undefined));
+
     } else {
       router.replace('/login?redirect=/checkout');
     }
     setIsLoading(false);
   }, [currentUser, router, toast]);
 
+  const refreshUserAddresses = () => {
+    if (currentUser) {
+      const userAddresses = localStorageService.getUserAddresses(currentUser.id);
+      setAddresses(userAddresses);
+      // Re-select default or first address if current selection is removed or default changes
+      const currentSelected = userAddresses.find(a => a.id === selectedAddressId);
+      if (!currentSelected) {
+          const defaultAddr = userAddresses.find(addr => addr.isDefault);
+          setSelectedAddressId(defaultAddr?.id || (userAddresses.length > 0 ? userAddresses[0].id : undefined));
+      } else if (!currentSelected.isDefault && userAddresses.some(a => a.isDefault && a.id !== currentSelected.id)) {
+          // if current selection is not default, and another one became default, update to new default.
+          const defaultAddr = userAddresses.find(addr => addr.isDefault);
+          setSelectedAddressId(defaultAddr?.id);
+      }
+      refreshUser();
+    }
+  };
+
+  const handleAddressFormSubmit = async (data: AddressFormValues, id?: string) => {
+    if (!currentUser) return;
+    setIsAddressFormSubmitting(true);
+    try {
+      let newAddress;
+      if (id) { // Editing
+        newAddress = localStorageService.updateUserAddress(currentUser.id, { ...data, id, userId: currentUser.id });
+        toast({ title: "Address Updated" });
+      } else { // Adding
+        newAddress = localStorageService.addAddressToUser(currentUser.id, data);
+        toast({ title: "Address Added" });
+      }
+      refreshUserAddresses();
+      if (newAddress && (newAddress.isDefault || addresses.length === 0)) { // Select new/edited address if it's default or only one
+        setSelectedAddressId(newAddress.id);
+      }
+      setIsAddressFormModalOpen(false);
+      setAddressToEdit(null);
+    } catch (error) {
+      toast({ title: "Address Error", variant: "destructive" });
+    } finally {
+      setIsAddressFormSubmitting(false);
+    }
+  };
+
+
   const subtotal = cart?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
-  const shippingCost = 0;
+  const shippingCost = 0; // Mock
   const totalAmount = subtotal + shippingCost;
 
   const handleMockPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !cart || cart.items.length === 0) return;
+    if (!selectedAddressId) {
+        toast({ title: "Shipping Address Required", description: "Please select or add a shipping address.", variant: "destructive"});
+        return;
+    }
+    const shippingAddress = addresses.find(addr => addr.id === selectedAddressId);
+    if (!shippingAddress) {
+        toast({ title: "Invalid Shipping Address", description: "Please re-select your shipping address.", variant: "destructive"});
+        return;
+    }
+
     setIsProcessingPayment(true);
     await new Promise(resolve => setTimeout(resolve, 2500));
 
@@ -66,7 +135,7 @@ export default function CheckoutPage() {
         items: orderItems,
         totalAmount: totalAmount,
         status: 'Completed',
-        shippingAddress: { name: currentUser.name || 'Customer', line1: '123 Mock St', city: 'Fakeville', country: 'Neverland' },
+        shippingAddress: shippingAddress, // Use selected address
         paymentDetails: { method: 'MockCard', transactionId: `mock_txn_${crypto.randomUUID()}` }
       });
       localStorageService.clearCart(currentUser.id);
@@ -99,7 +168,82 @@ export default function CheckoutPage() {
       </Button>
       <h1 className="font-headline text-4xl text-primary mb-8">Checkout</h1>
       <div className="grid lg:grid-cols-3 gap-12">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Shipping Address Section */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="font-headline text-2xl text-primary flex items-center"><MapPin className="mr-3 h-6 w-6"/>Shipping Address</CardTitle>
+              <CardDescription>Select where you&apos;d like your order delivered.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {addresses.length === 0 ? (
+                <div className="text-center py-6">
+                  <Home className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground mb-3">No addresses saved yet.</p>
+                   <Dialog open={isAddressFormModalOpen} onOpenChange={(isOpen) => {
+                        setIsAddressFormModalOpen(isOpen);
+                        if (!isOpen) setAddressToEdit(null);
+                    }}>
+                    <DialogTrigger asChild>
+                      <Button onClick={() => {setAddressToEdit(null); setIsAddressFormModalOpen(true);}}>
+                        <PlusCircle className="mr-2 h-4 w-4"/> Add Shipping Address
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-lg">
+                       <AddressForm
+                            initialData={null}
+                            onSubmit={handleAddressFormSubmit}
+                            onCancel={() => { setIsAddressFormModalOpen(false); setAddressToEdit(null);}}
+                            isSubmitting={isAddressFormSubmitting}
+                            submitButtonText="Save Address"
+                        />
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              ) : (
+                <RadioGroup value={selectedAddressId} onValueChange={setSelectedAddressId} className="space-y-3">
+                  {addresses.map((address) => (
+                    <Label key={address.id} htmlFor={`address-${address.id}`}
+                      className={`flex items-start p-4 border rounded-lg cursor-pointer hover:border-primary transition-colors ${selectedAddressId === address.id ? 'border-primary ring-2 ring-primary' : ''}`}>
+                      <RadioGroupItem value={address.id} id={`address-${address.id}`} className="mt-1 mr-3" />
+                      <div className="flex-grow text-sm">
+                        <p className="font-semibold text-foreground">{address.recipientName} {address.isDefault && <span className="text-xs text-primary font-medium ml-1">(Default)</span>}</p>
+                        <p>{address.addressLine1}</p>
+                        {address.addressLine2 && <p>{address.addressLine2}</p>}
+                        <p>{address.city}, {address.stateOrProvince} {address.postalCode}</p>
+                        <p>{address.country}</p>
+                        {address.phoneNumber && <p>Phone: {address.phoneNumber}</p>}
+                      </div>
+                       <Button variant="ghost" size="sm" className="ml-auto text-xs h-auto p-1 self-start" onClick={(e) => {e.preventDefault(); router.push('/profile/addresses')}}>Edit</Button>
+                    </Label>
+                  ))}
+                </RadioGroup>
+              )}
+               {addresses.length > 0 && (
+                 <Dialog open={isAddressFormModalOpen} onOpenChange={(isOpen) => {
+                      setIsAddressFormModalOpen(isOpen);
+                      if (!isOpen) setAddressToEdit(null);
+                  }}>
+                    <DialogTrigger asChild>
+                       <Button variant="outline" className="mt-4 w-full" onClick={() => {setAddressToEdit(null); setIsAddressFormModalOpen(true);}}>
+                         <PlusCircle className="mr-2 h-4 w-4" /> Add New Address
+                       </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-lg">
+                       <AddressForm
+                            initialData={addressToEdit}
+                            onSubmit={handleAddressFormSubmit}
+                            onCancel={() => { setIsAddressFormModalOpen(false); setAddressToEdit(null);}}
+                            isSubmitting={isAddressFormSubmitting}
+                            submitButtonText={addressToEdit ? 'Update Address' : 'Save Address'}
+                        />
+                    </DialogContent>
+                  </Dialog>
+                )}
+            </CardContent>
+          </Card>
+
+          {/* Payment Section */}
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="font-headline text-2xl text-primary">Payment (Mock)</CardTitle>
@@ -116,7 +260,7 @@ export default function CheckoutPage() {
                  <div className="flex items-center space-x-2 pt-2"><Lock className="h-4 w-4 text-muted-foreground" /><span className="text-xs text-muted-foreground">Payment is mocked.</span></div>
               </CardContent>
               <CardFooter>
-                <Button type="submit" size="lg" className="w-full" disabled={isProcessingPayment}>
+                <Button type="submit" size="lg" className="w-full" disabled={isProcessingPayment || !selectedAddressId}>
                   {isProcessingPayment ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
                   {isProcessingPayment ? 'Processing...' : `Pay $${totalAmount.toFixed(2)}`}
                 </Button>
@@ -155,3 +299,4 @@ export default function CheckoutPage() {
     </div>
   );
 }
+    

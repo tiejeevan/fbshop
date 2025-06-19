@@ -2,6 +2,20 @@
 export type UserRole = 'admin' | 'customer';
 export type Theme = 'light' | 'dark' | 'system';
 
+export interface Address {
+  id: string;
+  userId: string; // To associate address with user
+  recipientName: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  stateOrProvince: string;
+  postalCode: string;
+  country: string;
+  phoneNumber?: string;
+  isDefault: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -9,9 +23,10 @@ export interface User {
   role: UserRole;
   name?: string;
   createdAt: string;
-  updatedAt: string; // Added for consistency
+  updatedAt: string;
   lastLogin?: string;
   themePreference?: Theme;
+  addresses?: Address[]; // New field for address book
 }
 
 export interface Category {
@@ -31,8 +46,8 @@ export interface Product {
   id:string;
   name: string;
   description: string;
-  primaryImageId: string | null; // Changed from optional to nullable
-  additionalImageIds: string[];  // Changed from optional to mandatory (can be empty array)
+  primaryImageId: string | null;
+  additionalImageIds: string[];
   price: number;
   stock: number;
   categoryId: string;
@@ -41,8 +56,8 @@ export interface Product {
   updatedAt: string;
   views: number;
   purchases: number;
-  averageRating: number; // Ensure it's always present
-  reviewCount: number;   // Ensure it's always present
+  averageRating: number;
+  reviewCount: number;
 }
 
 export interface CartItem {
@@ -74,7 +89,7 @@ export interface Order {
   totalAmount: number;
   orderDate: string;
   status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Completed';
-  shippingAddress?: any;
+  shippingAddress: Address; // Changed from any to Address
   paymentDetails?: any;
 }
 
@@ -120,6 +135,6 @@ export interface AdminActionLog {
   entityType?: string;
   entityId?: string;
   timestamp: string;
-  description: string; // This will now hold more detailed information
+  description: string;
 }
     

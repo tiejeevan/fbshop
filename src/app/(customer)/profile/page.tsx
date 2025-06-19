@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { localStorageService } from '@/lib/localStorage';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MapPin, History, Heart } from 'lucide-react';
 import Link from 'next/link';
 
 const profileSchema = z.object({
@@ -68,35 +68,57 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <h1 className="font-headline text-3xl text-primary">Your Profile</h1>
-      <Card className="max-w-xl mx-auto">
-        <CardHeader>
-          <CardTitle>Account Details</CardTitle>
-          <CardDescription>Update your personal information.</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" {...register('name')} />
-              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="email">Email Address</Label>
-              <Input id="email" {...register('email')} readOnly className="bg-muted/50 cursor-not-allowed" />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-            </div>
-             {/* Add password change form here if desired in future */}
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Changes
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+      
+      <div className="grid md:grid-cols-2 gap-8">
+        <Card className="max-w-xl">
+          <CardHeader>
+            <CardTitle>Account Details</CardTitle>
+            <CardDescription>Update your personal information.</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <Label htmlFor="name">Full Name</Label>
+                <Input id="name" {...register('name')} />
+                {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="email">Email Address</Label>
+                <Input id="email" {...register('email')} readOnly className="bg-muted/50 cursor-not-allowed" />
+                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Changes
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+
+        <div className="space-y-4">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-xl">Quick Links</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                     <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/profile/addresses"><MapPin className="mr-3 h-5 w-5 text-primary"/> Manage Addresses</Link>
+                    </Button>
+                    <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/profile/orders"><History className="mr-3 h-5 w-5 text-primary"/> View Order History</Link>
+                    </Button>
+                    <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/profile/wishlist"><Heart className="mr-3 h-5 w-5 text-primary"/> My Wishlist</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
+      </div>
     </div>
   );
 }
+    

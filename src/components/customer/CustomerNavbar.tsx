@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag, User, LogOut, Home, Menu, ShoppingCart, PackageSearch, Heart, History, LayoutDashboard } from 'lucide-react';
+import { ShoppingBag, User, LogOut, Home, Menu, ShoppingCart, PackageSearch, Heart, History, LayoutDashboard, MapPin } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -19,13 +19,12 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 import { localStorageService } from '@/lib/localStorage';
-// import type { Cart } from '@/types'; // Cart type not directly used here
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
-import { LoginModal } from '@/components/auth/LoginModal'; // Import the new LoginModal
+import { LoginModal } from '@/components/auth/LoginModal';
 
 const navLinks = [
-  // { href: '/products', label: 'Home', icon: Home }, // Removed as per previous request
+  // { href: '/products', label: 'Home', icon: Home },
 ];
 
 export function CustomerNavbar() {
@@ -83,6 +82,9 @@ export function CustomerNavbar() {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/profile"><User className="mr-2 h-4 w-4" /> Profile</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/profile/addresses"><MapPin className="mr-2 h-4 w-4" /> My Addresses</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/profile/orders"><History className="mr-2 h-4 w-4" /> Order History</Link>
@@ -179,6 +181,7 @@ export function CustomerNavbar() {
                    <>
                     <DropdownMenuSeparator />
                      <Link href="/profile" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><User className="mr-2 h-5 w-5" /> Profile</Link>
+                     <Link href="/profile/addresses" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile/addresses" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><MapPin className="mr-2 h-5 w-5" /> My Addresses</Link>
                      <Link href="/profile/orders" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile/orders" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><History className="mr-2 h-5 w-5" /> Orders</Link>
                      <Link href="/profile/wishlist" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname === "/profile/wishlist" ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Heart className="mr-2 h-5 w-5" /> Wishlist</Link>
                    </>
@@ -191,5 +194,4 @@ export function CustomerNavbar() {
     </header>
   );
 }
-
     
