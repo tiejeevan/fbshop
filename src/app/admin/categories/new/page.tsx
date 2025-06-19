@@ -16,7 +16,17 @@ export default function NewCategoryPage() {
 
   const handleCreateCategory = async (data: CategoryFormValues) => {
     try {
-      localStorageService.addCategory(data);
+      // localStorageService.addCategory will handle defaults for new fields
+      localStorageService.addCategory({
+        name: data.name,
+        description: data.description,
+        // Pass other fields if they are part of CategoryFormValues and set by the form in the future
+        slug: data.slug,
+        parentId: data.parentId,
+        imageId: data.imageId,
+        displayOrder: data.displayOrder,
+        isActive: data.isActive,
+      });
       toast({ title: "Category Created", description: `"${data.name}" has been successfully added.` });
       router.push('/admin/categories');
     } catch (error) {

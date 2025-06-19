@@ -14,9 +14,16 @@ import type { Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
+// Updated schema to include new optional fields for type compatibility
+// UI for these fields will be added in subsequent enhancement steps
 const categorySchema = z.object({
   name: z.string().min(2, { message: 'Category name must be at least 2 characters' }),
   description: z.string().optional(),
+  slug: z.string().optional(),
+  parentId: z.string().nullable().optional(),
+  imageId: z.string().nullable().optional(),
+  displayOrder: z.number().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export type CategoryFormValues = z.infer<typeof categorySchema>;
@@ -40,6 +47,11 @@ export function CategoryForm({ initialData, onFormSubmit }: CategoryFormProps) {
     defaultValues: initialData || {
       name: '',
       description: '',
+      slug: '',
+      parentId: null,
+      imageId: null,
+      displayOrder: 0,
+      isActive: true,
     },
   });
 
@@ -47,6 +59,11 @@ export function CategoryForm({ initialData, onFormSubmit }: CategoryFormProps) {
     if (initialData) {
       setValue('name', initialData.name);
       setValue('description', initialData.description || '');
+      setValue('slug', initialData.slug || '');
+      setValue('parentId', initialData.parentId || null);
+      setValue('imageId', initialData.imageId || null);
+      setValue('displayOrder', initialData.displayOrder || 0);
+      setValue('isActive', initialData.isActive === undefined ? true : initialData.isActive);
     }
   }, [initialData, setValue]);
 
@@ -80,6 +97,7 @@ export function CategoryForm({ initialData, onFormSubmit }: CategoryFormProps) {
             <Textarea id="description" {...register('description')} placeholder="Brief description of the category..." rows={3} />
             {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
           </div>
+          {/* UI for slug, parentId, imageId, displayOrder, isActive will be added in later steps */}
         </CardContent>
         <CardFooter className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => router.push('/admin/categories')}>

@@ -77,20 +77,43 @@ function initializeDataOnce() {
 
   let categories = getItem<Category[]>(KEYS.CATEGORIES) || [];
   if (categories.length === 0) {
-    const mockCategories: Category[] = [
-      { id: 'cat1_electronics', name: 'Electronics', description: 'Gadgets, devices, and more.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 'cat2_books', name: 'Books', description: 'Fiction, non-fiction, and educational.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 'cat3_homegoods', name: 'Home Goods', description: 'For your lovely home.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 'cat4_apparel', name: 'Apparel', description: 'Clothing and accessories.', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    const mockCategoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>[] = [
+      { name: 'Electronics', description: 'Gadgets, devices, and more.'},
+      { name: 'Books', description: 'Fiction, non-fiction, and educational.'},
+      { name: 'Home Goods', description: 'For your lovely home.'},
+      { name: 'Apparel', description: 'Clothing and accessories.'},
     ];
-    categories = mockCategories;
+    categories = mockCategoryData.map((cat, index) => ({
+        id: `cat${index+1}_${cat.name.toLowerCase().replace(/\s+/g, '')}`,
+        name: cat.name,
+        slug: cat.name.toLowerCase().replace(/\s+/g, '-'),
+        description: cat.description,
+        parentId: null,
+        imageId: null,
+        displayOrder: index + 1,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    }));
+    setItem(KEYS.CATEGORIES, categories);
+  } else {
+    // Ensure existing categories have new fields
+    categories = categories.map((cat, index) => ({
+        ...cat,
+        slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-'),
+        parentId: cat.parentId === undefined ? null : cat.parentId,
+        imageId: cat.imageId === undefined ? null : cat.imageId,
+        displayOrder: cat.displayOrder === undefined ? index + 1 : cat.displayOrder,
+        isActive: cat.isActive === undefined ? true : cat.isActive,
+    }));
     setItem(KEYS.CATEGORIES, categories);
   }
 
+
   let products = getItem<Product[]>(KEYS.PRODUCTS) || [];
   if (products.length === 0 && categories.length > 0) {
-    const electronicsCat = categories.find(c => c.id === 'cat1_electronics');
-    const booksCat = categories.find(c => c.id === 'cat2_books');
+    const electronicsCat = categories.find(c => c.slug === 'electronics');
+    const booksCat = categories.find(c => c.slug === 'books');
 
     const mockProducts: Omit<Product, 'primaryImageId' | 'additionalImageIds' | 'averageRating' | 'reviewCount'>[] = [
       {
@@ -248,7 +271,6 @@ const deleteProduct = async (productId: string): Promise<boolean> => {
         await deleteImagesFromDB(imageIdsToDelete);
       } catch (error) {
         console.error("Error deleting images from IndexedDB during product deletion:", error);
-        // Proceed with localStorage deletion even if IndexedDB fails, to avoid inconsistent state.
       }
     }
     let reviews = getReviewsForProduct(productId);
@@ -260,11 +282,17 @@ const deleteProduct = async (productId: string): Promise<boolean> => {
 const findProductById = (productId: string): Product | undefined => getProducts().find(p => p.id === productId);
 
 const getCategories = (): Category[] => getItem<Category[]>(KEYS.CATEGORIES) || [];
-const addCategory = (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
+const addCategory = (categoryData: Partial<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>> & { name: string }): Category => {
   const categories = getCategories();
   const newCategory: Category = {
-    ...category,
     id: crypto.randomUUID(),
+    name: categoryData.name,
+    slug: categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, '-'),
+    description: categoryData.description || '',
+    parentId: categoryData.parentId === undefined ? null : categoryData.parentId,
+    imageId: categoryData.imageId === undefined ? null : categoryData.imageId,
+    displayOrder: categoryData.displayOrder === undefined ? categories.length + 1 : categoryData.displayOrder,
+    isActive: categoryData.isActive === undefined ? true : categoryData.isActive,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -276,7 +304,13 @@ const updateCategory = (updatedCategory: Category): Category | null => {
   let categories = getCategories();
   const index = categories.findIndex(c => c.id === updatedCategory.id);
   if (index !== -1) {
-    categories[index] = { ...categories[index], ...updatedCategory, updatedAt: new Date().toISOString() };
+    // Ensure all properties are preserved or updated
+    categories[index] = {
+      ...categories[index], // Preserve existing fields not explicitly in updatedCategory
+      ...updatedCategory,   // Overwrite with new values
+      slug: updatedCategory.slug || categories[index].slug || updatedCategory.name.toLowerCase().replace(/\s+/g, '-'),
+      updatedAt: new Date().toISOString()
+    };
     setItem(KEYS.CATEGORIES, categories);
     return categories[index];
   }
@@ -291,7 +325,7 @@ const deleteCategory = (categoryId: string): boolean => {
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = '';
+        p.categoryId = ''; // Or set to a default/uncategorized ID
         updateProduct(p);
       }
     });
@@ -315,11 +349,11 @@ const updateCart = (cart: Cart): void => {
     const index = carts.findIndex(c => c.userId === cart.userId);
 
     const updatedItems = cart.items.map(item => {
-      const product = findProductById(item.productId); // Fetch full product for latest details
+      const product = findProductById(item.productId);
       return {
         ...item,
         name: product?.name || item.name,
-        primaryImageId: product?.primaryImageId || item.primaryImageId, // Get image ID
+        primaryImageId: product?.primaryImageId || item.primaryImageId,
       };
     });
 
@@ -352,7 +386,7 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
       return {
         ...item,
         name: product?.name || 'Unknown Product',
-        primaryImageId: product?.primaryImageId, // Get image ID
+        primaryImageId: product?.primaryImageId,
       };
     });
 

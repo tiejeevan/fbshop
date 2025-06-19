@@ -16,7 +16,12 @@ export interface User {
 export interface Category {
   id: string;
   name: string;
+  slug?: string; // URL-friendly identifier
   description?: string;
+  parentId?: string | null; // For subcategories
+  imageId?: string | null; // For category image (ID for IndexedDB)
+  displayOrder?: number; // For custom sorting
+  isActive?: boolean; // To toggle visibility
   createdAt: string;
   updatedAt: string;
 }
@@ -105,3 +110,4 @@ export interface UserRecentlyViewed {
   userId: string;
   items: RecentlyViewedItem[];
 }
+
