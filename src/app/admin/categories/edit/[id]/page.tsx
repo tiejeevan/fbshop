@@ -10,10 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService'; // Assuming reuse
 
 export default function EditCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = use(paramsPromise);
   const [category, setCategory] = useState<Category | null>(null);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
@@ -23,35 +25,44 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
     if (fetchedCategory) {
       setCategory(fetchedCategory);
     } else {
-      toast({ title: "Category Not Found", description: "The category you are trying to edit does not exist.", variant: "destructive" });
+      toast({ title: "Category Not Found", variant: "destructive" });
       router.push('/admin/categories');
     }
+    setAllCategories(localStorageService.getCategories());
     setIsLoading(false);
   }, [params.id, router, toast]);
 
-  const handleEditCategory = async (data: CategoryFormValues, id?: string) => {
+  const handleEditCategory = async (data: CategoryFormValues, imageFile: File | null, id?: string) => {
     if (!id || !category) return; 
+    
+    let newImageId = category.imageId; // Start with existing imageId
+
     try {
+      if (imageFile) { // New image uploaded
+        if (category.imageId) { // If there was an old image, delete it
+          await deleteImageFromDB(category.imageId);
+        }
+        // Save new image
+        newImageId = await saveImageToDB(`category_${data.slug || category.slug}`, 'main', imageFile);
+      } else if (data.imageId === null && category.imageId) { 
+        // This case means the form explicitly set imageId to null (e.g. remove button was clicked)
+        await deleteImageFromDB(category.imageId);
+        newImageId = null;
+      }
+
       const updatedCategoryData: Category = {
-        ...category, // Spread existing category data first
-        name: data.name, // Then overwrite with form values
-        description: data.description,
-        // Include new fields from data, allowing them to be undefined if not set by form yet
-        slug: data.slug || category.slug || data.name.toLowerCase().replace(/\s+/g, '-'), // auto-generate if still missing
-        parentId: data.parentId !== undefined ? data.parentId : category.parentId,
-        imageId: data.imageId !== undefined ? data.imageId : category.imageId,
-        displayOrder: data.displayOrder !== undefined ? data.displayOrder : category.displayOrder,
-        isActive: data.isActive !== undefined ? data.isActive : category.isActive,
-        id, // id from params
-        updatedAt: new Date().toISOString(), // Update timestamp
-        createdAt: category.createdAt, // Preserve original createdAt
+        ...category, 
+        ...data, // Form values
+        imageId: newImageId, // Updated imageId
+        id, 
+        updatedAt: new Date().toISOString(),
       };
       localStorageService.updateCategory(updatedCategoryData);
       toast({ title: "Category Updated", description: `"${data.name}" has been successfully updated.` });
       router.push('/admin/categories');
     } catch (error) {
       console.error("Error updating category:", error);
-      toast({ title: "Error Updating Category", description: "Could not update the category. Please try again.", variant: "destructive" });
+      toast({ title: "Error Updating Category", variant: "destructive" });
     }
   };
 
@@ -70,7 +81,7 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Categories
         </Link>
       </Button>
-      <CategoryForm initialData={category} onFormSubmit={handleEditCategory} />
+      <CategoryForm initialData={category} onFormSubmit={handleEditCategory} allCategories={allCategories} />
     </div>
   );
 }

@@ -16,12 +16,12 @@ export interface User {
 export interface Category {
   id: string;
   name: string;
-  slug?: string; // URL-friendly identifier
+  slug: string; // URL-friendly identifier, now mandatory
   description?: string;
-  parentId?: string | null; // For subcategories
-  imageId?: string | null; // For category image (ID for IndexedDB)
-  displayOrder?: number; // For custom sorting
-  isActive?: boolean; // To toggle visibility
+  parentId: string | null; // For subcategories, now mandatory (null for top-level)
+  imageId: string | null; // For category image (ID for IndexedDB)
+  displayOrder: number; // For custom sorting, now mandatory
+  isActive: boolean; // To toggle visibility, now mandatory
   createdAt: string;
   updatedAt: string;
 }

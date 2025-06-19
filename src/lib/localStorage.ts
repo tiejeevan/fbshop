@@ -2,7 +2,7 @@
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem } from '@/types';
-import { deleteImagesForProduct as deleteImagesFromDB } from './indexedDbService';
+import { deleteImagesForProduct as deleteImagesFromDB, deleteImage as deleteSingleImageFromDB } from './indexedDbService';
 
 
 const KEYS = {
@@ -70,6 +70,7 @@ function initializeDataOnce() {
       role: 'admin',
       name: 'Administrator',
       createdAt: new Date().toISOString(),
+      themePreference: 'system',
     };
     users.push(adminUser);
     setItem(KEYS.USERS, users);
@@ -78,29 +79,22 @@ function initializeDataOnce() {
   let categories = getItem<Category[]>(KEYS.CATEGORIES) || [];
   if (categories.length === 0) {
     const mockCategoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>[] = [
-      { name: 'Electronics', description: 'Gadgets, devices, and more.'},
-      { name: 'Books', description: 'Fiction, non-fiction, and educational.'},
-      { name: 'Home Goods', description: 'For your lovely home.'},
-      { name: 'Apparel', description: 'Clothing and accessories.'},
+      { name: 'Electronics', slug: 'electronics', description: 'Gadgets, devices, and more.', parentId: null, imageId: null, displayOrder: 1, isActive: true },
+      { name: 'Books', slug: 'books', description: 'Fiction, non-fiction, and educational.', parentId: null, imageId: null, displayOrder: 2, isActive: true },
+      { name: 'Home Goods', slug: 'home-goods', description: 'For your lovely home.', parentId: null, imageId: null, displayOrder: 3, isActive: true },
+      { name: 'Apparel', slug: 'apparel', description: 'Clothing and accessories.', parentId: null, imageId: null, displayOrder: 4, isActive: true },
     ];
-    categories = mockCategoryData.map((cat, index) => ({
-        id: `cat${index+1}_${cat.name.toLowerCase().replace(/\s+/g, '')}`,
-        name: cat.name,
-        slug: cat.name.toLowerCase().replace(/\s+/g, '-'),
-        description: cat.description,
-        parentId: null,
-        imageId: null,
-        displayOrder: index + 1,
-        isActive: true,
+    categories = mockCategoryData.map((cat) => ({
+        ...cat,
+        id: `cat_${cat.slug}_${crypto.randomUUID().slice(0,4)}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     }));
     setItem(KEYS.CATEGORIES, categories);
   } else {
-    // Ensure existing categories have new fields
     categories = categories.map((cat, index) => ({
         ...cat,
-        slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-'),
+        slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
         parentId: cat.parentId === undefined ? null : cat.parentId,
         imageId: cat.imageId === undefined ? null : cat.imageId,
         displayOrder: cat.displayOrder === undefined ? index + 1 : cat.displayOrder,
@@ -181,6 +175,7 @@ const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?: UserRo
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     role: user.role || 'customer',
+    themePreference: user.themePreference || 'system',
   };
   users.push(newUser);
   setItem(KEYS.USERS, users);
@@ -195,7 +190,7 @@ const updateUser = (updatedUser: User): User | null => {
     users[index] = {
       ...users[index],
       ...updatedUser,
-      password: updatedUser.password || existingPassword,
+      password: updatedUser.password || existingPassword, // Keep old password if new one isn't provided
       themePreference: updatedUser.themePreference || existingTheme,
     };
     setItem(KEYS.USERS, users);
@@ -281,17 +276,19 @@ const deleteProduct = async (productId: string): Promise<boolean> => {
 };
 const findProductById = (productId: string): Product | undefined => getProducts().find(p => p.id === productId);
 
-const getCategories = (): Category[] => getItem<Category[]>(KEYS.CATEGORIES) || [];
-const addCategory = (categoryData: Partial<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>> & { name: string }): Category => {
+const getCategories = (): Category[] => {
+    return (getItem<Category[]>(KEYS.CATEGORIES) || []).sort((a, b) => a.displayOrder - b.displayOrder);
+};
+const addCategory = (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
   const categories = getCategories();
   const newCategory: Category = {
-    id: crypto.randomUUID(),
+    id: `cat_${categoryData.slug}_${crypto.randomUUID().slice(0,4)}`,
     name: categoryData.name,
-    slug: categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, '-'),
+    slug: categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
     description: categoryData.description || '',
-    parentId: categoryData.parentId === undefined ? null : categoryData.parentId,
-    imageId: categoryData.imageId === undefined ? null : categoryData.imageId,
-    displayOrder: categoryData.displayOrder === undefined ? categories.length + 1 : categoryData.displayOrder,
+    parentId: categoryData.parentId || null,
+    imageId: categoryData.imageId || null,
+    displayOrder: categoryData.displayOrder === undefined ? (categories.length > 0 ? Math.max(...categories.map(c => c.displayOrder)) + 1 : 1) : categoryData.displayOrder,
     isActive: categoryData.isActive === undefined ? true : categoryData.isActive,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -301,14 +298,13 @@ const addCategory = (categoryData: Partial<Omit<Category, 'id' | 'createdAt' | '
   return newCategory;
 };
 const updateCategory = (updatedCategory: Category): Category | null => {
-  let categories = getCategories();
+  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; // Get unsorted for update
   const index = categories.findIndex(c => c.id === updatedCategory.id);
   if (index !== -1) {
-    // Ensure all properties are preserved or updated
     categories[index] = {
-      ...categories[index], // Preserve existing fields not explicitly in updatedCategory
-      ...updatedCategory,   // Overwrite with new values
-      slug: updatedCategory.slug || categories[index].slug || updatedCategory.name.toLowerCase().replace(/\s+/g, '-'),
+      ...categories[index],
+      ...updatedCategory,
+      slug: updatedCategory.slug || categories[index].slug || updatedCategory.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
       updatedAt: new Date().toISOString()
     };
     setItem(KEYS.CATEGORIES, categories);
@@ -316,24 +312,47 @@ const updateCategory = (updatedCategory: Category): Category | null => {
   }
   return null;
 };
-const deleteCategory = (categoryId: string): boolean => {
-  let categories = getCategories();
+const deleteCategory = async (categoryId: string): Promise<boolean> => {
+  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; // Get unsorted
+  const categoryToDelete = categories.find(c => c.id === categoryId);
+  if (!categoryToDelete) return false;
+
   const initialLength = categories.length;
   categories = categories.filter(c => c.id !== categoryId);
+
   if (categories.length < initialLength) {
     setItem(KEYS.CATEGORIES, categories);
+    // Delete category image if it exists
+    if (categoryToDelete.imageId) {
+        try {
+            await deleteSingleImageFromDB(categoryToDelete.imageId);
+        } catch (error) {
+            console.error("Error deleting category image from IndexedDB:", error);
+        }
+    }
+    // Optionally, reassign products from this category or handle subcategories
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = ''; // Or set to a default/uncategorized ID
+        p.categoryId = ''; // Unassign category
         updateProduct(p);
       }
     });
+    // Reassign child categories to be top-level or delete them recursively (simpler: prevent deletion if children exist)
+    const childCategories = categories.filter(c => c.parentId === categoryId);
+    for (const child of childCategories) {
+        child.parentId = null; // Make children top-level
+        updateCategory(child);
+    }
     return true;
   }
   return false;
 };
 const findCategoryById = (categoryId: string): Category | undefined => getCategories().find(c => c.id === categoryId);
+const getChildCategories = (parentId: string | null): Category[] => {
+  return getCategories().filter(category => category.parentId === parentId);
+};
+
 
 const getCart = (userId: string): Cart | null => {
     const carts = getItem<Cart[]>(KEYS.CARTS) || [];
@@ -539,13 +558,14 @@ const localStorageService = {
   getProducts,
   addProduct,
   updateProduct,
-  deleteProduct, // Now async
+  deleteProduct, 
   findProductById,
   getCategories,
   addCategory,
   updateCategory,
   deleteCategory,
   findCategoryById,
+  getChildCategories,
   getCart,
   updateCart,
   clearCart,
@@ -570,3 +590,4 @@ const localStorageService = {
 };
 
 export { localStorageService };
+
