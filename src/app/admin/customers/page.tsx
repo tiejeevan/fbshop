@@ -11,7 +11,7 @@ import { MoreHorizontal, Trash2, UserX, Edit, PlusCircle } from 'lucide-react';
 import { localStorageService } from '@/lib/localStorage';
 import type { User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth'; 
+import { useAuth } from '@/hooks/useAuth';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,12 +30,12 @@ export default function AdminCustomersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [customerToDelete, setCustomerToDelete] = useState<User | null>(null);
   const { toast } = useToast();
-  const { currentUser: adminUserPerformingAction } = useAuth(); 
+  const { currentUser: adminUserPerformingAction } = useAuth();
 
   const fetchCustomers = useCallback(() => {
     setIsLoading(true);
     const allUsers = localStorageService.getUsers();
-    const fetchedCustomers = allUsers.filter(user => user.role === 'customer' || user.role === 'admin'); 
+    const fetchedCustomers = allUsers.filter(user => user.role === 'customer' || user.role === 'admin');
     setCustomers(fetchedCustomers);
     setIsLoading(false);
   }, []);
@@ -55,24 +55,27 @@ export default function AdminCustomersPage() {
       setCustomerToDelete(null);
       return;
     }
-    
-    const success = localStorageService.deleteUser(customerToDelete.id);
+
+    const userNameOrEmail = customerToDelete.name || customerToDelete.email; // Capture before deletion
+    const userId = customerToDelete.id;
+
+    const success = localStorageService.deleteUser(userId);
     if (success) {
       await localStorageService.addAdminActionLog({
           adminId: adminUserPerformingAction.id,
           adminEmail: adminUserPerformingAction.email,
           actionType: 'USER_DELETE',
           entityType: 'User',
-          entityId: customerToDelete.id,
-          description: `Deleted user "${customerToDelete.name || customerToDelete.email}" (ID: ${customerToDelete.id.substring(0,8)}...).`
+          entityId: userId,
+          description: `Deleted user "${userNameOrEmail}" (ID: ${userId.substring(0,8)}...).`
       });
-      toast({ title: "User Deleted", description: `User "${customerToDelete.name || customerToDelete.email}" has been successfully deleted.` });
-      fetchCustomers(); 
-      localStorageService.clearCart(customerToDelete.id); 
+      toast({ title: "User Deleted", description: `User "${userNameOrEmail}" has been successfully deleted.` });
+      fetchCustomers();
+      localStorageService.clearCart(userId);
     } else {
       toast({ title: "Error Deleting User", description: "Could not delete the user. Please try again.", variant: "destructive" });
     }
-    setCustomerToDelete(null); 
+    setCustomerToDelete(null);
   };
 
   if (isLoading) {
@@ -117,6 +120,7 @@ export default function AdminCustomersPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead className="hidden md:table-cell">Joined On</TableHead>
+                  <TableHead className="hidden md:table-cell">Last Login</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -135,6 +139,9 @@ export default function AdminCustomersPage() {
                     <TableCell className="hidden md:table-cell">
                       {customer.createdAt ? format(new Date(customer.createdAt), 'PPP') : 'N/A'}
                     </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {customer.lastLogin ? format(new Date(customer.lastLogin), 'PPP p') : 'N/A'}
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -149,10 +156,10 @@ export default function AdminCustomersPage() {
                                 <Edit className="mr-2 h-4 w-4" /> Edit
                               </Link>
                             </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => setCustomerToDelete(customer)} 
+                          <DropdownMenuItem
+                            onClick={() => setCustomerToDelete(customer)}
                             className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10"
-                            disabled={adminUserPerformingAction?.id === customer.id} 
+                            disabled={adminUserPerformingAction?.id === customer.id}
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Delete User
                           </DropdownMenuItem>
@@ -166,7 +173,7 @@ export default function AdminCustomersPage() {
           )}
         </CardContent>
       </Card>
-      
+
       {customerToDelete && (
         <AlertDialog open onOpenChange={() => setCustomerToDelete(null)}>
           <AlertDialogContent>
@@ -180,8 +187,8 @@ export default function AdminCustomersPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleDeleteCustomer} 
+              <AlertDialogAction
+                onClick={handleDeleteCustomer}
                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               >
                 Yes, delete user
@@ -193,3 +200,4 @@ export default function AdminCustomersPage() {
     </div>
   );
 }
+    

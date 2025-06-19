@@ -21,7 +21,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger, 
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -53,7 +53,7 @@ export default function AdminCategoriesPage() {
 
   const fetchCategories = useCallback(() => {
     setIsLoading(true);
-    const fetchedCategories = localStorageService.getCategories(); 
+    const fetchedCategories = localStorageService.getCategories();
     setAllCategories(fetchedCategories);
     setIsLoading(false);
   }, []);
@@ -73,7 +73,7 @@ export default function AdminCategoriesPage() {
       const searchMatch = searchTerm ? (nameMatch || descriptionMatch) : true;
 
       const statusMatch = filterStatus === 'all' || (filterStatus === 'active' && cat.isActive) || (filterStatus === 'inactive' && !cat.isActive);
-      
+
       const hierarchyMatch = filterHierarchy === 'all' ||
                              (filterHierarchy === 'toplevel' && !cat.parentId) ||
                              (filterHierarchy === 'subcategories' && !!cat.parentId);
@@ -90,17 +90,17 @@ export default function AdminCategoriesPage() {
           level,
           productCount: localStorageService.getProducts().filter(p => p.categoryId === cat.id).length,
           children: buildHierarchy(cat.id, level + 1),
-          isExpanded: expandedCategories[cat.id] === undefined ? true : expandedCategories[cat.id], 
+          isExpanded: expandedCategories[cat.id] === undefined ? true : expandedCategories[cat.id],
         }));
     };
-    
+
     return buildHierarchy(null, 0);
 
   }, [allCategories, searchTerm, filterStatus, filterHierarchy, expandedCategories]);
 
   const handleDeleteCategory = async () => {
     if (!categoryToDelete || !currentUser) return;
-    
+
     const children = localStorageService.getChildCategories(categoryToDelete.id);
     if (children.length > 0) {
         toast({ title: "Cannot Delete", description: `Category "${categoryToDelete.name}" has ${children.length} subcategories. Please reassign or delete them first.`, variant: "destructive", duration: 5000 });
@@ -114,19 +114,22 @@ export default function AdminCategoriesPage() {
         return;
     }
 
-    const success = await localStorageService.deleteCategory(categoryToDelete.id);
+    const categoryName = categoryToDelete.name; // Capture before deletion
+    const categoryId = categoryToDelete.id;
+
+    const success = await localStorageService.deleteCategory(categoryId);
     if (success) {
       await localStorageService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'CATEGORY_DELETE',
         entityType: 'Category',
-        entityId: categoryToDelete.id,
-        description: `Deleted category "${categoryToDelete.name}" (ID: ${categoryToDelete.id.substring(0,8)}...).`
+        entityId: categoryId,
+        description: `Deleted category "${categoryName}" (ID: ${categoryId.substring(0,8)}...).`
       });
       toast({ title: "Category Deleted" });
-      fetchCategories(); 
-      setCategoriesToBatchAction(prev => prev.filter(id => id !== categoryToDelete.id));
+      fetchCategories();
+      setCategoriesToBatchAction(prev => prev.filter(id => id !== categoryId));
     } else {
       toast({ title: "Error Deleting Category", variant: "destructive" });
     }
@@ -143,6 +146,7 @@ export default function AdminCategoriesPage() {
     let skippedCount = 0;
     let skippedMessages: string[] = [];
     const actionLogs: Omit<AdminActionLog, 'id'|'timestamp'>[] = [];
+    const affectedCategoryNames: string[] = [];
 
     for (const catId of categoriesToBatchAction) {
       const category = allCategories.find(c => c.id === catId);
@@ -161,22 +165,39 @@ export default function AdminCategoriesPage() {
         }
         if (await localStorageService.deleteCategory(catId)) {
             successCount++;
-            actionLogs.push({ adminId: currentUser.id, adminEmail: currentUser.email, actionType: 'CATEGORY_DELETE_BATCH', entityType: 'Category', entityId: catId, description: `Batch deleted category "${category.name}".`});
+            affectedCategoryNames.push(category.name);
         }
       } else if (action === 'setActive') {
-        localStorageService.updateCategory({ ...category, isActive: true });
+        localStorageService.updateCategory({ ...category, isActive: true, updatedAt: new Date().toISOString() });
         successCount++;
-        actionLogs.push({ adminId: currentUser.id, adminEmail: currentUser.email, actionType: 'CATEGORY_SET_ACTIVE_BATCH', entityType: 'Category', entityId: catId, description: `Batch set category "${category.name}" to active.`});
+        affectedCategoryNames.push(category.name);
       } else if (action === 'setInactive') {
-        localStorageService.updateCategory({ ...category, isActive: false });
+        localStorageService.updateCategory({ ...category, isActive: false, updatedAt: new Date().toISOString() });
         successCount++;
-        actionLogs.push({ adminId: currentUser.id, adminEmail: currentUser.email, actionType: 'CATEGORY_SET_INACTIVE_BATCH', entityType: 'Category', entityId: catId, description: `Batch set category "${category.name}" to inactive.`});
+        affectedCategoryNames.push(category.name);
       }
     }
 
-    for (const log of actionLogs) {
-        await localStorageService.addAdminActionLog(log);
+    // Log the batch action
+    if (successCount > 0 || skippedCount > 0) {
+        let logDescription = '';
+        if (action === 'delete') {
+            logDescription = `Batch delete: Attempted ${categoriesToBatchAction.length} categories. Successfully deleted ${successCount} (${affectedCategoryNames.slice(0,3).join(', ')}${affectedCategoryNames.length > 3 ? '...' : ''}).`;
+            if (skippedCount > 0) logDescription += ` Skipped ${skippedCount}.`;
+        } else if (action === 'setActive') {
+            logDescription = `Batch set ${successCount} categories to active: ${affectedCategoryNames.slice(0,3).join(', ')}${affectedCategoryNames.length > 3 ? '...' : ''}.`;
+        } else if (action === 'setInactive') {
+            logDescription = `Batch set ${successCount} categories to inactive: ${affectedCategoryNames.slice(0,3).join(', ')}${affectedCategoryNames.length > 3 ? '...' : ''}.`;
+        }
+        await localStorageService.addAdminActionLog({
+            adminId: currentUser.id,
+            adminEmail: currentUser.email,
+            actionType: `CATEGORY_BATCH_${action.toUpperCase()}`,
+            entityType: 'Category',
+            description: logDescription
+        });
     }
+
 
     if (skippedCount > 0) {
         toast({
@@ -192,7 +213,7 @@ export default function AdminCategoriesPage() {
     fetchCategories();
     setCategoriesToBatchAction([]);
   };
-  
+
   const toggleSelectAll = (checked: boolean) => {
     if (checked) {
       const visibleIds: string[] = [];
@@ -208,7 +229,7 @@ export default function AdminCategoriesPage() {
       setCategoriesToBatchAction([]);
     }
   };
-  
+
   const isAllVisibleSelected = useMemo(() => {
     const visibleIds: string[] = [];
     const collectVisibleIds = (cats: DisplayCategory[]) => {
@@ -220,7 +241,7 @@ export default function AdminCategoriesPage() {
     collectVisibleIds(filteredAndStructuredCategories);
     if (visibleIds.length === 0) return false;
     return visibleIds.every(id => categoriesToBatchAction.includes(id));
-  }, [filteredAndStructuredCategories, categoriesToBatchAction, expandedCategories]);
+  }, [filteredAndStructuredCategories, categoriesToBatchAction]);
 
 
   const renderCategoryRow = (category: DisplayCategory) => (
@@ -231,8 +252,8 @@ export default function AdminCategoriesPage() {
             <Checkbox
               checked={categoriesToBatchAction.includes(category.id)}
               onCheckedChange={(checkedState) => {
-                const isChecked = !!checkedState; // Ensure boolean
-                setCategoriesToBatchAction(prev => 
+                const isChecked = !!checkedState;
+                setCategoriesToBatchAction(prev =>
                   isChecked ? [...prev, category.id] : prev.filter(id => id !== category.id)
                 );
               }}
@@ -334,10 +355,10 @@ export default function AdminCategoriesPage() {
                   <TableRow>
                     <TableHead className="min-w-[250px] sm:w-[40%]">
                       <div className="flex items-center gap-2">
-                        <Checkbox 
-                          checked={isAllVisibleSelected && filteredAndStructuredCategories.length > 0} 
+                        <Checkbox
+                          checked={isAllVisibleSelected && filteredAndStructuredCategories.length > 0}
                           onCheckedChange={toggleSelectAll}
-                          aria-label="Select all visible categories" 
+                          aria-label="Select all visible categories"
                           disabled={filteredAndStructuredCategories.length === 0}
                         /> Name
                       </div>
@@ -350,9 +371,9 @@ export default function AdminCategoriesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndStructuredCategories.length > 0 ? 
+                  {filteredAndStructuredCategories.length > 0 ?
                       filteredAndStructuredCategories.map(category => renderCategoryRow(category)) :
-                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">No categories match your filters.</TableCell></TableRow> 
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">No categories match your filters.</TableCell></TableRow>
                   }
                 </TableBody>
               </Table>
@@ -360,13 +381,13 @@ export default function AdminCategoriesPage() {
           )}
         </CardContent>
       </Card>
-      
+
       {categoryToDelete && (
         <AlertDialog open onOpenChange={() => setCategoryToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Delete "{categoryToDelete.name}"?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete the category. 
+                This will permanently delete the category.
                 {localStorageService.getChildCategories(categoryToDelete.id).length > 0 && <span className="block mt-2 font-semibold text-destructive">This category has subcategories. They must be moved or deleted first.</span>}
                 {localStorageService.getProducts().filter(p => p.categoryId === categoryToDelete.id).length > 0 && <span className="block mt-2 font-semibold text-destructive">This category has products. They must be reassigned first.</span>}
                 This action cannot be undone.
@@ -385,3 +406,4 @@ export default function AdminCategoriesPage() {
     </div>
   );
 }
+    

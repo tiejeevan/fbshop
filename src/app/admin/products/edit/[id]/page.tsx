@@ -7,11 +7,40 @@ import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth'; 
+import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
+
+// Helper to generate detailed change descriptions
+const generateProductChangeDescription = (oldProduct: Product, newData: ProductFormValues, imageChanges: string[]): string => {
+  const changes: string[] = [];
+  if (oldProduct.name !== newData.name) {
+    changes.push(`Name changed from "${oldProduct.name}" to "${newData.name}".`);
+  }
+  if (oldProduct.description !== newData.description) {
+    changes.push('Description updated.'); // Keep it concise for long text
+  }
+  if (oldProduct.price !== newData.price) {
+    changes.push(`Price changed from $${oldProduct.price.toFixed(2)} to $${newData.price.toFixed(2)}.`);
+  }
+  if (oldProduct.stock !== newData.stock) {
+    changes.push(`Stock changed from ${oldProduct.stock} to ${newData.stock}.`);
+  }
+  if (oldProduct.categoryId !== newData.categoryId) {
+    const oldCategoryName = localStorageService.findCategoryById(oldProduct.categoryId)?.name || 'N/A';
+    const newCategoryName = localStorageService.findCategoryById(newData.categoryId)?.name || 'N/A';
+    changes.push(`Category changed from "${oldCategoryName}" to "${newCategoryName}".`);
+  }
+  changes.push(...imageChanges);
+
+  if (changes.length === 0) {
+    return `No significant changes detected for product "${newData.name}".`;
+  }
+  return `Updated product "${newData.name}": ${changes.join(' ')}`;
+};
+
 
 export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = use(paramsPromise);
@@ -20,7 +49,7 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser } = useAuth(); 
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     const fetchedProduct = localStorageService.findProductById(params.id);
@@ -38,83 +67,97 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
     data: ProductFormValues,
     id?: string,
     imagesToSave?: {type: 'primary' | 'additional', index?: number, file: File}[],
-    imagesToDelete?: string[]
+    imageIdsMarkedForDeletionByUI?: string[] // IDs of images explicitly removed via UI (preview cleared)
   ) => {
     if (!id || !product || !currentUser) {
       toast({ title: "Error", description: "Product data or admin session missing.", variant: "destructive" });
       return;
     }
 
-    try {
-      let finalPrimaryImageId = data.primaryImageId; // Use ID from form data as base (RHF value)
-      let finalAdditionalImageIds = [...(data.additionalImageIds || [])]; // Use IDs from form data
+    const oldProductSnapshot = { ...product }; // Capture state before any changes
+    let imageChangeDescriptions: string[] = [];
 
-      // Handle deletions first
-      if (imagesToDelete && imagesToDelete.length > 0) {
-        for (const imgId of imagesToDelete) {
+    try {
+      let finalPrimaryImageId = product.primaryImageId;
+      let finalAdditionalImageIds = [...(product.additionalImageIds || [])];
+
+      // 1. Handle images marked for deletion by UI (preview cleared, file removed)
+      if (imageIdsMarkedForDeletionByUI && imageIdsMarkedForDeletionByUI.length > 0) {
+        for (const imgId of imageIdsMarkedForDeletionByUI) {
           await deleteImageFromDB(imgId);
-          if (finalPrimaryImageId === imgId) finalPrimaryImageId = null;
-          finalAdditionalImageIds = finalAdditionalImageIds.filter(fid => fid !== imgId);
+          if (finalPrimaryImageId === imgId) {
+            finalPrimaryImageId = null;
+            imageChangeDescriptions.push('Primary image removed.');
+          }
+          const_additional_idx = finalAdditionalImageIds.indexOf(imgId);
+          if (const_additional_idx > -1) {
+            finalAdditionalImageIds.splice(const_additional_idx, 1);
+            imageChangeDescriptions.push(`Additional image (ID: ${imgId.substring(0,6)}...) removed.`);
+          }
         }
       }
-      
-      // Handle new/replacement images
+
+      // 2. Handle new/replacement images
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {
           const savedImageId = await saveImageToDB(
-            id, 
-            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index?.toString() ?? Date.now().toString()), 
+            id,
+            imgInfo.type === 'primary' ? 'primary' : (imgInfo.index?.toString() ?? Date.now().toString()),
             imgInfo.file
           );
 
           if (imgInfo.type === 'primary') {
-            // If there was an old primary image different from current and not in imagesToDelete, delete it
-            if (product.primaryImageId && product.primaryImageId !== savedImageId && !imagesToDelete?.includes(product.primaryImageId)) {
-                await deleteImageFromDB(product.primaryImageId);
+            if (oldProductSnapshot.primaryImageId && oldProductSnapshot.primaryImageId !== savedImageId) {
+              // If there was an old primary image and it's different from the new one, delete it.
+              // This handles replacement. If old was null, this is a new addition.
+              if (!imageIdsMarkedForDeletionByUI?.includes(oldProductSnapshot.primaryImageId)) { // Avoid double deletion
+                 await deleteImageFromDB(oldProductSnapshot.primaryImageId);
+              }
             }
             finalPrimaryImageId = savedImageId;
-          } else {
-            // For additional images, if replacing, the old ID should have been in imagesToDelete
-            // If adding new, just push
-            if (imgInfo.index !== undefined && finalAdditionalImageIds[imgInfo.index] && finalAdditionalImageIds[imgInfo.index] !== savedImageId && !imagesToDelete?.includes(finalAdditionalImageIds[imgInfo.index])) {
-               // This case implies replacing an image not explicitly marked for deletion via UI but is being overwritten by a new file
-               // The RHF value for additionalImageIds might not reflect this old ID if it was a file previously
-               // For simplicity, if imagesToSave has an item, it implies it's new or replacing.
-               // The `imagesToDelete` should ideally handle explicit UI-driven "remove" actions.
-            }
-
+            imageChangeDescriptions.push(oldProductSnapshot.primaryImageId ? 'Primary image updated.' : 'Primary image added.');
+          } else { // Additional image
             if (imgInfo.index !== undefined && imgInfo.index < finalAdditionalImageIds.length) {
-                 // If there was an image at this slot and it's different from the new one, and wasn't in imagesToDelete, delete it.
-                if(finalAdditionalImageIds[imgInfo.index] && finalAdditionalImageIds[imgInfo.index] !== savedImageId && !imagesToDelete?.includes(finalAdditionalImageIds[imgInfo.index])){
-                    await deleteImageFromDB(finalAdditionalImageIds[imgInfo.index]);
-                }
-                finalAdditionalImageIds[imgInfo.index] = savedImageId;
+              // Replacing an existing additional image at a specific index
+              const oldImgIdAtIndex = finalAdditionalImageIds[imgInfo.index];
+              if (oldImgIdAtIndex && oldImgIdAtIndex !== savedImageId) {
+                 if (!imageIdsMarkedForDeletionByUI?.includes(oldImgIdAtIndex)) {
+                    await deleteImageFromDB(oldImgIdAtIndex);
+                 }
+              }
+              finalAdditionalImageIds[imgInfo.index] = savedImageId;
+              imageChangeDescriptions.push(oldImgIdAtIndex ? `Additional image at slot ${imgInfo.index + 1} updated.` : `Additional image added at slot ${imgInfo.index + 1}.`);
             } else {
-                finalAdditionalImageIds.push(savedImageId);
+              // Adding a new additional image (or slot was empty)
+              finalAdditionalImageIds.push(savedImageId);
+               imageChangeDescriptions.push('New additional image added.');
             }
-
           }
         }
       }
-      
+      // Ensure no duplicates and filter out nulls (though saveImageToDB should always return string)
+      finalAdditionalImageIds = [...new Set(finalAdditionalImageIds.filter(imgId => !!imgId))];
+
+
       const updatedProductData: Product = {
-        ...product, // Start with original product data
-        ...data,    // Overlay with form data (name, desc, price, stock, categoryId)
-        id,         // Ensure ID is correct
-        primaryImageId: finalPrimaryImageId, // Set the resolved primary image ID
-        additionalImageIds: finalAdditionalImageIds.filter(imgId => !!imgId), // Set resolved additional image IDs
-        updatedAt: new Date().toISOString(), // Update timestamp
+        ...oldProductSnapshot,
+        ...data,
+        id,
+        primaryImageId: finalPrimaryImageId,
+        additionalImageIds: finalAdditionalImageIds,
+        updatedAt: new Date().toISOString(),
       };
 
       localStorageService.updateProduct(updatedProductData);
-      
+
+      const logDescription = generateProductChangeDescription(oldProductSnapshot, data, imageChangeDescriptions);
       await localStorageService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'PRODUCT_UPDATE',
         entityType: 'Product',
         entityId: id,
-        description: `Updated product "${data.name}" (ID: ${id.substring(0,8)}...).`
+        description: logDescription
       });
 
       toast({ title: "Product Updated", description: `"${data.name}" has been successfully updated.` });
@@ -144,3 +187,4 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
     </div>
   );
 }
+    

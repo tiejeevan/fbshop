@@ -5,10 +5,11 @@ export type Theme = 'light' | 'dark' | 'system';
 export interface User {
   id: string;
   email: string;
-  password?: string;
+  password?: string; // Optional for display/update, required for creation
   role: UserRole;
   name?: string;
   createdAt: string;
+  updatedAt: string; // Added for consistency
   lastLogin?: string;
   themePreference?: Theme;
 }
@@ -16,12 +17,12 @@ export interface User {
 export interface Category {
   id: string;
   name: string;
-  slug: string; 
+  slug: string;
   description?: string;
-  parentId: string | null; 
-  imageId: string | null; 
-  displayOrder: number; 
-  isActive: boolean; 
+  parentId: string | null;
+  imageId: string | null;
+  displayOrder: number;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,18 +31,18 @@ export interface Product {
   id:string;
   name: string;
   description: string;
-  primaryImageId?: string | null; 
-  additionalImageIds?: string[];  
+  primaryImageId: string | null; // Changed from optional to nullable
+  additionalImageIds: string[];  // Changed from optional to mandatory (can be empty array)
   price: number;
   stock: number;
   categoryId: string;
-  categoryName?: string;
+  categoryName?: string; // For display purposes, not stored directly
   createdAt: string;
   updatedAt: string;
   views: number;
   purchases: number;
-  averageRating?: number;
-  reviewCount?: number;
+  averageRating: number; // Ensure it's always present
+  reviewCount: number;   // Ensure it's always present
 }
 
 export interface CartItem {
@@ -49,7 +50,7 @@ export interface CartItem {
   quantity: number;
   price: number;
   name: string;
-  primaryImageId?: string | null; 
+  primaryImageId?: string | null;
 }
 
 export interface Cart {
@@ -63,7 +64,7 @@ export interface OrderItem {
   quantity: number;
   priceAtPurchase: number;
   name: string;
-  primaryImageId?: string | null; 
+  primaryImageId?: string | null;
 }
 
 export interface Order {
@@ -96,7 +97,7 @@ export interface Review {
   productId: string;
   userId: string;
   userName: string;
-  rating: number; 
+  rating: number;
   comment: string;
   createdAt: string;
 }
@@ -115,10 +116,10 @@ export interface AdminActionLog {
   id: string;
   adminId: string;
   adminEmail: string;
-  actionType: string; // e.g., 'PRODUCT_CREATE', 'CATEGORY_UPDATE', 'USER_DELETE'
-  entityType?: string; // e.g., 'Product', 'Category', 'User'
-  entityId?: string;   // ID of the affected entity
-  timestamp: string;   // ISO date string
-  description: string; // Human-readable description of the action
-  // details?: any;     // Optional: for storing old/new values, complex for now
+  actionType: string;
+  entityType?: string;
+  entityId?: string;
+  timestamp: string;
+  description: string; // This will now hold more detailed information
 }
+    

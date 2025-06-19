@@ -2,11 +2,11 @@
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem, AdminActionLog } from '@/types';
-import { 
-    deleteImagesForProduct as deleteImagesFromDB, 
+import {
+    deleteImagesForProduct as deleteImagesFromDB,
     deleteImage as deleteSingleImageFromDB,
-    addAdminActionLogToDB, // Import new IndexedDB log functions
-    getAdminActionLogsFromDB 
+    addAdminActionLogToDB,
+    getAdminActionLogsFromDB
 } from './indexedDbService';
 
 
@@ -21,8 +21,7 @@ const KEYS = {
   WISHLISTS: 'localcommerce_wishlists',
   REVIEWS: 'localcommerce_reviews',
   RECENTLY_VIEWED: 'localcommerce_recently_viewed',
-  THEME: 'localcommerce_theme', 
-  // ADMIN_ACTION_LOGS: 'localcommerce_admin_action_logs', // Removed, now in IndexedDB
+  THEME: 'localcommerce_theme',
 };
 
 function getItem<T>(key: string): T | null {
@@ -62,7 +61,7 @@ function initializeDataOnce() {
   let adminUser = users.find(user => user.role === 'admin' && user.email === 'admin@localcommerce.com');
 
   if (adminUser) {
-    if (adminUser.password !== 'password') {
+    if (adminUser.password !== 'password') { // Ensure admin password is 'password' for easy access
       adminUser.password = 'password';
       const userIndex = users.findIndex(u => u.id === adminUser!.id);
       if (userIndex !== -1) users[userIndex] = adminUser;
@@ -76,6 +75,7 @@ function initializeDataOnce() {
       role: 'admin',
       name: 'Administrator',
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(), // Added for consistency
       themePreference: 'system',
     };
     users.push(adminUser);
@@ -102,7 +102,7 @@ function initializeDataOnce() {
         updatedAt: new Date().toISOString(),
     }));
     setItem(KEYS.CATEGORIES, categories);
-  } else {
+  } else { // Ensure existing categories have all new fields
      categories = categories.map((cat, index) => ({
         ...cat,
         slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
@@ -110,6 +110,7 @@ function initializeDataOnce() {
         imageId: cat.imageId === undefined ? null : cat.imageId,
         displayOrder: cat.displayOrder === undefined ? index + 1 : cat.displayOrder,
         isActive: cat.isActive === undefined ? true : cat.isActive,
+        updatedAt: cat.updatedAt || new Date().toISOString(), // Add if missing
     }));
     setItem(KEYS.CATEGORIES, categories);
   }
@@ -170,7 +171,6 @@ function initializeDataOnce() {
   if (!getItem(KEYS.REVIEWS)) setItem(KEYS.REVIEWS, []);
   if (!getItem(KEYS.RECENTLY_VIEWED)) setItem(KEYS.RECENTLY_VIEWED, []);
   if (!getItem(KEYS.THEME)) setItem(KEYS.THEME, 'system');
-  // No need to initialize Admin Action Logs in localStorage anymore
 
   isDataInitialized = true;
 }
@@ -180,12 +180,14 @@ if (typeof window !== 'undefined') {
 }
 
 const getUsers = (): User[] => getItem<User[]>(KEYS.USERS) || [];
-const addUser = (user: Omit<User, 'id' | 'createdAt' | 'role'> & { role?: UserRole }): User => {
+const addUser = (user: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'role'> & { role?: UserRole }): User => {
   const users = getUsers();
+  const now = new Date().toISOString();
   const newUser: User = {
     ...user,
     id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
     role: user.role || 'customer',
     themePreference: user.themePreference || 'system',
   };
@@ -197,13 +199,12 @@ const updateUser = (updatedUser: User): User | null => {
   let users = getUsers();
   const index = users.findIndex(u => u.id === updatedUser.id);
   if (index !== -1) {
-    const existingPassword = users[index].password;
-    const existingTheme = users[index].themePreference;
     users[index] = {
       ...users[index],
       ...updatedUser,
-      password: updatedUser.password || existingPassword, 
-      themePreference: updatedUser.themePreference || existingTheme,
+      password: updatedUser.password || users[index].password,
+      themePreference: updatedUser.themePreference || users[index].themePreference,
+      updatedAt: new Date().toISOString(),
     };
     setItem(KEYS.USERS, users);
     const sessionUser = getCurrentUser();
@@ -230,13 +231,14 @@ const findUserById = (userId: string): User | undefined => getUsers().find(u => 
 const getProducts = (): Product[] => getItem<Product[]>(KEYS.PRODUCTS) || [];
 const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'>): Product => {
   const products = getProducts();
+  const now = new Date().toISOString();
   const newProduct: Product = {
     ...product,
     id: crypto.randomUUID(),
     primaryImageId: product.primaryImageId || null,
     additionalImageIds: (product.additionalImageIds || []),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
     views: 0,
     purchases: 0,
     averageRating: 0,
@@ -293,6 +295,7 @@ const getCategories = (): Category[] => {
 };
 const addCategory = (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Category => {
   const categories = getCategories();
+  const now = new Date().toISOString();
   const newCategory: Category = {
     id: `cat_${categoryData.slug}_${crypto.randomUUID().slice(0,4)}`,
     name: categoryData.name,
@@ -302,15 +305,15 @@ const addCategory = (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedA
     imageId: categoryData.imageId || null,
     displayOrder: categoryData.displayOrder === undefined ? (categories.length > 0 ? Math.max(...categories.map(c => c.displayOrder)) + 1 : 1) : categoryData.displayOrder,
     isActive: categoryData.isActive === undefined ? true : categoryData.isActive,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
   categories.push(newCategory);
   setItem(KEYS.CATEGORIES, categories);
   return newCategory;
 };
 const updateCategory = (updatedCategory: Category): Category | null => {
-  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; 
+  let categories = getItem<Category[]>(KEYS.CATEGORIES) || [];
   const index = categories.findIndex(c => c.id === updatedCategory.id);
   if (index !== -1) {
     categories[index] = {
@@ -325,7 +328,7 @@ const updateCategory = (updatedCategory: Category): Category | null => {
   return null;
 };
 const deleteCategory = async (categoryId: string): Promise<boolean> => {
-  let categories = getItem<Category[]>(KEYS.CATEGORIES) || []; 
+  let categories = getItem<Category[]>(KEYS.CATEGORIES) || [];
   const categoryToDelete = categories.find(c => c.id === categoryId);
   if (!categoryToDelete) return false;
 
@@ -334,7 +337,7 @@ const deleteCategory = async (categoryId: string): Promise<boolean> => {
 
   if (categories.length < initialLength) {
     setItem(KEYS.CATEGORIES, categories);
-    
+
     if (categoryToDelete.imageId) {
         try {
             await deleteSingleImageFromDB(categoryToDelete.imageId);
@@ -342,25 +345,28 @@ const deleteCategory = async (categoryId: string): Promise<boolean> => {
             console.error("Error deleting category image from IndexedDB:", error);
         }
     }
-    
+
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = ''; 
+        p.categoryId = '';
         updateProduct(p);
       }
     });
-    
-    const childCategories = getCategories().filter(c => c.parentId === categoryId); // Use getCategories to ensure we're working with the current list
+
+    const childCategories = getCategories().filter(c => c.parentId === categoryId);
     for (const child of childCategories) {
-        child.parentId = null; 
+        child.parentId = null;
         updateCategory(child);
     }
     return true;
   }
   return false;
 };
-const findCategoryById = (categoryId: string): Category | undefined => getCategories().find(c => c.id === categoryId);
+const findCategoryById = (categoryId: string | null): Category | undefined => {
+  if (!categoryId) return undefined;
+  return getCategories().find(c => c.id === categoryId);
+}
 const getChildCategories = (parentId: string | null): Category[] => {
   return getCategories().filter(category => category.parentId === parentId);
 };
@@ -444,14 +450,23 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
 const getLoginActivity = (): LoginActivity[] => getItem<LoginActivity[]>(KEYS.LOGIN_ACTIVITY) || [];
 const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'logout'): void => {
     const activities = getLoginActivity();
+    const now = new Date().toISOString();
     activities.push({
         id: crypto.randomUUID(),
         userId,
         userEmail,
-        timestamp: new Date().toISOString(),
+        timestamp: now,
         type,
     });
-    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100));
+    setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100)); // Keep last 100 activities
+
+    // Update lastLogin for the user
+    const user = findUserById(userId);
+    if (user && type === 'login') {
+        user.lastLogin = now;
+        user.updatedAt = now; // Also update updatedAt timestamp
+        updateUser(user);
+    }
 };
 
 const setCurrentUser = (user: User | null): void => {
@@ -556,13 +571,12 @@ const setGlobalTheme = (theme: Theme): void => {
   setItem(KEYS.THEME, theme);
 };
 
-// Admin Action Logs - Delegating to IndexedDB service
 const getAdminActionLogs = async (): Promise<AdminActionLog[]> => {
   try {
     return await getAdminActionLogsFromDB();
   } catch (error) {
     console.error("Error fetching admin logs from IndexedDB via localStorageService:", error);
-    return []; // Return empty array on error
+    return [];
   }
 };
 
@@ -571,7 +585,6 @@ const addAdminActionLog = async (logData: Omit<AdminActionLog, 'id' | 'timestamp
     await addAdminActionLogToDB(logData);
   } catch (error) {
     console.error("Error adding admin log to IndexedDB via localStorageService:", error);
-    // Optionally, implement a fallback or further error handling
   }
 };
 
@@ -590,7 +603,7 @@ const localStorageService = {
   getProducts,
   addProduct,
   updateProduct,
-  deleteProduct, 
+  deleteProduct,
   findProductById,
   getCategories,
   addCategory,
@@ -619,9 +632,9 @@ const localStorageService = {
   addRecentlyViewed,
   getGlobalTheme,
   setGlobalTheme,
-  getAdminActionLogs, // Now async
-  addAdminActionLog, // Now async
+  getAdminActionLogs,
+  addAdminActionLog,
 };
 
 export { localStorageService };
-
+    

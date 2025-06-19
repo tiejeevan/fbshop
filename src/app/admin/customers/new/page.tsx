@@ -30,17 +30,18 @@ export default function NewCustomerPage() {
       const newUser = localStorageService.addUser({
         name: data.name,
         email: data.email,
-        password: data.password, 
+        password: data.password,
         role: data.role,
       });
 
+      const logDescription = `Created user "${newUser.name || newUser.email}" (ID: ${newUser.id.substring(0,8)}) with role "${newUser.role}".`;
       await localStorageService.addAdminActionLog({
           adminId: adminUserPerformingAction.id,
           adminEmail: adminUserPerformingAction.email,
           actionType: 'USER_CREATE',
           entityType: 'User',
           entityId: newUser.id,
-          description: `Created user "${newUser.name || newUser.email}" (ID: ${newUser.id.substring(0,8)}...). Role: ${newUser.role}.`
+          description: logDescription
       });
 
       toast({ title: "Customer Created", description: `Customer "${data.name || data.email}" has been successfully added.` });
@@ -62,3 +63,4 @@ export default function NewCustomerPage() {
     </div>
   );
 }
+    

@@ -12,6 +12,28 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
+// Helper to generate detailed change descriptions for users
+const generateUserChangeDescription = (oldUser: User, newData: EditCustomerFormValues): string => {
+  const changes: string[] = [];
+  if ((oldUser.name || '') !== (newData.name || '')) {
+    changes.push(`Name changed from "${oldUser.name || 'N/A'}" to "${newData.name || 'N/A'}".`);
+  }
+  if (oldUser.email !== newData.email) {
+    changes.push(`Email changed from "${oldUser.email}" to "${newData.email}".`);
+  }
+  if (oldUser.role !== newData.role) {
+    changes.push(`Role changed from "${oldUser.role}" to "${newData.role}".`);
+  }
+  if (newData.password && newData.password.length > 0) {
+    changes.push('Password updated.');
+  }
+
+  if (changes.length === 0) {
+    return `No significant changes detected for user "${newData.email}".`;
+  }
+  return `Updated user "${newData.email}": ${changes.join(' ')}`;
+};
+
 export default function EditCustomerPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = use(paramsPromise);
   const [customer, setCustomer] = useState<User | null>(null);
@@ -38,6 +60,8 @@ export default function EditCustomerPage({ params: paramsPromise }: { params: Pr
         return;
     }
 
+    const oldUserSnapshot = { ...customer };
+
     if (data.email !== customer.email) {
         const existingUserWithNewEmail = localStorageService.findUserByEmail(data.email);
         if (existingUserWithNewEmail && existingUserWithNewEmail.id !== id) {
@@ -45,30 +69,33 @@ export default function EditCustomerPage({ params: paramsPromise }: { params: Pr
             return;
         }
     }
-    
+
     try {
       const updatedCustomerData: User = {
         ...customer,
         name: data.name,
         email: data.email,
         role: data.role,
-        password: data.password && data.password.length > 0 ? data.password : customer.password, // Only update if new password is provided
+        // Only update password if a new one is provided and is not empty
+        password: (data.password && data.password.length > 0) ? data.password : customer.password,
+        updatedAt: new Date().toISOString(), // Add/update timestamp
       };
       localStorageService.updateUser(updatedCustomerData);
-      
+
+      const logDescription = generateUserChangeDescription(oldUserSnapshot, data);
       await localStorageService.addAdminActionLog({
           adminId: adminUserPerformingAction.id,
           adminEmail: adminUserPerformingAction.email,
           actionType: 'USER_UPDATE',
           entityType: 'User',
           entityId: id,
-          description: `Updated user "${data.name || data.email}" (ID: ${id.substring(0,8)}...). Role: ${data.role}.`
+          description: logDescription
       });
 
       toast({ title: "Customer Updated", description: `Customer "${data.name || data.email}" has been successfully updated.` });
-      
+
       if (adminUserPerformingAction && adminUserPerformingAction.id === id) {
-        refreshUser(); // If admin edits their own profile
+        refreshUser();
       }
       router.push('/admin/customers');
 
@@ -97,3 +124,4 @@ export default function EditCustomerPage({ params: paramsPromise }: { params: Pr
     </div>
   );
 }
+    

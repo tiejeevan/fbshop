@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { saveImage as saveImageToDB } from '@/lib/indexedDbService'; 
+import { saveImage as saveImageToDB } from '@/lib/indexedDbService';
 
 export default function NewCategoryPage() {
   const router = useRouter();
@@ -35,9 +35,18 @@ export default function NewCategoryPage() {
       }
 
       const newCategory = localStorageService.addCategory({
-        ...data, 
-        imageId, 
+        ...data,
+        imageId,
       });
+
+      let logDescription = `Created category "${newCategory.name}" (ID: ${newCategory.id.substring(0,8)}) with slug "${newCategory.slug}".`;
+      if (newCategory.parentId) {
+        const parentName = localStorageService.findCategoryById(newCategory.parentId)?.name || 'Unknown Parent';
+        logDescription += ` Parent: "${parentName}".`;
+      }
+      if (imageId) logDescription += ' Image added.';
+      logDescription += ` Status: ${newCategory.isActive ? 'Active' : 'Inactive'}. Display Order: ${newCategory.displayOrder}.`;
+
 
       await localStorageService.addAdminActionLog({
         adminId: currentUser.id,
@@ -45,7 +54,7 @@ export default function NewCategoryPage() {
         actionType: 'CATEGORY_CREATE',
         entityType: 'Category',
         entityId: newCategory.id,
-        description: `Created category "${newCategory.name}" (ID: ${newCategory.id.substring(0,8)}...).`
+        description: logDescription
       });
 
       toast({ title: "Category Created", description: `"${data.name}" has been successfully added.` });
@@ -67,3 +76,4 @@ export default function NewCategoryPage() {
     </div>
   );
 }
+    

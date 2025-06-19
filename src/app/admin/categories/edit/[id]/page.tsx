@@ -13,6 +13,43 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
 
+// Helper to generate detailed change descriptions
+const generateCategoryChangeDescription = (oldCategory: Category, newData: CategoryFormValues, imageChanged: boolean): string => {
+  const changes: string[] = [];
+  if (oldCategory.name !== newData.name) {
+    changes.push(`Name changed from "${oldCategory.name}" to "${newData.name}".`);
+  }
+  if (oldCategory.slug !== newData.slug) {
+    changes.push(`Slug changed from "${oldCategory.slug}" to "${newData.slug}".`);
+  }
+  if ((oldCategory.description || '') !== (newData.description || '')) {
+    changes.push('Description updated.');
+  }
+  if (oldCategory.parentId !== newData.parentId) {
+    const oldParentName = oldCategory.parentId ? (localStorageService.findCategoryById(oldCategory.parentId)?.name || 'N/A') : 'None';
+    const newParentName = newData.parentId ? (localStorageService.findCategoryById(newData.parentId)?.name || 'N/A') : 'None';
+    changes.push(`Parent category changed from "${oldParentName}" to "${newParentName}".`);
+  }
+  if (oldCategory.displayOrder !== newData.displayOrder) {
+    changes.push(`Display order changed from ${oldCategory.displayOrder} to ${newData.displayOrder}.`);
+  }
+  if (oldCategory.isActive !== newData.isActive) {
+    changes.push(`Status changed from ${oldCategory.isActive ? 'Active' : 'Inactive'} to ${newData.isActive ? 'Active' : 'Inactive'}.`);
+  }
+  if (imageChanged) {
+    changes.push('Image updated.');
+  } else if (newData.imageId === null && oldCategory.imageId !== null) {
+    changes.push('Image removed.');
+  }
+
+
+  if (changes.length === 0) {
+    return `No significant changes detected for category "${newData.name}".`;
+  }
+  return `Updated category "${newData.name}": ${changes.join(' ')}`;
+};
+
+
 export default function EditCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const params = use(paramsPromise);
   const [category, setCategory] = useState<Category | null>(null);
@@ -39,36 +76,41 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
       toast({ title: "Error", description: "Missing data or admin session.", variant: "destructive" });
       return;
     }
-    
-    let newImageId = category.imageId; 
+
+    const oldCategorySnapshot = { ...category };
+    let newImageId = category.imageId;
+    let imageUpdatedInThisAction = false;
 
     try {
-      if (imageFile) { 
-        if (category.imageId) { 
+      if (imageFile) {
+        if (category.imageId) {
           await deleteImageFromDB(category.imageId);
         }
         newImageId = await saveImageToDB(`category_${data.slug || category.slug}`, 'main', imageFile);
-      } else if (data.imageId === null && category.imageId) { 
+        imageUpdatedInThisAction = true;
+      } else if (data.imageId === null && category.imageId) { // Image was explicitly removed in form
         await deleteImageFromDB(category.imageId);
         newImageId = null;
+        imageUpdatedInThisAction = true; // Log as an image change (removal)
       }
 
       const updatedCategoryData: Category = {
-        ...category, 
-        ...data, 
-        imageId: newImageId, 
-        id, 
+        ...category,
+        ...data,
+        imageId: newImageId,
+        id,
         updatedAt: new Date().toISOString(),
       };
       localStorageService.updateCategory(updatedCategoryData);
 
+      const logDescription = generateCategoryChangeDescription(oldCategorySnapshot, data, imageUpdatedInThisAction);
       await localStorageService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'CATEGORY_UPDATE',
         entityType: 'Category',
         entityId: id,
-        description: `Updated category "${data.name}" (ID: ${id.substring(0,8)}...).`
+        description: logDescription
       });
 
       toast({ title: "Category Updated", description: `"${data.name}" has been successfully updated.` });
@@ -98,3 +140,4 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
     </div>
   );
 }
+    

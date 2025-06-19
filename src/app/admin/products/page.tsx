@@ -12,9 +12,9 @@ import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
 import { localStorageService } from '@/lib/localStorage';
 import type { Product, Category } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth'; 
+import { useAuth } from '@/hooks/useAuth';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ProductImage } from '@/components/product/ProductImage'; 
+import { ProductImage } from '@/components/product/ProductImage';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -22,7 +22,7 @@ export default function AdminProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const { toast } = useToast();
-  const { currentUser } = useAuth(); 
+  const { currentUser } = useAuth();
 
   const fetchProductsAndCategories = useCallback(() => {
     setIsLoading(true);
@@ -41,23 +41,26 @@ export default function AdminProductsPage() {
     return categories.find(c => c.id === categoryId)?.name || 'Uncategorized';
   };
 
-  const handleDeleteProduct = async () => { 
+  const handleDeleteProduct = async () => {
     if (!productToDelete || !currentUser) {
         toast({ title: "Error", description: "Product data or admin session missing for deletion.", variant: "destructive" });
         setProductToDelete(null);
         return;
     }
-    const success = await localStorageService.deleteProduct(productToDelete.id); 
+    const productName = productToDelete.name; // Capture before deletion
+    const productId = productToDelete.id;
+
+    const success = await localStorageService.deleteProduct(productId);
     if (success) {
-      await localStorageService.addAdminActionLog({ // Ensure this call is awaited
+      await localStorageService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'PRODUCT_DELETE',
         entityType: 'Product',
-        entityId: productToDelete.id,
-        description: `Deleted product "${productToDelete.name}" (ID: ${productToDelete.id.substring(0,8)}...).`
+        entityId: productId,
+        description: `Deleted product "${productName}" (ID: ${productId.substring(0,8)}...).`
       });
-      toast({ title: "Product Deleted", description: `"${productToDelete.name}" deleted.` });
+      toast({ title: "Product Deleted", description: `"${productName}" deleted.` });
       fetchProductsAndCategories();
     } else {
       toast({ title: "Error Deleting Product", variant: "destructive" });
@@ -123,7 +126,7 @@ export default function AdminProductsPage() {
                           <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Menu</span></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild><Link href={`/admin/products/edit/${product.id}`} className="cursor-pointer"><Edit className="mr-2 h-4 w-4" /> Edit</Link></DropdownMenuItem>
-                            <DropdownMenuItem asChild><Link href={`/products/${product.id}`} className="cursor-pointer"><Eye className="mr-2 h-4 w-4" /> View</Link></DropdownMenuItem>
+                            <DropdownMenuItem asChild><Link href={`/products/${product.id}`} target="_blank" rel="noopener noreferrer" className="cursor-pointer"><Eye className="mr-2 h-4 w-4" /> View</Link></DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setProductToDelete(product)} className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -152,3 +155,4 @@ export default function AdminProductsPage() {
     </div>
   );
 }
+    

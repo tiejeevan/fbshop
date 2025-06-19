@@ -19,14 +19,13 @@ import { suggestProductCategories, SuggestProductCategoriesInput } from '@/ai/fl
 import Link from 'next/link';
 import Image from 'next/image';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB, getImage as getImageFromDB } from '@/lib/indexedDbService';
-import { useProductImage } from '@/hooks/useProductImage'; // For previews of existing images
+import { getImage as getImageFromDB } from '@/lib/indexedDbService'; // Only need getImage here
+import { ProductImage } from '@/components/product/ProductImage'; // For previews of existing images
 
-const MAX_TOTAL_IMAGES = 10; // 1 primary + 9 additional
-const MAX_FILE_SIZE_MB = 0.5; // Max 0.5 MB per image (500KB) - keeping this low for IndexedDB performance with many files
+const MAX_TOTAL_IMAGES = 10;
+const MAX_FILE_SIZE_MB = 0.5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
-// Zod schema now refers to image IDs, not Data URIs
 const productSchema = z.object({
   name: z.string().min(3, { message: 'Product name must be at least 3 characters' }),
   description: z.string().min(10, { message: 'Description must be at least 10 characters' }),
@@ -42,14 +41,18 @@ export type ProductFormValues = z.infer<typeof productSchema>;
 interface ProductFormProps {
   initialData?: Product | null;
   categories: Category[];
-  onFormSubmit: (data: ProductFormValues, id?: string, imagesToSave?: {type: 'primary' | 'additional', index?: number, file: File}[], imagesToDelete?: string[]) => Promise<void>;
+  onFormSubmit: (
+    data: ProductFormValues,
+    id?: string,
+    imagesToSave?: {type: 'primary' | 'additional', index?: number, file: File}[],
+    imageIdsMarkedForDeletionByUI?: string[] // Renamed for clarity
+  ) => Promise<void>;
 }
 
-// Internal state to manage File objects for new uploads and their previews
 interface ImageFileState {
   file: File | null;
-  previewUrl: string | null; // Object URL for preview
-  id: string | null; // Existing imageId from initialData
+  previewUrl: string | null;
+  id: string | null; // Existing imageId from initialData or newly saved ID
 }
 
 export function ProductForm({ initialData, categories, onFormSubmit }: ProductFormProps) {
@@ -59,43 +62,15 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
   const [isSuggestingCategories, setIsSuggestingCategories] = useState(false);
   const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
 
-  // State for managing image files and their previews
-  const [primaryImageFile, setPrimaryImageFile] = useState<ImageFileState>({ file: null, previewUrl: null, id: initialData?.primaryImageId || null });
+  const [primaryImageFile, setPrimaryImageFile] = useState<ImageFileState>({
+    file: null,
+    previewUrl: null,
+    id: initialData?.primaryImageId || null
+  });
   const [additionalImageFiles, setAdditionalImageFiles] = useState<ImageFileState[]>(
     (initialData?.additionalImageIds || []).map(id => ({ file: null, previewUrl: null, id }))
   );
-
-  // Preload previews for existing images
-  useEffect(() => {
-    if (initialData?.primaryImageId && !primaryImageFile.previewUrl) {
-      getImageFromDB(initialData.primaryImageId).then(blob => {
-        if (blob) setPrimaryImageFile(prev => ({ ...prev, previewUrl: URL.createObjectURL(blob) }));
-      });
-    }
-    (initialData?.additionalImageIds || []).forEach((id, index) => {
-      if (id && !additionalImageFiles[index]?.previewUrl) {
-        getImageFromDB(id).then(blob => {
-          if (blob) {
-            setAdditionalImageFiles(prev => {
-              const newFiles = [...prev];
-              if(newFiles[index]) newFiles[index].previewUrl = URL.createObjectURL(blob);
-              else newFiles[index] = {file: null, previewUrl: URL.createObjectURL(blob), id: id}; // Should ideally not happen if populated correctly
-              return newFiles;
-            });
-          }
-        });
-      }
-    });
-    // Revoke object URLs on unmount - IMPORTANT
-    return () => {
-      if (primaryImageFile.previewUrl && primaryImageFile.previewUrl.startsWith('blob:')) URL.revokeObjectURL(primaryImageFile.previewUrl);
-      additionalImageFiles.forEach(imgState => {
-        if (imgState.previewUrl && imgState.previewUrl.startsWith('blob:')) URL.revokeObjectURL(imgState.previewUrl);
-      });
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData]); // Only run on initialData change
-
+  
   const {
     register,
     handleSubmit,
@@ -121,9 +96,45 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           categoryId: '',
         },
   });
+  
+  // Effect to populate previews for existing images on initial load or when initialData changes
+  useEffect(() => {
+    let primaryObjectUrl: string | null = null;
+    const additionalObjectUrls: (string | null)[] = additionalImageFiles.map(() => null);
 
-  const productDescription = watch('description');
+    const loadPreviews = async () => {
+        if (initialData?.primaryImageId && !primaryImageFile.file) {
+            const blob = await getImageFromDB(initialData.primaryImageId);
+            if (blob) {
+                primaryObjectUrl = URL.createObjectURL(blob);
+                setPrimaryImageFile(prev => ({ ...prev, id: initialData.primaryImageId, previewUrl: primaryObjectUrl }));
+            }
+        }
+        const newAdditionalPreviews = await Promise.all(
+            (initialData?.additionalImageIds || []).map(async (id, index) => {
+                if (id && !additionalImageFiles[index]?.file) {
+                    const blob = await getImageFromDB(id);
+                    if (blob) {
+                        additionalObjectUrls[index] = URL.createObjectURL(blob);
+                        return { file: null, previewUrl: additionalObjectUrls[index], id };
+                    }
+                }
+                return additionalImageFiles[index] || { file: null, previewUrl: null, id };
+            })
+        );
+        setAdditionalImageFiles(newAdditionalPreviews);
+    };
 
+    loadPreviews();
+
+    return () => {
+        if (primaryObjectUrl) URL.revokeObjectURL(primaryObjectUrl);
+        additionalObjectUrls.forEach(url => { if (url) URL.revokeObjectURL(url); });
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData?.primaryImageId, initialData?.additionalImageIds]); // Rerun if image IDs change
+
+  // Effect to set form values from initialData
   useEffect(() => {
     if (initialData) {
       setValue('name', initialData.name);
@@ -135,6 +146,9 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
       setValue('additionalImageIds', initialData.additionalImageIds || []);
     }
   }, [initialData, setValue]);
+
+
+  const productDescription = watch('description');
 
   const handleFileChange = async (
     event: ChangeEvent<HTMLInputElement>,
@@ -156,17 +170,17 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     const previewUrl = URL.createObjectURL(file);
 
     if (imageType === 'primary') {
-      if (primaryImageFile.previewUrl && primaryImageFile.previewUrl.startsWith('blob:')) URL.revokeObjectURL(primaryImageFile.previewUrl); // Revoke old preview
-      setPrimaryImageFile({ file, previewUrl, id: primaryImageFile.id }); // Keep existing ID if replacing
+      if (primaryImageFile.previewUrl && primaryImageFile.previewUrl.startsWith('blob:')) URL.revokeObjectURL(primaryImageFile.previewUrl);
+      setPrimaryImageFile(prev => ({ ...prev, file, previewUrl })); // Keep existing ID if replacing, to be handled on submit
     } else if (index !== undefined) {
       setAdditionalImageFiles(prev => {
         const newFiles = [...prev];
-        if (newFiles[index].previewUrl && newFiles[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newFiles[index].previewUrl!);
-        newFiles[index] = { file, previewUrl, id: newFiles[index].id }; // Keep existing ID if replacing
+        if (newFiles[index]?.previewUrl && newFiles[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newFiles[index].previewUrl!);
+        newFiles[index] = { ...newFiles[index], file, previewUrl }; // Keep existing ID if replacing
         return newFiles;
       });
     }
-     event.target.value = ''; // Clear the input for re-selection of same file
+    event.target.value = '';
   };
 
   const addAdditionalImageSlot = () => {
@@ -179,7 +193,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
 
   const removePrimaryImage = () => {
     if (primaryImageFile.previewUrl && primaryImageFile.previewUrl.startsWith('blob:')) URL.revokeObjectURL(primaryImageFile.previewUrl);
-    setPrimaryImageFile({ file: null, previewUrl: null, id: primaryImageFile.id }); // Keep ID to mark for deletion on submit
+    setPrimaryImageFile(prev => ({ ...prev, file: null, previewUrl: null })); // ID is kept to signal deletion on submit
     const fileInput = document.getElementById('primaryImageFile') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
   };
@@ -187,25 +201,19 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
   const removeAdditionalImage = (index: number) => {
     setAdditionalImageFiles(prev => {
       const newFiles = [...prev];
-      if (newFiles[index].previewUrl && newFiles[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newFiles[index].previewUrl!);
-      // To remove the slot entirely:
-      // return newFiles.filter((_, i) => i !== index);
-      // To keep slot but mark for deletion / clear preview:
-      newFiles[index] = { file: null, previewUrl: null, id: newFiles[index].id }; // Keep ID
+      if (newFiles[index]?.previewUrl && newFiles[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newFiles[index].previewUrl!);
+      newFiles[index] = { ...newFiles[index], file: null, previewUrl: null }; // ID is kept
       return newFiles;
     });
     const fileInput = document.getElementById(`additionalImageFile-${index}`) as HTMLInputElement;
     if (fileInput) fileInput.value = '';
   };
-  
-  // Helper to remove an actual slot in UI (different from clearing content)
+
   const removeAdditionalImageSlot = (index: number) => {
     const imageState = additionalImageFiles[index];
-    if (imageState.previewUrl && imageState.previewUrl.startsWith('blob:')) URL.revokeObjectURL(imageState.previewUrl);
-    // if (imageState.id) // this id will be added to imagesToDelete on submit if it exists
+    if (imageState?.previewUrl && imageState.previewUrl.startsWith('blob:')) URL.revokeObjectURL(imageState.previewUrl);
     setAdditionalImageFiles(prev => prev.filter((_, i) => i !== index));
-  }
-
+  };
 
   const handleSuggestCategories = async () => {
     if (!productDescription || productDescription.length < 10) {
@@ -233,41 +241,32 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     setIsSubmitting(true);
 
     const imagesToSave: {type: 'primary' | 'additional', index?: number, file: File}[] = [];
-    const imagesToDelete: string[] = [];
+    const imageIdsMarkedForDeletionByUI: string[] = [];
 
-    // Primary Image
-    if (primaryImageFile.file) { // New file uploaded
+    // Primary Image processing
+    if (primaryImageFile.file) { // New file uploaded for primary
       imagesToSave.push({ type: 'primary', file: primaryImageFile.file });
-      if (primaryImageFile.id && initialData?.primaryImageId === primaryImageFile.id) { // If it's replacing an existing one
-        imagesToDelete.push(primaryImageFile.id);
-      }
-    } else if (!primaryImageFile.previewUrl && primaryImageFile.id) { // Preview cleared for existing image
-      imagesToDelete.push(primaryImageFile.id);
+    } else if (!primaryImageFile.previewUrl && primaryImageFile.id) { // Existing primary image's preview was cleared (marked for deletion)
+      imageIdsMarkedForDeletionByUI.push(primaryImageFile.id);
     }
 
-    // Additional Images
-    const finalAdditionalImageIds: string[] = []; // This will be populated by onFormSubmit
+    // Additional Images processing
     additionalImageFiles.forEach((imgState, index) => {
-      if (imgState.file) { // New file uploaded for this slot
+      if (imgState.file) { // New file uploaded for this additional slot
         imagesToSave.push({ type: 'additional', index, file: imgState.file });
-        if (imgState.id && initialData?.additionalImageIds?.includes(imgState.id)) { // Replacing an existing one
-          imagesToDelete.push(imgState.id);
-        }
-      } else if (!imgState.previewUrl && imgState.id) { // Preview cleared for existing image in this slot
-         imagesToDelete.push(imgState.id);
+      } else if (!imgState.previewUrl && imgState.id) { // Existing additional image's preview was cleared
+        imageIdsMarkedForDeletionByUI.push(imgState.id);
       }
-      // Note: finalAdditionalImageIds will be set by the parent onFormSubmit after saving
     });
     
-    // Filter out slots that were meant to be completely removed if that's the UI logic chosen
-    const actualAdditionalImageSlots = additionalImageFiles.filter(imgState => imgState.file || imgState.previewUrl || imgState.id);
-    // The `data.additionalImageIds` from RHF might be stale here if we manually manipulate `additionalImageFiles` state.
-    // The parent `onFormSubmit` will construct the final `additionalImageIds` list.
+    // Update RHF values for image IDs based on current state just before submit
+    // This is crucial because parent component relies on form data for comparison
+    setValue('primaryImageId', primaryImageFile.id); 
+    setValue('additionalImageIds', additionalImageFiles.map(f => f.id).filter(id => id !== null) as string[]);
 
 
     try {
-      // Pass files to save and IDs to delete to the parent
-      await onFormSubmit(data, initialData?.id, imagesToSave, imagesToDelete);
+      await onFormSubmit(data, initialData?.id, imagesToSave, imageIdsMarkedForDeletionByUI);
     } catch (error) {
       // Error handled by parent
     } finally {
@@ -313,21 +312,28 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
             <Input id="primaryImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"
                    onChange={(e) => handleFileChange(e, 'primary')}
                    className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
-            {primaryImageFile.previewUrl && (
+            {primaryImageFile.previewUrl ? (
               <div className="mt-2 relative w-32 h-32">
-                <Image src={primaryImageFile.previewUrl} alt="Primary preview" layout="fill" objectFit="cover" className="rounded-md" data-ai-hint="product preview"/>
+                <Image src={primaryImageFile.previewUrl} alt="Primary preview" layout="fill" objectFit="cover" className="rounded-md border" data-ai-hint="product primary preview" unoptimized/>
                 <Button type="button" variant="destructive" size="icon" onClick={removePrimaryImage} className="absolute -top-2 -right-2 h-6 w-6 p-1">
                   <Trash2 className="h-3 w-3"/>
                 </Button>
               </div>
-            )}
+            ) : primaryImageFile.id ? ( // Show ProductImage component if ID exists but no new preview (meaning it's an existing image not yet cleared)
+                <div className="mt-2 relative w-32 h-32">
+                    <ProductImage imageId={primaryImageFile.id} alt="Current primary image" className="w-full h-full rounded-md border" imageClassName="object-cover" />
+                    <Button type="button" variant="destructive" size="icon" onClick={removePrimaryImage} className="absolute -top-2 -right-2 h-6 w-6 p-1">
+                        <Trash2 className="h-3 w-3"/>
+                    </Button>
+                </div>
+            ): null}
             {errors.primaryImageId && <p className="text-sm text-destructive">{errors.primaryImageId.message}</p>}
           </div>
 
           <div className="space-y-4 border p-4 rounded-md bg-muted/30">
             <Label className="font-medium">Additional Images (up to {MAX_TOTAL_IMAGES - 1})</Label>
             {additionalImageFiles.map((imgState, index) => (
-              <div key={`additional-${index}`} className="space-y-2 border-t pt-3 mt-3 first:border-t-0 first:mt-0 first:pt-0">
+              <div key={`additional-${imgState.id || index}`} className="space-y-2 border-t pt-3 mt-3 first:border-t-0 first:mt-0 first:pt-0">
                 <Label htmlFor={`additionalImageFile-${index}`}>Additional Image {index + 1}</Label>
                 <div className="flex items-center gap-2">
                   <Input id={`additionalImageFile-${index}`} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
@@ -337,14 +343,21 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-                {imgState.previewUrl && (
+                {imgState.previewUrl ? (
                   <div className="mt-1 relative w-24 h-24">
-                    <Image src={imgState.previewUrl} alt={`Additional preview ${index + 1}`} layout="fill" objectFit="cover" className="rounded-md" data-ai-hint="product preview"/>
+                    <Image src={imgState.previewUrl} alt={`Additional preview ${index + 1}`} layout="fill" objectFit="cover" className="rounded-md border" data-ai-hint="product additional preview" unoptimized/>
                      <Button type="button" variant="destructive" size="icon" onClick={() => removeAdditionalImage(index)} className="absolute -top-2 -right-2 h-5 w-5 p-0.5" aria-label={`Clear additional image ${index + 1}`}>
                         <Trash2 className="h-3 w-3"/>
                     </Button>
                   </div>
-                )}
+                ) : imgState.id ? (
+                     <div className="mt-1 relative w-24 h-24">
+                        <ProductImage imageId={imgState.id} alt={`Current additional image ${index + 1}`} className="w-full h-full rounded-md border" imageClassName="object-cover" />
+                         <Button type="button" variant="destructive" size="icon" onClick={() => removeAdditionalImage(index)} className="absolute -top-2 -right-2 h-5 w-5 p-0.5" aria-label={`Clear additional image ${index + 1}`}>
+                            <Trash2 className="h-3 w-3"/>
+                        </Button>
+                    </div>
+                ) : null}
                  {errors.additionalImageIds && errors.additionalImageIds[index] && <p className="text-sm text-destructive">{errors.additionalImageIds[index]?.message}</p>}
               </div>
             ))}
@@ -418,3 +431,4 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     </Card>
   );
 }
+    
