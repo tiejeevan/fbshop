@@ -17,7 +17,7 @@ import {
   ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -34,8 +34,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarTrigger, // For desktop collapse, if needed explicitly. Sidebar handles its own collapse trigger.
-  useSidebar,
+  useSidebar, // Import useSidebar
 } from '@/components/ui/sidebar';
 
 
@@ -43,7 +42,6 @@ interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  // subItems?: NavItem[]; // Sub-items can be added later if needed
 }
 
 const navItems: NavItem[] = [
@@ -54,11 +52,11 @@ const navItems: NavItem[] = [
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
-export function AdminSidebarContent() { // Renamed from AdminSidebar and refactored
+export function AdminSidebarContent() {
   const pathname = usePathname();
   const { logout, currentUser } = useAuth();
   const router = useRouter();
-  const { state: sidebarState, toggleSidebar, isMobile } = useSidebar(); // Get sidebar state
+  const { state: sidebarState, isMobile } = useSidebar(); // Get sidebar state from context
 
   const handleLogout = () => {
     logout();
@@ -67,28 +65,26 @@ export function AdminSidebarContent() { // Renamed from AdminSidebar and refacto
 
   return (
     <>
-      <SidebarHeader className="border-b border-sidebar-border">
-        <Link href="/admin/dashboard" className="flex items-center gap-2 font-semibold text-sidebar-primary-foreground h-14 px-2">
-          <ShoppingBag className="h-6 w-6 text-sidebar-primary" />
-          {sidebarState === 'expanded' && <span className="font-headline text-xl">Local Commerce</span>}
+      <SidebarHeader className="border-b border-sidebar-border h-[60px] flex items-center px-4">
+        <Link href="/admin/dashboard" className="flex items-center gap-2 font-semibold text-sidebar-primary-foreground overflow-hidden">
+          <ShoppingBag className="h-7 w-7 text-sidebar-primary shrink-0" />
+          {(sidebarState === 'expanded' || isMobile) && <span className="font-headline text-xl truncate">Local Commerce</span>}
         </Link>
-        {/* Desktop collapse trigger - usually ui/sidebar handles this automatically if using its own header structure or a rail */}
-        {/* For now, relying on the default Ctrl+B or mobile trigger */}
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="p-2">
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.label}>
               <SidebarMenuButton
-                asChild={!isMobile && sidebarState === 'collapsed'} // Use asChild for TooltipTrigger in collapsed mode
+                asChild
                 isActive={pathname === item.href || (item.href !== '/admin/dashboard' && pathname.startsWith(item.href))}
-                tooltip={{ children: item.label, side: 'right' }}
-                className="justify-start"
+                tooltip={{ children: item.label, side: 'right', className: 'bg-popover text-popover-foreground border-border' }}
+                className="justify-start" 
               >
-                <Link href={item.href}>
-                  <item.icon className="h-5 w-5" />
-                  {(sidebarState === 'expanded' || isMobile) && <span className="text-sm">{item.label}</span>}
+                <Link href={item.href} className="flex items-center gap-3">
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  {(sidebarState === 'expanded' || isMobile) && <span className="text-sm truncate">{item.label}</span>}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -99,8 +95,14 @@ export function AdminSidebarContent() { // Renamed from AdminSidebar and refacto
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center justify-start gap-2 w-full p-2 h-auto text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-              <Avatar className="h-8 w-8">
+            <Button 
+              variant="ghost" 
+              className={cn(
+                "flex items-center gap-2 w-full p-2 h-auto text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                (sidebarState === 'collapsed' && !isMobile) ? "justify-center" : "justify-start"
+              )}
+            >
+              <Avatar className="h-8 w-8 shrink-0">
                 <AvatarImage 
                   src={currentUser?.name ? `https://placehold.co/40x40.png?text=${currentUser.name.charAt(0)}` : `https://placehold.co/40x40.png`} 
                   alt={currentUser?.name || 'Admin'}
@@ -120,12 +122,12 @@ export function AdminSidebarContent() { // Renamed from AdminSidebar and refacto
           <DropdownMenuContent side="top" align="start" className="w-56 bg-popover border-border text-popover-foreground">
             <DropdownMenuLabel className="text-foreground">{currentUser?.name || 'Admin Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border"/>
-            <DropdownMenuItem disabled className="cursor-not-allowed"> {/* Update later if profile settings page for admin is added */}
+            <DropdownMenuItem disabled className="cursor-not-allowed text-muted-foreground focus:text-muted-foreground">
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-border"/>
-            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-500 hover:!bg-destructive/10 focus:!bg-destructive/10 focus:text-red-400">
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive hover:!bg-destructive/10 focus:!bg-destructive/10 focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Logout</span>
             </DropdownMenuItem>
