@@ -1,8 +1,9 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { BarChart3, DollarSign, ShoppingBag, Users, Tags } from 'lucide-react';
+import { BarChart3, DollarSign, ShoppingBag, Users, Tags, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { localStorageService } from '@/lib/localStorage';
 import { useEffect, useState } from 'react';
@@ -107,7 +108,7 @@ export default function AdminDashboardPage() {
         <CardHeader>
           <CardTitle className="font-headline">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           <Link href="/admin/products/new" passHref>
             <button className="w-full p-4 border rounded-lg hover:bg-accent transition-colors text-center">
               <ShoppingBag className="h-8 w-8 mx-auto mb-2 text-primary" />
@@ -124,6 +125,12 @@ export default function AdminDashboardPage() {
              <button className="w-full p-4 border rounded-lg hover:bg-accent transition-colors text-center">
               <BarChart3 className="h-8 w-8 mx-auto mb-2 text-primary" />
               View Analytics
+            </button>
+          </Link>
+          <Link href="/products" passHref>
+             <button className="w-full p-4 border rounded-lg hover:bg-accent transition-colors text-center">
+              <Eye className="h-8 w-8 mx-auto mb-2 text-primary" />
+              View Products (Customer)
             </button>
           </Link>
         </CardContent>

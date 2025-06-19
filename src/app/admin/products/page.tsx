@@ -97,7 +97,7 @@ export default function AdminProductsPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium">
-                        <Link href={`/products/${product.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-primary">
+                        <Link href={`/products/${product.id}`} className="hover:underline text-primary">
                             {product.name}
                         </Link>
                       </TableCell>
@@ -109,7 +109,7 @@ export default function AdminProductsPage() {
                           <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Menu</span></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild><Link href={`/admin/products/edit/${product.id}`} className="cursor-pointer"><Edit className="mr-2 h-4 w-4" /> Edit</Link></DropdownMenuItem>
-                            <DropdownMenuItem asChild><Link href={`/products/${product.id}`} target="_blank" className="cursor-pointer"><Eye className="mr-2 h-4 w-4" /> View</Link></DropdownMenuItem>
+                            <DropdownMenuItem asChild><Link href={`/products/${product.id}`} className="cursor-pointer"><Eye className="mr-2 h-4 w-4" /> View</Link></DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setProductToDelete(product)} className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
