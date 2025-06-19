@@ -26,14 +26,14 @@ export interface User {
   updatedAt: string;
   lastLogin?: string;
   themePreference?: Theme;
-  addresses?: Address[]; // New field for address book
+  addresses?: Address[];
 }
 
 export interface Category {
   id: string;
   name: string;
   slug: string;
-  description?: string;
+  description: string;
   parentId: string | null;
   imageId: string | null;
   displayOrder: number;
@@ -71,6 +71,7 @@ export interface CartItem {
 export interface Cart {
   userId: string;
   items: CartItem[];
+  savedForLaterItems?: CartItem[]; // Added for "Save for Later"
   updatedAt: string;
 }
 
@@ -89,7 +90,7 @@ export interface Order {
   totalAmount: number;
   orderDate: string;
   status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Completed';
-  shippingAddress: Address; // Changed from any to Address
+  shippingAddress: Address;
   paymentDetails?: any;
 }
 

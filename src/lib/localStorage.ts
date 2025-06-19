@@ -64,7 +64,7 @@ function initializeDataOnce() {
     if (adminUser.password !== 'password') {
       adminUser.password = 'password';
     }
-    if (adminUser.addresses === undefined) adminUser.addresses = []; // Initialize addresses for existing admin
+    if (adminUser.addresses === undefined) adminUser.addresses = []; 
   } else {
     adminUser = {
       id: crypto.randomUUID(),
@@ -75,11 +75,11 @@ function initializeDataOnce() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       themePreference: 'system',
-      addresses: [], // Initialize addresses for new admin
+      addresses: [], 
     };
     users.push(adminUser);
   }
-  users = users.map(u => ({ ...u, addresses: u.addresses || [] })); // Ensure all users have addresses array
+  users = users.map(u => ({ ...u, addresses: u.addresses || [] })); 
   setItem(KEYS.USERS, users);
 
 
@@ -95,6 +95,7 @@ function initializeDataOnce() {
         ...cat,
         id: `cat_${cat.slug}_${crypto.randomUUID().slice(0,4)}`,
         slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
+        description: cat.description || '',
         parentId: cat.parentId || null,
         imageId: cat.imageId || null,
         displayOrder: cat.displayOrder || index + 1,
@@ -107,6 +108,7 @@ function initializeDataOnce() {
      categories = categories.map((cat, index) => ({
         ...cat,
         slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
+        description: cat.description || '',
         parentId: cat.parentId === undefined ? null : cat.parentId,
         imageId: cat.imageId === undefined ? null : cat.imageId,
         displayOrder: cat.displayOrder === undefined ? index + 1 : cat.displayOrder,
@@ -191,7 +193,7 @@ const addUser = (user: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'role' | 'a
     updatedAt: now,
     role: user.role || 'customer',
     themePreference: user.themePreference || 'system',
-    addresses: [], // Initialize empty addresses array
+    addresses: [], 
   };
   users.push(newUser);
   setItem(KEYS.USERS, users);
@@ -207,7 +209,7 @@ const updateUser = (updatedUser: User): User | null => {
       password: updatedUser.password || users[index].password,
       themePreference: updatedUser.themePreference || users[index].themePreference,
       updatedAt: new Date().toISOString(),
-      addresses: updatedUser.addresses || users[index].addresses || [], // Ensure addresses array is present
+      addresses: updatedUser.addresses || users[index].addresses || [], 
     };
     setItem(KEYS.USERS, users);
     const sessionUser = getCurrentUser();
@@ -231,7 +233,6 @@ const deleteUser = (userId: string): boolean => {
 const findUserByEmail = (email: string): User | undefined => getUsers().find(u => u.email === email);
 const findUserById = (userId: string): User | undefined => getUsers().find(u => u.id === userId);
 
-// Address Book functions
 const getUserAddresses = (userId: string): Address[] => {
   const user = findUserById(userId);
   return user?.addresses || [];
@@ -253,7 +254,6 @@ const addAddressToUser = (userId: string, addressData: Omit<Address, 'id' | 'use
   if (newAddress.isDefault) {
     user.addresses.forEach(addr => addr.isDefault = false);
   } else if (user.addresses.length === 0) {
-    // If it's the first address and not explicitly set as default, make it default.
     newAddress.isDefault = true;
   }
 
@@ -276,7 +276,6 @@ const updateUserAddress = (userId: string, updatedAddress: Address): Address | n
 
   user.addresses[addressIndex] = updatedAddress;
 
-  // Ensure at least one address is default if there are addresses
   if (!user.addresses.some(addr => addr.isDefault) && user.addresses.length > 0) {
     user.addresses[0].isDefault = true;
   }
@@ -295,7 +294,7 @@ const deleteUserAddress = (userId: string, addressId: string): boolean => {
 
   if (user.addresses.length < initialLength) {
     if (addressToDelete?.isDefault && user.addresses.length > 0) {
-      user.addresses[0].isDefault = true; // Set the first remaining address as default
+      user.addresses[0].isDefault = true; 
     }
     updateUser(user);
     return true;
@@ -411,6 +410,7 @@ const updateCategory = (updatedCategory: Category): Category | null => {
       ...categories[index],
       ...updatedCategory,
       slug: updatedCategory.slug || categories[index].slug || updatedCategory.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
+      description: updatedCategory.description || categories[index].description || '',
       updatedAt: new Date().toISOString()
     };
     setItem(KEYS.CATEGORIES, categories);
@@ -440,14 +440,14 @@ const deleteCategory = async (categoryId: string): Promise<boolean> => {
     const products = getProducts();
     products.forEach(p => {
       if (p.categoryId === categoryId) {
-        p.categoryId = ''; // Or some 'uncategorized' ID
+        p.categoryId = ''; 
         updateProduct(p);
       }
     });
 
     const childCategories = getCategories().filter(c => c.parentId === categoryId);
     for (const child of childCategories) {
-        child.parentId = null; // Make them top-level or reassign as needed
+        child.parentId = null; 
         updateCategory(child);
     }
     return true;
@@ -465,9 +465,12 @@ const getChildCategories = (parentId: string | null): Category[] => {
 
 const getCart = (userId: string): Cart | null => {
     const carts = getItem<Cart[]>(KEYS.CARTS) || [];
-    const userCart = carts.find(cart => cart.userId === userId);
-    if (userCart) return userCart;
-    const newCart: Cart = { userId, items: [], updatedAt: new Date().toISOString() };
+    let userCart = carts.find(cart => cart.userId === userId);
+    if (userCart) {
+      userCart.savedForLaterItems = userCart.savedForLaterItems || []; // Ensure savedForLaterItems exists
+      return userCart;
+    }
+    const newCart: Cart = { userId, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
     carts.push(newCart);
     setItem(KEYS.CARTS, carts);
     return newCart;
@@ -480,12 +483,26 @@ const updateCart = (cart: Cart): void => {
       const product = findProductById(item.productId);
       return {
         ...item,
-        name: product?.name || item.name, // Fallback to cart item name if product not found
+        name: product?.name || item.name, 
         primaryImageId: product?.primaryImageId || item.primaryImageId,
       };
     });
 
-    const updatedCart = { ...cart, items: updatedItems, updatedAt: new Date().toISOString() };
+    const updatedSavedForLaterItems = (cart.savedForLaterItems || []).map(item => {
+        const product = findProductById(item.productId);
+        return {
+            ...item,
+            name: product?.name || item.name,
+            primaryImageId: product?.primaryImageId || item.primaryImageId,
+        };
+    });
+
+    const updatedCart = { 
+        ...cart, 
+        items: updatedItems, 
+        savedForLaterItems: updatedSavedForLaterItems, 
+        updatedAt: new Date().toISOString() 
+    };
 
     if (index !== -1) {
         carts[index] = updatedCart;
@@ -495,8 +512,74 @@ const updateCart = (cart: Cart): void => {
     setItem(KEYS.CARTS, carts);
 };
 const clearCart = (userId: string): void => {
-    updateCart({ userId, items: [], updatedAt: new Date().toISOString() });
+    const cart = getCart(userId);
+    if (cart) {
+        updateCart({ ...cart, items: [], updatedAt: new Date().toISOString() }); // Only clear active items
+    }
 };
+const moveToSavedForLater = (userId: string, productId: string): void => {
+    const cart = getCart(userId);
+    if (!cart) return;
+
+    const itemIndex = cart.items.findIndex(item => item.productId === productId);
+    if (itemIndex === -1) return;
+
+    const [itemToMove] = cart.items.splice(itemIndex, 1);
+    cart.savedForLaterItems = cart.savedForLaterItems || [];
+    
+    const existingSavedItemIndex = cart.savedForLaterItems.findIndex(item => item.productId === productId);
+    if (existingSavedItemIndex > -1) {
+        // If item already exists in saved, update its quantity (or decide on other logic, e.g., replace)
+        cart.savedForLaterItems[existingSavedItemIndex].quantity += itemToMove.quantity;
+    } else {
+        cart.savedForLaterItems.push(itemToMove);
+    }
+    updateCart(cart);
+};
+const moveToCartFromSaved = (userId: string, productId: string): boolean => {
+    const cart = getCart(userId);
+    if (!cart || !cart.savedForLaterItems) return false;
+
+    const itemIndex = cart.savedForLaterItems.findIndex(item => item.productId === productId);
+    if (itemIndex === -1) return false;
+
+    const [itemToMove] = cart.savedForLaterItems.splice(itemIndex, 1);
+    const product = findProductById(itemToMove.productId);
+
+    if (!product || product.stock < itemToMove.quantity) {
+        // Not enough stock or product doesn't exist, move it back to saved for later
+        cart.savedForLaterItems.push(itemToMove); 
+        updateCart(cart);
+        console.error("Not enough stock or product missing, item returned to saved for later.");
+        return false; // Indicate failure
+    }
+    
+    const existingCartItemIndex = cart.items.findIndex(item => item.productId === productId);
+    if (existingCartItemIndex > -1) {
+        if (cart.items[existingCartItemIndex].quantity + itemToMove.quantity <= product.stock) {
+            cart.items[existingCartItemIndex].quantity += itemToMove.quantity;
+        } else {
+            // Not enough stock for combined quantity, add only what's possible or none
+            // For simplicity, let's add none and log, then return item to saved.
+            cart.savedForLaterItems.push(itemToMove);
+            updateCart(cart);
+            console.error("Not enough stock for combined quantity, item returned to saved for later.");
+            return false;
+        }
+    } else {
+        cart.items.push(itemToMove);
+    }
+    updateCart(cart);
+    return true; // Indicate success
+};
+const removeFromSavedForLater = (userId: string, productId: string): void => {
+    const cart = getCart(userId);
+    if (!cart || !cart.savedForLaterItems) return;
+
+    cart.savedForLaterItems = cart.savedForLaterItems.filter(item => item.productId !== productId);
+    updateCart(cart);
+};
+
 
 const getOrders = (userId?: string): Order[] => {
     const allOrders = getItem<Order[]>(KEYS.ORDERS) || [];
@@ -507,13 +590,13 @@ const getOrders = (userId?: string): Order[] => {
 };
 
 const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }): Order => {
-    const orders = getOrders(); // Get all orders to append
+    const orders = getOrders(); 
 
     const orderItemsWithDetails: OrderItem[] = orderData.items.map(item => {
       const product = findProductById(item.productId);
       return {
         ...item,
-        name: product?.name || 'Unknown Product', // Fallback name
+        name: product?.name || 'Unknown Product', 
         primaryImageId: product?.primaryImageId,
       };
     });
@@ -521,14 +604,13 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
     const newOrder: Order = {
         ...orderData,
         items: orderItemsWithDetails,
-        shippingAddress: orderData.shippingAddress, // Ensure this is passed correctly
+        shippingAddress: orderData.shippingAddress, 
         id: crypto.randomUUID(),
         orderDate: new Date().toISOString(),
     };
     orders.push(newOrder);
     setItem(KEYS.ORDERS, orders);
 
-    // Update product stock and purchases
     newOrder.items.forEach(item => {
       const product = findProductById(item.productId);
       if (product) {
@@ -712,6 +794,9 @@ const localStorageService = {
   getCart,
   updateCart,
   clearCart,
+  moveToSavedForLater,
+  moveToCartFromSaved,
+  removeFromSavedForLater,
   getOrders,
   addOrder,
   getLoginActivity,
