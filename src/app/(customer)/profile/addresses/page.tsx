@@ -27,6 +27,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { AddressForm, type AddressFormValues } from '@/components/customer/AddressForm';
+import { Badge } from '@/components/ui/badge'; // Added Badge import
 
 export default function AddressesPage() {
   const { currentUser, isLoading: authLoading, refreshUser } = useAuth();
