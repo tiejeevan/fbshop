@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { localStorageService } from '@/lib/localStorageService';
 import type { AdminActionLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,29 +10,39 @@ import { FileText, Filter, ArrowLeft, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDataSource } from '@/contexts/DataSourceContext';
+import { useToast } from '@/hooks/use-toast';
 
 const ITEMS_PER_PAGE = 15;
 const ALL_FILTER_VALUE = "__ALL_LOG_FILTERS__";
 
 export default function AdminLogsPage() {
   const [allLogs, setAllLogs] = useState<AdminActionLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isComponentLoading, setIsComponentLoading] = useState(true); // Renamed to avoid conflict
   const [currentPage, setCurrentPage] = useState(1);
   const [filterAdminEmail, setFilterAdminEmail] = useState('');
   const [filterActionType, setFilterActionType] = useState('');
   const [filterEntityType, setFilterEntityType] = useState('');
 
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+  const { toast } = useToast();
+
   const fetchLogs = useCallback(async () => {
-    setIsLoading(true);
+    if (isDataSourceLoading || !dataService) {
+      setIsComponentLoading(true);
+      return;
+    }
+    setIsComponentLoading(true);
     try {
-      const fetchedLogs = await localStorageService.getAdminActionLogs();
+      const fetchedLogs = await dataService.getAdminActionLogs();
       setAllLogs(fetchedLogs);
     } catch (error) {
       console.error("Failed to fetch admin logs:", error);
+      toast({ title: "Error Fetching Logs", description: "Could not load admin activity logs.", variant: "destructive" });
       setAllLogs([]);
     }
-    setIsLoading(false);
-  }, []);
+    setIsComponentLoading(false);
+  }, [dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
     fetchLogs();
@@ -63,7 +72,7 @@ export default function AdminLogsPage() {
   }, [filterAdminEmail, filterActionType, filterEntityType]);
 
 
-  if (isLoading) {
+  if (isDataSourceLoading || isComponentLoading) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />Loading logs...</div>;
   }
 
@@ -84,7 +93,7 @@ export default function AdminLogsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
-          <CardDescription>Review of actions performed by administrators. Logs are stored in IndexedDB.</CardDescription>
+          <CardDescription>Review of actions performed by administrators. Using {dataService === null ? 'loading...' : (dataService as any)?.constructor?.name === 'localStorageDataService' ? 'Local Storage/IndexedDB' : 'Firebase Firestore'}.</CardDescription>
            <div className="mt-4 flex flex-col sm:flex-row gap-2 items-center border-t pt-4">
             <Filter className="h-5 w-5 text-muted-foreground mr-2 hidden sm:block" />
             <Select
