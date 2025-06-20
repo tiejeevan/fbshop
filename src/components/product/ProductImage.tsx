@@ -21,7 +21,7 @@ interface ProductImageProps {
   fill?: boolean; // For NextImage
   sizes?: string; // For NextImage
   priority?: boolean; // For NextImage
-  unoptimized?: boolean; // For NextImage (useful for local Object URLs)
+  // unoptimized is now determined by the hook based on URL type
   "data-ai-hint"?: string;
 }
 
@@ -41,10 +41,9 @@ export function ProductImage({
   height,
   sizes,
   priority,
-  unoptimized = true, // Default to true for Object URLs from IndexedDB
   "data-ai-hint": dataAiHint,
 }: ProductImageProps) {
-  const { imageUrl, isLoading, error } = useProductImage(imageId);
+  const { imageUrl, isLoading, error, isExternalUrl } = useProductImage(imageId);
 
   if (isLoading) {
     return <Skeleton className={cn("rounded-md", className)} />;
@@ -61,6 +60,11 @@ export function ProductImage({
     );
   }
 
+  // Determine if Next.js should optimize the image.
+  // Local blob URLs (from IndexedDB) should not be optimized by Next/Image.
+  // External URLs (like Firebase Storage) can be optimized if the domain is whitelisted.
+  const unoptimized = !isExternalUrl;
+
   if (fill) {
      return (
         <div className={cn("relative overflow-hidden", className)} data-ai-hint={dataAiHint}>
@@ -71,7 +75,7 @@ export function ProductImage({
                 className={cn("object-contain", imageClassName)}
                 sizes={sizes}
                 priority={priority}
-                unoptimized={unoptimized} // Object URLs are already local
+                unoptimized={unoptimized} 
             />
         </div>
      );
@@ -82,12 +86,12 @@ export function ProductImage({
         <Image
             src={imageUrl || PLACEHOLDER_SVG_MINIMAL}
             alt={alt}
-            width={width || 100} // Provide default or ensure parent controls size
+            width={width || 100} 
             height={height || 100}
             className={cn("object-contain", imageClassName)}
             sizes={sizes}
             priority={priority}
-            unoptimized={unoptimized} // Object URLs are already local
+            unoptimized={unoptimized}
         />
     </div>
   );

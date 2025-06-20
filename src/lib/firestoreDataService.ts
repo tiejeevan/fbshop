@@ -11,6 +11,9 @@ import type { Firestore } from 'firebase/firestore';
 import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup, documentId
 } from 'firebase/firestore';
+import { storage as firebaseStorage } from './firebase'; // Import Firebase Storage instance
+import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject, refFromURL } from 'firebase/storage';
+
 
 // Import the original localStorageDataService for fallbacks or specific local operations
 import { localStorageDataService as localDBServiceFallback } from './localStorageDataService'; // For fallbacks
@@ -19,10 +22,9 @@ import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, delet
 
 let db: Firestore | null = null;
 
-const MAX_FIRESTORE_ADMIN_LOGS = 500; // Max logs to keep in Firestore via client-side trim attempt
-const BATCH_LIMIT = 490; // Firestore batch write limit is 500, keep some buffer
+const MAX_FIRESTORE_ADMIN_LOGS = 500; 
+const BATCH_LIMIT = 490; 
 
-// Helper to convert Firestore Timestamps in nested objects/arrays
 function convertTimestampsToISO(data: any): any {
   if (data instanceof Timestamp) {
     return data.toDate().toISOString();
@@ -40,7 +42,6 @@ function convertTimestampsToISO(data: any): any {
   return data;
 }
 
-// Helper to map Firestore doc snapshot to typed object
 function mapDocToType<T extends { id: string }>(docSnap: import('firebase/firestore').DocumentSnapshot): T | undefined {
     if (!docSnap.exists()) return undefined;
     const data = docSnap.data();
@@ -74,17 +75,17 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         console.log("Admin user not found in Firestore, creating one...");
         const adminData: Omit<User, 'id' | 'createdAt' | 'updatedAt'> = {
             email: 'admin@localcommerce.com',
-            password: 'password', // In a real app, hash this or use Firebase Auth
+            password: 'password', 
             role: 'admin',
             name: 'Administrator (Firestore)',
             themePreference: 'system',
             addresses: [],
         };
         try {
-            const userDocRef = doc(usersCol); // Let Firestore generate ID
+            const userDocRef = doc(usersCol); 
             await setDoc(userDocRef, {
                 ...adminData,
-                id: userDocRef.id, // Store the ID within the document
+                id: userDocRef.id, 
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             });
@@ -182,19 +183,18 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async addUser(userData): Promise<User> {
     if (!db) throw new Error("Firestore not initialized");
     const usersRef = collection(db, "users");
-    const docRef = doc(usersRef); // Firestore generates ID
+    const docRef = doc(usersRef); 
     const nowServerTimestamp = serverTimestamp();
     const newUserFSData = {
-      ...userData, // email, password (store hashed in real app), name
-      id: docRef.id, // Store the generated ID within the document
+      ...userData, 
+      id: docRef.id, 
       createdAt: nowServerTimestamp,
       updatedAt: nowServerTimestamp,
       role: userData.role || 'customer',
       themePreference: userData.themePreference || 'system',
-      addresses: [], // Initialize with empty addresses
+      addresses: [], 
     };
     await setDoc(docRef, newUserFSData);
-    // For immediate return, create a client-side version with approximate timestamps
     const clientNewUser: User = {
         ...userData,
         id: docRef.id,
@@ -210,8 +210,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const userRef = doc(db, "users", updatedUser.id);
     const updatePayload: any = { ...updatedUser };
-    delete updatePayload.id; // Don't try to update the ID
-    delete updatePayload.createdAt; // Don't try to update createdAt
+    delete updatePayload.id; 
+    delete updatePayload.createdAt; 
     updatePayload.updatedAt = serverTimestamp();
     if (updatePayload.password === undefined || updatePayload.password === '') {
         delete updatePayload.password;
@@ -224,23 +224,15 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     try {
       const batch = writeBatch(db);
-      // Delete the user document
       batch.delete(doc(db, "users", userId));
-
-      // Delete wishlist items (subcollection)
       const wishlistCol = collection(db, `users/${userId}/wishlist`);
       const wishlistSnapshot = await getDocs(wishlistCol);
       wishlistSnapshot.docs.forEach(d => batch.delete(d.ref));
-      
-      // Delete reviews made by this user (requires querying all reviews)
       const reviewsQuery = query(collectionGroup(db, 'reviews'), where('userId', '==', userId));
       const reviewsSnapshot = await getDocs(reviewsQuery);
       reviewsSnapshot.forEach(reviewDoc => batch.delete(reviewDoc.ref));
-      // Note: After deleting reviews, product averageRating/reviewCount won't auto-update without server-side logic (e.g., Cloud Function).
-      // This client-side delete won't trigger such updates for affected products.
-
       await batch.commit();
-      localDBServiceFallback.clearCart(userId); // Carts are still local
+      localDBServiceFallback.clearCart(userId); 
       return true;
     } catch (error) {
       console.error("Error deleting user and related data from Firestore:", error);
@@ -273,8 +265,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!user) return null;
     const newAddress: Address = {
       ...addressData,
-      id: doc(collection(db!, "users")).id.substring(0, 20), // Generate a client-side ID for sub-object
-      userId, // Not strictly needed if embedded, but good for consistency
+      id: doc(collection(db!, "users")).id.substring(0, 20), 
+      userId, 
       isDefault: addressData.isDefault || false,
     };
     const addresses = user.addresses || [];
@@ -357,8 +349,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
      return {
         ...productData,
         id: docRef.id,
-        createdAt: new Date().toISOString(), // Approx for client
-        updatedAt: new Date().toISOString(), // Approx for client
+        createdAt: new Date().toISOString(), 
+        updatedAt: new Date().toISOString(), 
         views:0, purchases:0, averageRating:0, reviewCount:0,
         primaryImageId: productData.primaryImageId || null,
         additionalImageIds: productData.additionalImageIds || [],
@@ -379,10 +371,9 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     try {
       const productRef = doc(db, "products", productId);
-      const product = await this.findProductById(productId); // To get image IDs for local deletion
+      const product = await this.findProductById(productId); 
 
       const batch = writeBatch(db!);
-      // Delete reviews subcollection
       const reviewsCol = collection(db, `products/${productId}/reviews`);
       const reviewsSnapshot = await getDocs(reviewsCol);
       reviewsSnapshot.docs.forEach(d => batch.delete(d.ref));
@@ -390,8 +381,16 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       batch.delete(productRef);
       await batch.commit();
 
-      if(product?.primaryImageId) await deleteImageFromLocalDB(product.primaryImageId);
-      if(product?.additionalImageIds) await deleteImagesForEntityFromLocalDB(product.additionalImageIds);
+      if (product) {
+        const imageIdsToDelete = [product.primaryImageId, ...(product.additionalImageIds || [])].filter(id => !!id) as string[];
+        for (const imageUrl of imageIdsToDelete) {
+            if (imageUrl.startsWith('https://firebasestorage.googleapis.com')) {
+                await this.deleteImage(imageUrl);
+            } else {
+                await deleteImageFromLocalDB(imageUrl); // Fallback to local if it's an old ID
+            }
+        }
+      }
       return true;
     } catch (e) {
       console.error("Error deleting product from Firestore:", e);
@@ -429,8 +428,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       ...categoryData,
       id: docRef.id,
       imageId: categoryData.imageId || null,
-      createdAt: new Date().toISOString(), // Approx
-      updatedAt: new Date().toISOString(), // Approx
+      createdAt: new Date().toISOString(), 
+      updatedAt: new Date().toISOString(), 
     } as Category;
   },
   async updateCategory(updatedCategory: Category): Promise<Category | null> {
@@ -463,7 +462,13 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         batch.update(childDoc.ref, { parentId: null, updatedAt: serverTimestamp() });
       });
 
-      if(categoryToDelete.imageId) await deleteImageFromLocalDB(categoryToDelete.imageId);
+      if(categoryToDelete.imageId){
+          if (categoryToDelete.imageId.startsWith('https://firebasestorage.googleapis.com')) {
+            await this.deleteImage(categoryToDelete.imageId);
+          } else {
+            await deleteImageFromLocalDB(categoryToDelete.imageId); // Fallback
+          }
+      }
       batch.delete(doc(db, "categories", categoryId));
       await batch.commit();
       return true;
@@ -486,7 +491,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return mapDocsToTypeArray<Category>(snapshot);
   },
 
-  // Cart methods will continue to use LocalStorage fallback for simplicity in this phase
   async getCart(userId: string): Promise<Cart | null> {
     return localDBServiceFallback.getCart(userId);
   },
@@ -518,7 +522,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async addOrder(orderData): Promise<Order> {
     if (!db) throw new Error("Firestore not initialized");
     const ordersRef = collection(db, "orders");
-    const newOrderRef = doc(ordersRef); // Generate new order ID
+    const newOrderRef = doc(ordersRef); 
 
     try {
       const finalOrder = await runTransaction(db, async (transaction) => {
@@ -549,7 +553,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
         const newOrderDataFS = {
           ...orderData,
-          id: newOrderRef.id, // Use pre-generated ID
+          id: newOrderRef.id, 
           items: orderItemsWithDetails,
           shippingAddress: orderData.shippingAddress,
           orderDate: serverTimestamp(),
@@ -560,7 +564,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             ...orderData,
             id: newOrderRef.id,
             items: orderItemsWithDetails,
-            orderDate: new Date().toISOString(), // Client-side approximation
+            orderDate: new Date().toISOString(), 
         } as Order;
       });
       return finalOrder;
@@ -665,12 +669,12 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             updatedAt: serverTimestamp(),
         });
     });
-    return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() }; // Approx for client
+    return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() }; 
   },
   async deleteReview(reviewIdString: string): Promise<void> { 
     if (!db) throw new Error("Firestore not initialized");
     
-    const parts = reviewIdString.split('/'); // Expected format: `productId/reviewDocId` OR just `reviewDocId`
+    const parts = reviewIdString.split('/'); 
     let productId: string | undefined;
     let reviewDocId: string;
 
@@ -679,7 +683,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         reviewDocId = parts[1];
     } else if (parts.length === 1) {
         reviewDocId = parts[0];
-        // Need to find productId if not provided
         const reviewsGroup = collectionGroup(db, 'reviews');
         const q = query(reviewsGroup, where(documentId(), '==', reviewDocId), limit(1));
         const snapshot = await getDocs(q);
@@ -775,8 +778,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       id: logDocRef.id,
       timestamp: serverTimestamp(),
     });
-
-    // Basic client-side trimming (not ideal for scale, better with Cloud Function + TTL)
     const snapshot = await getDocs(query(logsCollection, orderBy('timestamp', 'asc')));
     if (snapshot.size > MAX_FIRESTORE_ADMIN_LOGS) {
         const batch = writeBatch(db);
@@ -788,18 +789,62 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     }
   },
 
-  // Image handling methods (delegate to local IndexedDB as per plan)
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
-    return saveImageToLocalDB(entityId, imageType, imageFile);
+    if (!firebaseStorage) {
+      console.warn("Firebase Storage not available, falling back to LocalDB for image save.");
+      return saveImageToLocalDB(entityId, imageType, imageFile);
+    }
+    const filePath = `images/${entityId}/${imageType}/${Date.now()}_${imageFile.name}`;
+    const fileRef = storageRef(firebaseStorage, filePath);
+    
+    try {
+      const uploadTask = await uploadBytesResumable(fileRef, imageFile);
+      const downloadURL = await getDownloadURL(uploadTask.ref);
+      return downloadURL;
+    } catch (error) {
+      console.error("Error uploading image to Firebase Storage:", error);
+      throw error;
+    }
   },
+
   async getImage(imageId: string): Promise<Blob | null> {
+    // This method is primarily for IndexedDB. For Firebase, imageId will be a URL.
+    // If it's a URL, it's handled by ProductImage component directly.
+    // If by some chance an IndexedDB key is passed here while in Firebase mode, fallback.
+     if (imageId.startsWith('http')) {
+        console.warn("firestoreDataService.getImage called with a URL, this should be handled by client. Returning null.");
+        return null;
+    }
     return getImageFromLocalDB(imageId);
   },
+
   async deleteImage(imageId: string): Promise<void> {
-    return deleteImageFromLocalDB(imageId);
+    if (imageId.startsWith('http')) { // Assume it's a Firebase Storage URL
+        if (!firebaseStorage) {
+          console.warn("Firebase Storage not available for image deletion. Image URL:", imageId);
+          return;
+        }
+        try {
+          const imageRef = refFromURL(firebaseStorage, imageId);
+          await deleteObject(imageRef);
+        } catch (error) {
+          if ((error as any).code === 'storage/object-not-found') {
+            console.warn(`Image not found in Firebase Storage for deletion: ${imageId}`);
+          } else {
+            console.error("Error deleting image from Firebase Storage:", error, imageId);
+            // Do not throw error to allow other deletions to proceed if part of batch
+          }
+        }
+    } else { // Assume it's an IndexedDB key
+        await deleteImageFromLocalDB(imageId);
+    }
   },
+
   async deleteImagesForEntity(imageIds: string[]): Promise<void> {
-    return deleteImagesForEntityFromLocalDB(imageIds);
+    for (const id of imageIds) {
+        if (id) { // Ensure ID is not null/undefined
+            await this.deleteImage(id); // deleteImage handles logic for Firebase URL vs Local Key
+        }
+    }
   },
 };
-
