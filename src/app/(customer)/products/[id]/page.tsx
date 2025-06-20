@@ -1,11 +1,10 @@
 
 'use client';
 
-import React, { useEffect, useState, use, useCallback, ChangeEvent, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, ChangeEvent, useMemo, useRef, use } from 'react'; // Added use
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Product, Category, Review as ReviewType } from '@/types';
 import { ArrowLeft, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, ImageOff, Edit3, Trash2, Save, Ban, UploadCloud, AlertTriangle, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -22,13 +21,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
 import { LoginModal } from '@/components/auth/LoginModal';
-
+import { useDataSource } from '@/contexts/DataSourceContext'; // Added
 
 const MAX_TOTAL_IMAGES = 10;
-const MAX_FILE_SIZE_MB = 0.5;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_FILE_SIZE_MB = 0.5; // Example, adjust as needed
+// const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface EditableImageData {
   id: string | null;
@@ -37,16 +35,22 @@ interface EditableImageData {
   toBeDeleted?: boolean;
 }
 
-export default function ProductDetailPage({ params }: { params: { id:string } }) { // Removed Promise for params
+// Modified props to expect paramsPromise
+export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id:string }> }) {
+  const params = use(paramsPromise); // Unwrap the promise here
+  const productIdFromParams = params.id;
+
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [reviews, setReviews] = useState<ReviewType[]>([]);
-  const [averageRating, setAverageRating] = useState(0);
+  // const [averageRating, setAverageRating] = useState(0); // averageRating is on product object
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+
 
   const [isEditing, setIsEditing] = useState(false);
   const [editableProductData, setEditableProductData] = useState<Partial<Product>>({});
@@ -62,47 +66,57 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
   const mainAddToCartRef = useRef<HTMLDivElement>(null);
 
 
-  const fetchProductData = useCallback((productId: string) => {
-    setIsLoading(true);
-    const fetchedProduct = localStorageService.findProductById(productId);
-    if (fetchedProduct) {
-      setProduct(fetchedProduct);
-      const imageIds = [
-        fetchedProduct.primaryImageId,
-        ...(fetchedProduct.additionalImageIds || [])
-      ].filter((id): id is string => !!id);
-      setAllProductImageIdsState(imageIds);
-
-      if (fetchedProduct.categoryId) {
-        const fetchedCategory = localStorageService.findCategoryById(fetchedProduct.categoryId);
-        setCategory(fetchedCategory || null);
-      }
-      if(currentUser) {
-        localStorageService.addRecentlyViewed(currentUser.id, fetchedProduct.id);
-      }
-      const productReviews = localStorageService.getReviewsForProduct(productId);
-      setReviews(productReviews);
-      const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
-      setAverageRating(productReviews.length > 0 ? totalRating / productReviews.length : 0);
-      
-      setEditableProductData({ name: fetchedProduct.name, description: fetchedProduct.description, price: fetchedProduct.price, stock: fetchedProduct.stock, categoryId: fetchedProduct.categoryId });
-      setEditablePrimaryImage({ id: fetchedProduct.primaryImageId || null, file: null, previewUrl: null, toBeDeleted: false });
-      setEditableAdditionalImages(
-        (fetchedProduct.additionalImageIds || []).map(id => ({ id, file: null, previewUrl: null, toBeDeleted: false }))
-      );
-      setReviewsToDelete([]);
-    } else {
-      toast({ title: "Product Not Found", variant: "destructive" });
-      router.push('/products');
+  const fetchProductData = useCallback(async (productId: string) => {
+    if (!dataService || isDataSourceLoading) {
+        setIsLoading(true);
+        return;
     }
-    setIsLoading(false);
-  }, [currentUser, router, toast]);
+    setIsLoading(true);
+    try {
+        const fetchedProduct = await dataService.findProductById(productId);
+        if (fetchedProduct) {
+            setProduct(fetchedProduct);
+            const imageIds = [
+                fetchedProduct.primaryImageId,
+                ...(fetchedProduct.additionalImageIds || [])
+            ].filter((id): id is string => !!id);
+            setAllProductImageIdsState(imageIds);
+
+            if (fetchedProduct.categoryId) {
+                const fetchedCategory = await dataService.findCategoryById(fetchedProduct.categoryId);
+                setCategory(fetchedCategory || null);
+            }
+            if (currentUser) {
+                await dataService.addRecentlyViewed(currentUser.id, fetchedProduct.id);
+            }
+            const productReviews = await dataService.getReviewsForProduct(productId);
+            setReviews(productReviews);
+            // averageRating is now part of product, no need to recalculate here unless reviews change live
+            
+            setEditableProductData({ name: fetchedProduct.name, description: fetchedProduct.description, price: fetchedProduct.price, stock: fetchedProduct.stock, categoryId: fetchedProduct.categoryId });
+            setEditablePrimaryImage({ id: fetchedProduct.primaryImageId || null, file: null, previewUrl: null, toBeDeleted: false });
+            setEditableAdditionalImages(
+                (fetchedProduct.additionalImageIds || []).map(id => ({ id, file: null, previewUrl: null, toBeDeleted: false }))
+            );
+            setReviewsToDelete([]);
+
+        } else {
+            toast({ title: "Product Not Found", variant: "destructive" });
+            router.push('/products');
+        }
+    } catch (error) {
+        console.error("Error fetching product details:", error);
+        toast({ title: "Error", description: "Could not load product data.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  }, [currentUser, router, toast, dataService, isDataSourceLoading]);
 
   useEffect(() => {
-    if (params?.id) { // Check if params.id is available
-      fetchProductData(params.id);
+    if (productIdFromParams) {
+      fetchProductData(productIdFromParams);
     }
-  }, [params, fetchProductData]); // Add params to dependency array
+  }, [productIdFromParams, fetchProductData]);
 
   const currentDisplayableImageIds = useMemo(() => {
     if (isEditing) {
@@ -142,6 +156,9 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
     setIsZoomed(false);
   }, [currentDisplayableImageIds]);
 
+    const toggleZoom = () => setIsZoomed(prev => !prev);
+
+
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (!isViewerOpen) return;
@@ -178,40 +195,48 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
     setQuantity(updatedQuantity);
   };
   
-  const handleAddToCart = () => {
-    if (!product || quantity === 0) return; 
+  const handleAddToCart = async () => {
+    if (!product || quantity === 0 || !dataService) return; 
     if (!currentUser) {
       toast({ title: "Login Required", description: "Please log in to add items to your cart.", variant: "destructive" });
       return;
     }
-    const cart = localStorageService.getCart(currentUser.id) || { userId: currentUser.id, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
-    const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
+    try {
+        let cart = await dataService.getCart(currentUser.id);
+        if (!cart) {
+            cart = { userId: currentUser.id, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
+        }
+        const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
 
-    if (existingItemIndex > -1) {
-      const newQuantityInCart = cart.items[existingItemIndex].quantity + quantity;
-      if (newQuantityInCart <= product.stock) {
-        cart.items[existingItemIndex].quantity = newQuantityInCart;
-      } else {
-        toast({ title: "Stock Limit", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.`, variant: "destructive" });
-        return;
-      }
-    } else {
-       if (quantity <= product.stock) {
-        cart.items.push({
-            productId: product.id,
-            quantity,
-            price: product.price,
-            name: product.name,
-            primaryImageId: product.primaryImageId
-        });
-      } else {
-        toast({ title: "Stock Limit", description: `Max stock: ${product.stock}.`, variant: "destructive" });
-        return;
-      }
+        if (existingItemIndex > -1) {
+        const newQuantityInCart = cart.items[existingItemIndex].quantity + quantity;
+        if (newQuantityInCart <= product.stock) {
+            cart.items[existingItemIndex].quantity = newQuantityInCart;
+        } else {
+            toast({ title: "Stock Limit", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.`, variant: "destructive" });
+            return;
+        }
+        } else {
+        if (quantity <= product.stock) {
+            cart.items.push({
+                productId: product.id,
+                quantity,
+                price: product.price,
+                name: product.name,
+                primaryImageId: product.primaryImageId
+            });
+        } else {
+            toast({ title: "Stock Limit", description: `Max stock: ${product.stock}.`, variant: "destructive" });
+            return;
+        }
+        }
+        await dataService.updateCart(cart);
+        toast({ title: "Added to Cart", description: `${quantity} x ${product.name}` });
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch (error) {
+        console.error("Error adding to cart:", error);
+        toast({ title: "Error", description: "Failed to add item to cart.", variant: "destructive" });
     }
-    localStorageService.updateCart(cart);
-    toast({ title: "Added to Cart", description: `${quantity} x ${product.name}` });
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
   const onReviewSubmitted = () => {
@@ -234,66 +259,94 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
     if (product) fetchProductData(product.id);
   };
 
+  const generateProductChangeDescription = async (oldProduct: Product, newData: Partial<Product>, imageChanges: string[]): Promise<string> => {
+    if (!dataService) return "Data service unavailable for logging.";
+    const changes: string[] = [];
+    if (oldProduct.name !== newData.name && newData.name !== undefined) {
+      changes.push(`Name: "${oldProduct.name}" -> "${newData.name}".`);
+    }
+    if (oldProduct.description !== newData.description && newData.description !== undefined) {
+      changes.push('Description updated.');
+    }
+    if (oldProduct.price !== newData.price && newData.price !== undefined) {
+      changes.push(`Price: $${oldProduct.price.toFixed(2)} -> $${newData.price.toFixed(2)}.`);
+    }
+    if (oldProduct.stock !== newData.stock && newData.stock !== undefined) {
+      changes.push(`Stock: ${oldProduct.stock} -> ${newData.stock}.`);
+    }
+    if (oldProduct.categoryId !== newData.categoryId && newData.categoryId !== undefined) {
+      const oldCat = (await dataService.findCategoryById(oldProduct.categoryId))?.name || 'N/A';
+      const newCat = (await dataService.findCategoryById(newData.categoryId))?.name || 'N/A';
+      changes.push(`Category: "${oldCat}" -> "${newCat}".`);
+    }
+    changes.push(...imageChanges.filter(c => c.length > 0));
+
+    if (changes.length === 0) return `No significant changes detected for product "${newData.name || oldProduct.name}".`;
+    return `Updated product "${newData.name || oldProduct.name}": ${changes.join(' ')}`;
+  };
+
+
   const handleSaveEdits = async () => {
-    if (!product || !editableProductData) return;
+    if (!product || !editableProductData || !dataService || !currentUser) return;
     setIsLoading(true);
     
     let finalPrimaryImageId = editablePrimaryImage?.id || null;
     let finalAdditionalImageIds: string[] = [];
     const imageChangeDescriptions: string[] = [];
-
-    if (editablePrimaryImage?.file) { 
-        if (finalPrimaryImageId && editablePrimaryImage.id === finalPrimaryImageId) { 
-            await deleteImageFromDB(finalPrimaryImageId); 
-        }
-        finalPrimaryImageId = await saveImageToDB(product.id, 'primary', editablePrimaryImage.file); 
-        imageChangeDescriptions.push(product.primaryImageId ? 'Primary image updated.' : 'Primary image added.');
-    } else if (editablePrimaryImage?.toBeDeleted && finalPrimaryImageId) { 
-        await deleteImageFromDB(finalPrimaryImageId);
-        imageChangeDescriptions.push('Primary image removed.');
-        finalPrimaryImageId = null;
-    }
-
-    const imagesToKeepOrAddNew: string[] = [];
-    for (const imgData of editableAdditionalImages) {
-        if (imgData.file) { 
-            if (imgData.id && !imgData.toBeDeleted) { 
-                await deleteImageFromDB(imgData.id);
-            }
-            const newId = await saveImageToDB(product.id, Date.now() + Math.random().toString(36).substring(2,7), imgData.file);
-            imagesToKeepOrAddNew.push(newId);
-            imageChangeDescriptions.push(imgData.id ? 'Additional image updated.' : 'Additional image added.');
-        } else if (imgData.id && !imgData.toBeDeleted) { 
-            imagesToKeepOrAddNew.push(imgData.id);
-        } else if (imgData.id && imgData.toBeDeleted) { 
-            await deleteImageFromDB(imgData.id);
-            imageChangeDescriptions.push('Additional image removed.');
-        }
-    }
-    finalAdditionalImageIds = imagesToKeepOrAddNew;
-
     const oldProductSnapshot: Product = { ...product }; 
 
-    const updatedProductData: Product = {
-      ...product,
-      name: editableProductData.name || product.name,
-      description: editableProductData.description || product.description,
-      price: editableProductData.price !== undefined ? editableProductData.price : product.price,
-      stock: editableProductData.stock !== undefined ? editableProductData.stock : product.stock,
-      categoryId: editableProductData.categoryId || product.categoryId,
-      primaryImageId: finalPrimaryImageId,
-      additionalImageIds: finalAdditionalImageIds,
-      updatedAt: new Date().toISOString(),
-    };
-    localStorageService.updateProduct(updatedProductData);
+    try {
+        // Handle primary image
+        if (editablePrimaryImage?.file) { 
+            if (finalPrimaryImageId && editablePrimaryImage.id === finalPrimaryImageId) { 
+                await dataService.deleteImage(finalPrimaryImageId); 
+            }
+            finalPrimaryImageId = await dataService.saveImage(product.id, 'primary', editablePrimaryImage.file); 
+            imageChangeDescriptions.push(oldProductSnapshot.primaryImageId ? 'Primary image updated.' : 'Primary image added.');
+        } else if (editablePrimaryImage?.toBeDeleted && finalPrimaryImageId) { 
+            await dataService.deleteImage(finalPrimaryImageId);
+            imageChangeDescriptions.push('Primary image removed.');
+            finalPrimaryImageId = null;
+        }
 
-    for (const reviewId of reviewsToDelete) {
-        localStorageService.deleteReview(reviewId);
-    }
-    
-    const logDescription = generateProductChangeDescription(oldProductSnapshot, updatedProductData, imageChangeDescriptions);
-    if (currentUser) {
-        localStorageService.addAdminActionLog({
+        // Handle additional images
+        const imagesToKeepOrAddNew: string[] = [];
+        for (const imgData of editableAdditionalImages) {
+            if (imgData.file) { 
+                if (imgData.id && !imgData.toBeDeleted) { 
+                    await dataService.deleteImage(imgData.id);
+                }
+                const newId = await dataService.saveImage(product.id, Date.now() + Math.random().toString(36).substring(2,7), imgData.file);
+                imagesToKeepOrAddNew.push(newId);
+                imageChangeDescriptions.push(imgData.id ? 'Additional image updated.' : 'Additional image added.');
+            } else if (imgData.id && !imgData.toBeDeleted) { 
+                imagesToKeepOrAddNew.push(imgData.id);
+            } else if (imgData.id && imgData.toBeDeleted) { 
+                await dataService.deleteImage(imgData.id);
+                imageChangeDescriptions.push('Additional image removed.');
+            }
+        }
+        finalAdditionalImageIds = imagesToKeepOrAddNew;
+
+        const updatedProductData: Product = {
+        ...product,
+        name: editableProductData.name || product.name,
+        description: editableProductData.description || product.description,
+        price: editableProductData.price !== undefined ? editableProductData.price : product.price,
+        stock: editableProductData.stock !== undefined ? editableProductData.stock : product.stock,
+        categoryId: editableProductData.categoryId || product.categoryId,
+        primaryImageId: finalPrimaryImageId,
+        additionalImageIds: finalAdditionalImageIds,
+        updatedAt: new Date().toISOString(),
+        };
+        await dataService.updateProduct(updatedProductData);
+
+        for (const reviewId of reviewsToDelete) {
+            await dataService.deleteReview(reviewId);
+        }
+        
+        const logDescription = await generateProductChangeDescription(oldProductSnapshot, updatedProductData, imageChangeDescriptions);
+        await dataService.addAdminActionLog({
             adminId: currentUser.id,
             adminEmail: currentUser.email,
             actionType: 'PRODUCT_UPDATE',
@@ -301,11 +354,15 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
             entityId: product.id,
             description: logDescription,
         });
-    }
 
-    toast({ title: "Product Updated Successfully" });
-    setIsEditing(false);
-    if (product) fetchProductData(product.id); 
+        toast({ title: "Product Updated Successfully" });
+        setIsEditing(false);
+        fetchProductData(product.id); 
+    } catch (error) {
+        console.error("Error saving product edits:", error);
+        toast({ title: "Save Error", description: "Could not save product changes.", variant: "destructive" });
+        setIsLoading(false); // Ensure loading state is reset on error
+    }
   };
 
   const handleEditableFieldChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -316,10 +373,10 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
   const handlePrimaryImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && editablePrimaryImage) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        toast({ title: "File Too Large", description: `Primary image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
-        e.target.value = ''; return;
-      }
+    //   if (file.size > MAX_FILE_SIZE_BYTES) {
+    //     toast({ title: "File Too Large", description: `Primary image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
+    //     e.target.value = ''; return;
+    //   }
       if (editablePrimaryImage.previewUrl && editablePrimaryImage.previewUrl.startsWith('blob:')) URL.revokeObjectURL(editablePrimaryImage.previewUrl);
       setEditablePrimaryImage({ ...editablePrimaryImage, file: file, previewUrl: URL.createObjectURL(file), toBeDeleted: false });
     }
@@ -336,10 +393,10 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
   const handleAdditionalImageChange = async (e: ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (file) {
-       if (file.size > MAX_FILE_SIZE_BYTES) {
-        toast({ title: "File Too Large", description: `Additional image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
-        e.target.value = ''; return;
-      }
+    //    if (file.size > MAX_FILE_SIZE_BYTES) {
+    //     toast({ title: "File Too Large", description: `Additional image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
+    //     e.target.value = ''; return;
+    //   }
       setEditableAdditionalImages(prev => {
         const newImages = [...prev];
         if (newImages[index].previewUrl && newImages[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newImages[index].previewUrl!);
@@ -408,11 +465,11 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
   };
 
   const handleDeleteProduct = async () => {
-    if (!product || !currentUser) return;
+    if (!product || !currentUser || !dataService) return;
     const productName = product.name;
     const productId = product.id;
-    await localStorageService.deleteProduct(productId); 
-     localStorageService.addAdminActionLog({
+    await dataService.deleteProduct(productId); 
+    await dataService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'PRODUCT_DELETE',
@@ -425,7 +482,7 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
   };
 
 
-  if (isLoading || !params?.id) { // Check for params.id during loading
+  if (isLoading || isDataSourceLoading || !productIdFromParams) {
     return (
       <div className="container mx-auto py-8 px-4">
          <Skeleton className="h-10 w-24 mb-8" /> 
@@ -470,10 +527,10 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
         )}
         {currentUser?.role === 'admin' && isEditing && (
           <div className="flex gap-2">
-            <Button onClick={handleSaveEdits} variant="default" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Changes
+            <Button onClick={handleSaveEdits} variant="default" disabled={isLoading || isDataSourceLoading}>
+              {(isLoading || isDataSourceLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Changes
             </Button>
-            <Button onClick={handleCancelEdit} variant="outline" disabled={isLoading}>
+            <Button onClick={handleCancelEdit} variant="outline" disabled={isLoading || isDataSourceLoading}>
               <Ban className="mr-2 h-4 w-4" /> Cancel
             </Button>
           </div>
@@ -564,7 +621,7 @@ export default function ProductDetailPage({ params }: { params: { id:string } })
                       <Maximize className="h-3 w-3 mr-1" /> Click to view gallery
                   </div>
                  )}
-                {currentUser && <WishlistButton productId={product.id} userId={currentUser.id} className="absolute top-2 right-2 bg-card/80 hover:bg-card p-1" />}
+                {currentUser && <WishlistButton productId={product.id} className="absolute top-2 right-2 bg-card/80 hover:bg-card p-1" />}
               </div>
 
               {currentDisplayableImageIds.length > 1 && (
@@ -749,27 +806,4 @@ const LoginModalTrigger = () => {
     return <LoginModal />; 
 };
 
-const generateProductChangeDescription = (oldProduct: Product, newData: Partial<Product>, imageChanges: string[]): string => {
-  const changes: string[] = [];
-  if (oldProduct.name !== newData.name && newData.name !== undefined) {
-    changes.push(`Name: "${oldProduct.name}" -> "${newData.name}".`);
-  }
-  if (oldProduct.description !== newData.description && newData.description !== undefined) {
-    changes.push('Description updated.');
-  }
-  if (oldProduct.price !== newData.price && newData.price !== undefined) {
-    changes.push(`Price: $${oldProduct.price.toFixed(2)} -> $${newData.price.toFixed(2)}.`);
-  }
-  if (oldProduct.stock !== newData.stock && newData.stock !== undefined) {
-    changes.push(`Stock: ${oldProduct.stock} -> ${newData.stock}.`);
-  }
-  if (oldProduct.categoryId !== newData.categoryId && newData.categoryId !== undefined) {
-    const oldCat = localStorageService.findCategoryById(oldProduct.categoryId)?.name || 'N/A';
-    const newCat = localStorageService.findCategoryById(newData.categoryId)?.name || 'N/A';
-    changes.push(`Category: "${oldCat}" -> "${newCat}".`);
-  }
-  changes.push(...imageChanges.filter(c => c.length > 0));
-
-  if (changes.length === 0) return `No significant changes detected for product "${newData.name || oldProduct.name}".`;
-  return `Updated product "${newData.name || oldProduct.name}": ${changes.join(' ')}`;
-};
+    

@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, use } from 'react'; // Added use
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import type { Order } from '@/types';
@@ -14,7 +14,12 @@ import { ProductImage } from '@/components/product/ProductImage';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
 
-export default function OrderConfirmationPage({ params }: { params: { orderId: string } }) {
+// Modified props to expect paramsPromise
+export default function OrderConfirmationPage({ params: paramsPromise }: { params: Promise<{ orderId: string }> }) {
+  const params = use(paramsPromise); // Unwrap the promise here
+  const orderIdFromParams = params?.orderId;
+
+
   const { currentUser } = useAuth();
   const router = useRouter();
   const [order, setOrder] = useState<Order | null>(null);
@@ -29,9 +34,6 @@ export default function OrderConfirmationPage({ params }: { params: { orderId: s
     }
     setIsLoading(true);
     try {
-      // Firestore implementation of getOrders can take userId for filtering.
-      // If userId is not passed, it fetches all orders (admin scenario).
-      // For confirmation page, we always need orders for the current user.
       if (userId) {
         const userOrders = await dataService.getOrders(userId);
         const fetchedOrder = userOrders.find(o => o.id === orderId);
@@ -43,7 +45,7 @@ export default function OrderConfirmationPage({ params }: { params: { orderId: s
         }
       } else {
          toast({title: "User not identified", variant: "destructive"});
-         router.replace('/login'); // Or handle as appropriate
+         router.replace('/login'); 
       }
     } catch (error) {
       console.error("Error fetching order for confirmation:", error);
@@ -55,18 +57,18 @@ export default function OrderConfirmationPage({ params }: { params: { orderId: s
   }, [dataService, isDataSourceLoading, router, toast]);
 
   useEffect(() => {
-    if (params?.orderId) {
+    if (orderIdFromParams) {
       if (currentUser) {
-        fetchOrder(params.orderId, currentUser.id);
-      } else if (!isDataSourceLoading && !currentUser) { // Only redirect if not loading and no user
-          router.replace(`/login?redirect=/order-confirmation/${params.orderId}`);
+        fetchOrder(orderIdFromParams, currentUser.id);
+      } else if (!isDataSourceLoading && !currentUser) { 
+          router.replace(`/login?redirect=/order-confirmation/${orderIdFromParams}`);
       }
-    } else if (!params?.orderId && !isLoading && !isDataSourceLoading) {
+    } else if (!orderIdFromParams && !isLoading && !isDataSourceLoading) {
       router.replace('/profile/orders');
     }
-  }, [currentUser, params, fetchOrder, isLoading, isDataSourceLoading, router]);
+  }, [currentUser, orderIdFromParams, fetchOrder, isLoading, isDataSourceLoading, router]); // Use unwrapped ID
 
-  if (isLoading || isDataSourceLoading || !params?.orderId) {
+  if (isLoading || isDataSourceLoading || !orderIdFromParams) { // Use unwrapped ID
     return <div className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /> Loading...</div>;
   }
   
@@ -129,3 +131,4 @@ export default function OrderConfirmationPage({ params }: { params: { orderId: s
     </div>
   );
 }
+    

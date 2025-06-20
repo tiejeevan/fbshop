@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, use } from 'react'; // Added use
 import { ProductForm, ProductFormValues } from '../../ProductForm';
 import type { Product, Category } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -11,7 +11,6 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useDataSource } from '@/contexts/DataSourceContext';
-// Removed: import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService'; - Handled by dataService
 
 const generateProductChangeDescription = async (
   oldProduct: Product,
@@ -47,8 +46,11 @@ const generateProductChangeDescription = async (
   return `Updated product "${newData.name}": ${changes.join(' ')}`;
 };
 
+// Modified props to expect paramsPromise
+export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = use(paramsPromise); // Unwrap the promise here
+  const productIdFromParams = params.id;
 
-export default function EditProductPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,10 +87,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
   }, [dataService, isDataSourceLoading, router, toast]);
 
   useEffect(() => {
-    if (params?.id) {
-      fetchInitialData(params.id);
+    if (productIdFromParams) { // Use the unwrapped id
+      fetchInitialData(productIdFromParams);
     }
-  }, [params, fetchInitialData]);
+  }, [productIdFromParams, fetchInitialData]); // Depend on the unwrapped id
 
   const handleEditProduct = async (
     data: ProductFormValues,
@@ -126,20 +128,18 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {
           const savedImageId = await dataService.saveImage(
-            id, // Use the actual product ID as entityId
+            id, 
             imgInfo.type === 'primary' ? 'primary' : (imgInfo.index?.toString() ?? Date.now().toString()),
             imgInfo.file
           );
 
           if (imgInfo.type === 'primary') {
-            // If there was an old primary image and it wasn't marked for deletion by UI, delete it now
             if (oldProductSnapshot.primaryImageId && oldProductSnapshot.primaryImageId !== savedImageId && !imageIdsMarkedForDeletionByUI?.includes(oldProductSnapshot.primaryImageId)) {
                  await dataService.deleteImage(oldProductSnapshot.primaryImageId);
             }
             finalPrimaryImageId = savedImageId;
             imageChangeDescriptions.push(oldProductSnapshot.primaryImageId ? 'Primary image updated.' : 'Primary image added.');
           } else { 
-            // For additional images, if replacing an existing one at a specific index
             if (imgInfo.index !== undefined && imgInfo.index < finalAdditionalImageIds.length) {
               const oldImgIdAtIndex = finalAdditionalImageIds[imgInfo.index];
               if (oldImgIdAtIndex && oldImgIdAtIndex !== savedImageId && !imageIdsMarkedForDeletionByUI?.includes(oldImgIdAtIndex)) {
@@ -147,24 +147,22 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
               }
               finalAdditionalImageIds[imgInfo.index] = savedImageId;
               imageChangeDescriptions.push(oldImgIdAtIndex ? `Additional image at slot ${imgInfo.index + 1} updated.` : `Additional image added at slot ${imgInfo.index + 1}.`);
-            } else { // If it's a new additional image or being appended
+            } else { 
               finalAdditionalImageIds.push(savedImageId);
                imageChangeDescriptions.push('New additional image added.');
             }
           }
         }
       }
-      // Ensure no duplicate image IDs in additional images
       finalAdditionalImageIds = [...new Set(finalAdditionalImageIds.filter(imgId => !!imgId))];
 
-
       const updatedProductData: Product = {
-        ...oldProductSnapshot, // Keep createdAt, views, purchases, etc.
-        ...data, // Apply form data
+        ...oldProductSnapshot, 
+        ...data, 
         id,
         primaryImageId: finalPrimaryImageId,
         additionalImageIds: finalAdditionalImageIds,
-        updatedAt: new Date().toISOString(), // Will be set by service if it uses serverTimestamp
+        updatedAt: new Date().toISOString(), 
       };
 
       await dataService.updateProduct(updatedProductData);
@@ -187,7 +185,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     }
   };
 
-  if (isLoading || isDataSourceLoading || !params?.id) {
+  if (isLoading || isDataSourceLoading || !productIdFromParams) { // Check unwrapped id
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading product data...</div>;
   }
 
@@ -206,3 +204,4 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     </div>
   );
 }
+    
