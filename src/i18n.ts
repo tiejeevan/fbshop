@@ -6,44 +6,33 @@ import {notFound} from 'next/navigation';
 const locales = ['en', 'es'];
 
 export default getRequestConfig(async ({locale}) => {
-  // Validate that the incoming `locale` parameter is valid
-  const baseLocale = locale.split('-')[0];
+  // Validate that the incoming `locale` parameter is a supported locale
+  const baseLocale = locale.split('-')[0]; // Handle cases like 'en-US'
 
   if (!locales.includes(baseLocale)) {
-    console.error(`[i18n.ts - Minimal] Invalid locale provided: "${locale}". Supported: ${locales.join(', ')}. Triggering notFound.`);
+    console.error(`[i18n.ts] ERROR: Invalid locale provided: "${locale}". Supported locales are: ${locales.join(', ')}. Triggering notFound().`);
     notFound();
   }
 
-  // For testing, return minimal static messages
-  // This helps determine if the issue is finding the config file vs. loading messages.
-  if (baseLocale === 'en') {
-    return {
-      messages: {
-        HomePage: {
-          loading: "Loading Local Commerce..."
-        },
-        CustomerNavbar: {
-          login: "Login",
-          storeName: "Local Commerce"
-        }
-      }
-    };
-  } else if (baseLocale === 'es') {
-    return {
-      messages: {
-        HomePage: {
-          loading: "Cargando Comercio Local..."
-        },
-        CustomerNavbar: {
-          login: "Iniciar Sesión",
-          storeName: "Comercio Local"
-        }
-      }
-    };
+  let messages;
+  try {
+    // Dynamically import the messages for the requested locale.
+    // The path is relative to the `src` directory because i18n.ts is in src/.
+    messages = (await import(`./messages/${baseLocale}.json`)).default;
+    
+    // Verify that messages is a non-null object
+    if (typeof messages !== 'object' || messages === null) {
+      console.error(`[i18n.ts] ERROR: Messages for locale "${baseLocale}" resolved to null or not an object. Content type: ${typeof messages}. Triggering notFound().`);
+      notFound();
+    }
+  } catch (error) {
+    console.error(`[i18n.ts] ERROR: Failed to load messages for locale "${baseLocale}".json. Error:`, error);
+    // If messages can't be loaded for a valid locale, trigger notFound.
+    // This prevents rendering with missing translations which can lead to context errors.
+    notFound();
   }
 
-  // Fallback if locale is valid but not 'en' or 'es' (shouldn't happen with current locales array)
-  console.error(`[i18n.ts - Minimal] No static messages defined for locale: "${baseLocale}". Triggering notFound.`);
-  notFound();
+  return {
+    messages
+  };
 });
-

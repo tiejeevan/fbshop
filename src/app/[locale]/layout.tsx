@@ -40,12 +40,16 @@ export default async function RootLayout({
   try {
     messages = await getMessages();
   } catch (error) {
-    console.error(`[RootLayout] Error fetching messages for locale "${locale}". This likely means i18n.ts had an issue. Error:`, error);
+    // This catch block might be hit if getMessages() itself throws,
+    // e.g., due to the "config file not found" error.
+    console.error(`[RootLayout] CRITICAL: getMessages() threw an error for locale "${locale}". This likely means the next-intl configuration (i18n.ts) is not found or is broken. Error details:`, error);
     notFound();
   }
 
+  // After getMessages returns, messages could still be undefined if i18n.ts
+  // had an issue but didn't throw in a way getMessages caught.
   if (!messages) {
-    console.error(`[RootLayout] Messages object is undefined for locale "${locale}" after getMessages(). i18n.ts might not be correctly returning messages. Triggering notFound.`);
+    console.error(`[RootLayout] CRITICAL: Messages object is undefined for locale "${locale}" after getMessages() call. This indicates a severe issue with i18n.ts or message loading. Triggering notFound.`);
     notFound();
   }
  
