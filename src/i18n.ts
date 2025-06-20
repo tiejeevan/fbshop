@@ -2,12 +2,15 @@
 import {getRequestConfig} from 'next-intl/server';
 import {notFound} from 'next/navigation';
 
-// Define supported locales
+// Static imports for message files
+import enMessages from './messages/en.json';
+import esMessages from './messages/es.json';
+
 const locales = ['en', 'es'];
 
 export default getRequestConfig(async ({locale}) => {
   // Validate that the incoming `locale` parameter is a supported locale
-  const baseLocale = locale.split('-')[0]; // Handle cases like 'en-US'
+  const baseLocale = locale.split('-')[0]; 
 
   if (!locales.includes(baseLocale)) {
     console.error(`[i18n.ts] ERROR: Invalid locale provided: "${locale}". Supported locales are: ${locales.join(', ')}. Triggering notFound().`);
@@ -15,20 +18,20 @@ export default getRequestConfig(async ({locale}) => {
   }
 
   let messages;
-  try {
-    // Dynamically import the messages for the requested locale.
-    // The path is relative to the `src` directory because i18n.ts is in src/.
-    messages = (await import(`./messages/${baseLocale}.json`)).default;
-    
-    // Verify that messages is a non-null object
-    if (typeof messages !== 'object' || messages === null) {
-      console.error(`[i18n.ts] ERROR: Messages for locale "${baseLocale}" resolved to null or not an object. Content type: ${typeof messages}. Triggering notFound().`);
-      notFound();
-    }
-  } catch (error) {
-    console.error(`[i18n.ts] ERROR: Failed to load messages for locale "${baseLocale}".json. Error:`, error);
-    // If messages can't be loaded for a valid locale, trigger notFound.
-    // This prevents rendering with missing translations which can lead to context errors.
+  if (baseLocale === 'en') {
+    messages = enMessages;
+  } else if (baseLocale === 'es') {
+    messages = esMessages;
+  } else {
+    // This case should ideally be caught by the locales.includes check,
+    // but as a safeguard:
+    console.error(`[i18n.ts] ERROR: Locale "${baseLocale}" is not explicitly handled for message loading. Triggering notFound().`);
+    notFound();
+  }
+
+  // Verify that messages is a non-null object after attempting to load
+  if (typeof messages !== 'object' || messages === null) {
+    console.error(`[i18n.ts] ERROR: Messages for locale "${baseLocale}" resolved to null or not an object. This indicates a problem with the imported JSON file (e.g., empty or malformed). Content type: ${typeof messages}. Triggering notFound().`);
     notFound();
   }
 
@@ -36,3 +39,4 @@ export default getRequestConfig(async ({locale}) => {
     messages
   };
 });
+
