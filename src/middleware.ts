@@ -1,3 +1,4 @@
+
 import createMiddleware from 'next-intl/middleware';
  
 export default createMiddleware({
@@ -16,7 +17,10 @@ export default createMiddleware({
 });
  
 export const config = {
-  // Match only internationalized pathnames
-  // Skip internal paths like `/_next` and static assets
-  matcher: ['/', '/(en|es)/:path*']
+  // Match all pathnames except for
+  // - …certain internal Next.js paths starting with `_next`
+  // - …API routes
+  // - …static files (e.g. images, fonts, etc.)
+  // - …anything with a file extension (e.g. .ico, .png)
+  matcher: ['/((?!api|_next/static|_next/image|.*\\..*).*)']
 };
