@@ -9,12 +9,12 @@ import type {
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
 import {
-  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup, documentId, queryEqual
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup, documentId
 } from 'firebase/firestore';
 
 // Import the original localStorageDataService for fallbacks or specific local operations
 import { localStorageDataService as localDBServiceFallback } from './localStorageDataService'; // For fallbacks
-import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, deleteImage as deleteImageFromLocalDB, deleteImagesForEntity as deleteImagesForEntityFromLocalDB } from './indexedDbService';
+import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, deleteImage as deleteImageFromLocalDB, deleteImagesForProduct as deleteImagesForEntityFromLocalDB } from './indexedDbService';
 
 
 let db: Firestore | null = null;
@@ -92,7 +92,25 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         } catch (error) {
             console.error("Error creating default admin user in Firestore:", error);
         }
+    } else {
+        const adminDoc = adminSnapshot.docs[0];
+        let needsUpdate = false;
+        const adminData = adminDoc.data() as User;
+        const updatePayload: Partial<User> = {};
+        if (adminData.themePreference === undefined) {
+            updatePayload.themePreference = 'system';
+            needsUpdate = true;
+        }
+        if (adminData.addresses === undefined) {
+            updatePayload.addresses = [];
+            needsUpdate = true;
+        }
+        if(needsUpdate) {
+            await updateDoc(adminDoc.ref, {...updatePayload, updatedAt: serverTimestamp() });
+            console.log("Default admin user updated with missing fields (themePreference, addresses).")
+        }
     }
+
 
     // Seed Categories
     const categoriesCol = collection(db, "categories");
@@ -139,6 +157,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             batch.set(prodDocRef, {
                 ...prodData,
                 id: prodDocRef.id,
+                primaryImageId: prodData.primaryImageId || null,
+                additionalImageIds: prodData.additionalImageIds || [],
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 views: Math.floor(Math.random() * 100),
@@ -190,7 +210,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const userRef = doc(db, "users", updatedUser.id);
     const updatePayload: any = { ...updatedUser };
-    delete updatePayload.id;
+    delete updatePayload.id; // Don't try to update the ID
+    delete updatePayload.createdAt; // Don't try to update createdAt
     updatePayload.updatedAt = serverTimestamp();
     if (updatePayload.password === undefined || updatePayload.password === '') {
         delete updatePayload.password;
@@ -202,20 +223,27 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async deleteUser(userId: string): Promise<boolean> {
     if (!db) throw new Error("Firestore not initialized");
     try {
-      await deleteDoc(doc(db, "users", userId));
-      // TODO: Cascade delete related data (wishlist, orders, reviews for this user) if necessary.
-      // For now, this only deletes the user document.
-      // Also clear their cart from localStorage (as carts are local)
-      localDBServiceFallback.clearCart(userId);
-      // Remove wishlist items (which are in Firestore)
+      const batch = writeBatch(db);
+      // Delete the user document
+      batch.delete(doc(db, "users", userId));
+
+      // Delete wishlist items (subcollection)
       const wishlistCol = collection(db, `users/${userId}/wishlist`);
       const wishlistSnapshot = await getDocs(wishlistCol);
-      const batch = writeBatch(db);
       wishlistSnapshot.docs.forEach(d => batch.delete(d.ref));
+      
+      // Delete reviews made by this user (requires querying all reviews)
+      const reviewsQuery = query(collectionGroup(db, 'reviews'), where('userId', '==', userId));
+      const reviewsSnapshot = await getDocs(reviewsQuery);
+      reviewsSnapshot.forEach(reviewDoc => batch.delete(reviewDoc.ref));
+      // Note: After deleting reviews, product averageRating/reviewCount won't auto-update without server-side logic (e.g., Cloud Function).
+      // This client-side delete won't trigger such updates for affected products.
+
       await batch.commit();
+      localDBServiceFallback.clearCart(userId); // Carts are still local
       return true;
     } catch (error) {
-      console.error("Error deleting user from Firestore:", error);
+      console.error("Error deleting user and related data from Firestore:", error);
       return false;
     }
   },
@@ -331,7 +359,9 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         id: docRef.id,
         createdAt: new Date().toISOString(), // Approx for client
         updatedAt: new Date().toISOString(), // Approx for client
-        views:0, purchases:0, averageRating:0, reviewCount:0
+        views:0, purchases:0, averageRating:0, reviewCount:0,
+        primaryImageId: productData.primaryImageId || null,
+        additionalImageIds: productData.additionalImageIds || [],
     } as Product;
   },
   async updateProduct(updatedProduct: Product): Promise<Product | null> {
@@ -339,6 +369,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const productRef = doc(db, "products", updatedProduct.id);
     const updatePayload: any = { ...updatedProduct };
     delete updatePayload.id;
+    delete updatePayload.createdAt;
     updatePayload.updatedAt = serverTimestamp();
     await updateDoc(productRef, updatePayload);
     const docSnap = await getDoc(productRef);
@@ -350,17 +381,15 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       const productRef = doc(db, "products", productId);
       const product = await this.findProductById(productId); // To get image IDs for local deletion
 
+      const batch = writeBatch(db!);
       // Delete reviews subcollection
       const reviewsCol = collection(db, `products/${productId}/reviews`);
       const reviewsSnapshot = await getDocs(reviewsCol);
-      const batch = writeBatch(db!); // db will be defined here
       reviewsSnapshot.docs.forEach(d => batch.delete(d.ref));
       
-      // Delete the product document itself
       batch.delete(productRef);
       await batch.commit();
 
-      // Delete images from IndexedDB (as per current setup)
       if(product?.primaryImageId) await deleteImageFromLocalDB(product.primaryImageId);
       if(product?.additionalImageIds) await deleteImagesForEntityFromLocalDB(product.additionalImageIds);
       return true;
@@ -391,6 +420,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const newCategoryFSData = {
       ...categoryData,
       id: docRef.id,
+      imageId: categoryData.imageId || null,
       createdAt: now,
       updatedAt: now,
     };
@@ -398,6 +428,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return {
       ...categoryData,
       id: docRef.id,
+      imageId: categoryData.imageId || null,
       createdAt: new Date().toISOString(), // Approx
       updatedAt: new Date().toISOString(), // Approx
     } as Category;
@@ -407,6 +438,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const catRef = doc(db, "categories", updatedCategory.id);
     const updatePayload: any = { ...updatedCategory };
     delete updatePayload.id;
+    delete updatePayload.createdAt;
     updatePayload.updatedAt = serverTimestamp();
     await updateDoc(catRef, updatePayload);
     const docSnap = await getDoc(catRef);
@@ -419,27 +451,20 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       if (!categoryToDelete) return false;
 
       const batch = writeBatch(db);
-
-      // Unassign category from products
       const productsQuery = query(collection(db, "products"), where("categoryId", "==", categoryId));
       const productsSnapshot = await getDocs(productsQuery);
       productsSnapshot.forEach(prodDoc => {
         batch.update(prodDoc.ref, { categoryId: null, updatedAt: serverTimestamp() });
       });
 
-      // Unset parentId for child categories
       const childCategoriesQuery = query(collection(db, "categories"), where("parentId", "==", categoryId));
       const childCategoriesSnapshot = await getDocs(childCategoriesQuery);
       childCategoriesSnapshot.forEach(childDoc => {
         batch.update(childDoc.ref, { parentId: null, updatedAt: serverTimestamp() });
       });
 
-      // Delete the category image from IndexedDB
       if(categoryToDelete.imageId) await deleteImageFromLocalDB(categoryToDelete.imageId);
-
-      // Delete the category document
       batch.delete(doc(db, "categories", categoryId));
-      
       await batch.commit();
       return true;
     } catch (e) {
@@ -463,13 +488,13 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
   // Cart methods will continue to use LocalStorage fallback for simplicity in this phase
   async getCart(userId: string): Promise<Cart | null> {
-    return localDBServiceFallback.getCart(userId); // Async to match interface
+    return localDBServiceFallback.getCart(userId);
   },
   async updateCart(cart: Cart): Promise<void> {
-    return localDBServiceFallback.updateCart(cart); // Async to match interface
+    return localDBServiceFallback.updateCart(cart);
   },
   async clearCart(userId: string): Promise<void> {
-    return localDBServiceFallback.clearCart(userId); // Async to match interface
+    return localDBServiceFallback.clearCart(userId);
   },
   async moveToSavedForLater(userId: string, productId: string): Promise<void> {
     return localDBServiceFallback.moveToSavedForLater(userId, productId);
@@ -531,7 +556,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         };
         transaction.set(newOrderRef, newOrderDataFS);
         
-        // For immediate return to client
         return {
             ...orderData,
             id: newOrderRef.id,
@@ -622,15 +646,11 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
     const productRef = doc(db, "products", reviewData.productId);
     await runTransaction(db, async (transaction) => {
-        transaction.set(reviewDocRef, newReviewFSData); // Add the new review
+        transaction.set(reviewDocRef, newReviewFSData); 
 
         const productDoc = await transaction.get(productRef);
-        if (!productDoc.exists()) throw "Product not found for review update!";
+        if (!productDoc.exists()) throw new Error("Product not found for review update!");
         
-        // To get the most accurate count and average, we'd ideally query the subcollection
-        // But within a transaction, reads must come before writes.
-        // For simplicity, we'll estimate based on current product data + this new review.
-        // A more robust solution uses a Cloud Function to update aggregates.
         const productData = productDoc.data() as Product;
         const oldReviewCount = productData.reviewCount || 0;
         const oldTotalRating = (productData.averageRating || 0) * oldReviewCount;
@@ -647,60 +667,42 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     });
     return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() }; // Approx for client
   },
-  async deleteReview(reviewIdString: string): Promise<void> { // Expects reviewIdString to be `productId/reviewDocId`
+  async deleteReview(reviewIdString: string): Promise<void> { 
     if (!db) throw new Error("Firestore not initialized");
     
-    const parts = reviewIdString.split('/');
-    if (parts.length !== 2) {
-        console.error("Invalid reviewId format for Firestore deletion. Expected 'productId/reviewDocId'. Got:", reviewIdString);
-        // Attempt a collectionGroup query as a fallback, less efficient
-        const reviewsGroup = collectionGroup(db, 'reviews');
-        const q = query(reviewsGroup, where(documentId(), '==', reviewIdString)); // Assuming reviewIdString is the actual doc ID
-        const snapshot = await getDocs(q);
+    const parts = reviewIdString.split('/'); // Expected format: `productId/reviewDocId` OR just `reviewDocId`
+    let productId: string | undefined;
+    let reviewDocId: string;
 
+    if (parts.length === 2) {
+        productId = parts[0];
+        reviewDocId = parts[1];
+    } else if (parts.length === 1) {
+        reviewDocId = parts[0];
+        // Need to find productId if not provided
+        const reviewsGroup = collectionGroup(db, 'reviews');
+        const q = query(reviewsGroup, where(documentId(), '==', reviewDocId), limit(1));
+        const snapshot = await getDocs(q);
         if (snapshot.empty) {
-            console.warn(`Review with ID ${reviewIdString} not found via collectionGroup query.`);
+            console.warn(`Review with ID ${reviewDocId} not found via collectionGroup query.`);
             return;
         }
-        const reviewDocToDelete = snapshot.docs[0];
-        const reviewData = reviewDocToDelete.data() as Review;
-        const productId = reviewData.productId;
-        const reviewActualId = reviewDocToDelete.id;
-        
-        const reviewRef = doc(db, `products/${productId}/reviews`, reviewActualId);
-        const productRef = doc(db, "products", productId);
-
-        await runTransaction(db, async (transaction) => {
-            transaction.delete(reviewRef); // Delete the review
-
-            const productDoc = await transaction.get(productRef);
-            if (productDoc.exists()) {
-                // Update product aggregates (similar logic to addReview, but decrementing)
-                // This is an estimation. For true accuracy after multiple deletes, re-querying is needed.
-                const productData = productDoc.data() as Product;
-                const oldReviewCount = productData.reviewCount || 0;
-                const oldTotalRating = (productData.averageRating || 0) * oldReviewCount;
-
-                const newReviewCount = Math.max(0, oldReviewCount - 1);
-                const newTotalRating = oldTotalRating - reviewData.rating;
-                const newAverageRating = newReviewCount > 0 ? newTotalRating / newReviewCount : 0;
-                
-                transaction.update(productRef, {
-                    averageRating: newAverageRating,
-                    reviewCount: newReviewCount,
-                    updatedAt: serverTimestamp(),
-                });
-            }
-        });
-        return; // Exit after successful collectionGroup based deletion
+        const reviewData = snapshot.docs[0].data() as Review;
+        productId = reviewData.productId;
+    } else {
+        console.error("Invalid reviewId format for Firestore deletion. Got:", reviewIdString);
+        return;
+    }
+    
+    if(!productId) {
+        console.error("Could not determine product ID for review deletion:", reviewIdString);
+        return;
     }
 
-    // If format was correct from start
-    const [productId, reviewDocId] = parts;
     const reviewRef = doc(db, `products/${productId}/reviews`, reviewDocId);
     const reviewSnap = await getDoc(reviewRef);
     if (!reviewSnap.exists()) {
-        console.warn(`Review ${reviewIdString} not found for deletion.`);
+        console.warn(`Review products/${productId}/reviews/${reviewDocId} not found for deletion.`);
         return;
     }
     const reviewDataToDelete = reviewSnap.data() as Review;
@@ -727,30 +729,34 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async getRecentlyViewed(userId: string): Promise<RecentlyViewedItem[]> {
-    return localDBServiceFallback.getRecentlyViewed(userId); // Async to match interface
+    return localDBServiceFallback.getRecentlyViewed(userId); 
   },
   async addRecentlyViewed(userId: string, productId: string): Promise<void> {
-    // Update product views in Firestore
     if (db) {
         const productRef = doc(db, "products", productId);
-        const productSnap = await getDoc(productRef);
-        if (productSnap.exists()) {
-            const productData = productSnap.data() as Product;
-            await updateDoc(productRef, {
-                views: (productData.views || 0) + 1,
-                updatedAt: serverTimestamp()
+        try {
+            await runTransaction(db, async (transaction) => {
+                const productSnap = await transaction.get(productRef);
+                if (productSnap.exists()) {
+                    const productData = productSnap.data() as Product;
+                    transaction.update(productRef, {
+                        views: (productData.views || 0) + 1,
+                        updatedAt: serverTimestamp()
+                    });
+                }
             });
+        } catch (e) {
+            console.error("Error updating product views in Firestore:", e);
         }
     }
-    return localDBServiceFallback.addRecentlyViewed(userId, productId); // Manage the list locally
+    return localDBServiceFallback.addRecentlyViewed(userId, productId); 
   },
 
   async getGlobalTheme(): Promise<Theme> {
-    // Could be stored in a specific 'settings' document in Firestore
-    return localDBServiceFallback.getGlobalTheme(); // Async to match interface
+    return localDBServiceFallback.getGlobalTheme(); 
   },
   async setGlobalTheme(theme: Theme): Promise<void> {
-    return localDBServiceFallback.setGlobalTheme(theme); // Async to match interface
+    return localDBServiceFallback.setGlobalTheme(theme); 
   },
 
   async getAdminActionLogs(): Promise<AdminActionLog[]> {
@@ -796,3 +802,4 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return deleteImagesForEntityFromLocalDB(imageIds);
   },
 };
+
