@@ -8,6 +8,17 @@ import esMessages from './messages/es.json';
 
 const locales = ['en', 'es'];
 
+// Define a type for your messages for better type safety if structures are consistent
+// For simplicity, we'll use 'any' for now but ideally, this would be typed.
+// type Messages = typeof enMessages; 
+type Messages = Record<string, any>;
+
+
+const allMessages: Record<string, Messages> = {
+  en: enMessages,
+  es: esMessages
+};
+
 export default getRequestConfig(async ({locale}) => {
   // Validate that the incoming `locale` parameter is a supported locale
   const baseLocale = locale.split('-')[0]; 
@@ -17,21 +28,11 @@ export default getRequestConfig(async ({locale}) => {
     notFound();
   }
 
-  let messages;
-  if (baseLocale === 'en') {
-    messages = enMessages;
-  } else if (baseLocale === 'es') {
-    messages = esMessages;
-  } else {
-    // This case should ideally be caught by the locales.includes check,
-    // but as a safeguard:
-    console.error(`[i18n.ts] ERROR: Locale "${baseLocale}" is not explicitly handled for message loading. Triggering notFound().`);
-    notFound();
-  }
+  const messages = allMessages[baseLocale];
 
-  // Verify that messages is a non-null object after attempting to load
-  if (typeof messages !== 'object' || messages === null) {
-    console.error(`[i18n.ts] ERROR: Messages for locale "${baseLocale}" resolved to null or not an object. This indicates a problem with the imported JSON file (e.g., empty or malformed). Content type: ${typeof messages}. Triggering notFound().`);
+  if (!messages || typeof messages !== 'object') {
+    // This should not happen with static imports if JSON files are valid and present
+    console.error(`[i18n.ts] ERROR: Messages for locale "${baseLocale}" not found or invalid. Triggering notFound().`);
     notFound();
   }
 
@@ -39,4 +40,3 @@ export default getRequestConfig(async ({locale}) => {
     messages
   };
 });
-

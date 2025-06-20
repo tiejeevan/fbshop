@@ -2,14 +2,12 @@
 import createMiddleware from 'next-intl/middleware';
  
 export default createMiddleware({
-  // A list of all locales that are supported
   locales: ['en', 'es'],
- 
-  // Used when no locale matches
   defaultLocale: 'en',
-
-  // Optionally, configure locale detection strategies
-  localeDetection: true, 
+  localeDetection: true,
+  // Explicitly point to the i18n config file, relative to this middleware file.
+  // Since both are in src/, './i18n.ts' is correct.
+  i18nConfigPath: './i18n.ts' 
 });
  
 export const config = {
