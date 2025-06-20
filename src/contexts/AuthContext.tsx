@@ -1,17 +1,18 @@
+
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { localStorageService } from '@/lib/localStorage';
 import type { User, UserRole, Theme } from '@/types';
+import { useDataSource } from './DataSourceContext';
 
 interface AuthContextType {
   currentUser: (User & { role: UserRole }) | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User | null>;
   signup: (userData: Pick<User, 'email' | 'password' | 'name'>) => Promise<User | null>;
-  logout: () => void;
+  logout: () => Promise<void>; // Changed to async
   refreshUser: () => void;
-  updateUserThemePreference: (theme: Theme) => void; // For user-specific theme if needed later
+  updateUserThemePreference: (theme: Theme) => Promise<void>; // Changed to async
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,88 +22,127 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const { dataService, isLoading: isDataSourceLoading, dataSourceType } = useDataSource();
   const [currentUser, setCurrentUser] = useState<(User & { role: UserRole }) | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(true); // Renamed from isLoading to avoid conflict
 
-  const loadUserFromStorage = useCallback(() => {
-    setIsLoading(true);
-    const storedUser = localStorageService.getCurrentUser();
+  const loadUserFromSession = useCallback(async () => {
+    if (isDataSourceLoading) {
+      // console.log("AuthContext: Waiting for data source to load before loading user from session.");
+      return;
+    }
+    // console.log("AuthContext: Data source loaded, attempting to load user from session.");
+    setIsAuthLoading(true);
+    const storedUser = dataService.getCurrentUser(); // This is synchronous for session key
     if (storedUser) {
-      const fullUser = localStorageService.findUserByEmail(storedUser.email);
-      if (fullUser) {
-        setCurrentUser(fullUser as User & { role: UserRole });
-      } else {
-        localStorageService.setCurrentUser(null);
-        setCurrentUser(null);
+      try {
+        const fullUser = await dataService.findUserByEmail(storedUser.email); // Fetch full user details async
+        if (fullUser) {
+          setCurrentUser(fullUser as User & { role: UserRole });
+        } else {
+          dataService.setCurrentUser(null); // Clear potentially stale session if full user not found
+          setCurrentUser(null);
+        }
+      } catch (error) {
+          console.error("AuthContext: Error fetching full user details:", error);
+          dataService.setCurrentUser(null);
+          setCurrentUser(null);
       }
     } else {
       setCurrentUser(null);
     }
-    setIsLoading(false);
-  }, []);
+    setIsAuthLoading(false);
+    // console.log("AuthContext: User session loading complete. CurrentUser:", currentUser ? currentUser.email : 'null');
+  }, [dataService, isDataSourceLoading]);
 
   useEffect(() => {
-    loadUserFromStorage();
-    localStorageService.initializeData();
-  }, [loadUserFromStorage]);
+    const initializeAuth = async () => {
+      if (!isDataSourceLoading) { // Only proceed if data source context is no longer loading
+        // console.log("AuthContext: Initializing data and loading user from session.");
+        await dataService.initializeData(); // Initialize data source (local or FS)
+        await loadUserFromSession();
+      }
+    };
+    initializeAuth();
+  }, [dataService, loadUserFromSession, isDataSourceLoading]);
+  
+  // Effect to reload user if data source type or service instance changes
+  useEffect(() => {
+    if (!isDataSourceLoading) {
+        // console.log("AuthContext: Data source type or service changed, reloading user from session.", dataSourceType);
+        loadUserFromSession();
+    }
+  }, [dataSourceType, dataService, loadUserFromSession, isDataSourceLoading]);
+
 
   const login = async (email: string, password: string): Promise<User | null> => {
-    setIsLoading(true);
-    const user = localStorageService.findUserByEmail(email);
+    if (isDataSourceLoading) {
+        console.warn("Login attempt while data source is loading.");
+        return null;
+    }
+    setIsAuthLoading(true);
+    const user = await dataService.findUserByEmail(email);
+    // For Firestore, password checking would ideally be via Firebase Auth, not direct comparison.
+    // This direct password check is for localStorage compatibility.
     if (user && user.password === password) {
-      localStorageService.setCurrentUser(user);
+      dataService.setCurrentUser(user);
       setCurrentUser(user as User & { role: UserRole });
-      localStorageService.addLoginActivity(user.id, user.email, 'login');
-      setIsLoading(false);
+      await dataService.addLoginActivity(user.id, user.email, 'login');
+      setIsAuthLoading(false);
       return user;
     }
-    setIsLoading(false);
+    setIsAuthLoading(false);
     return null;
   };
 
   const signup = async (userData: Pick<User, 'email' | 'password' | 'name'>): Promise<User | null> => {
-    setIsLoading(true);
-    const existingUser = localStorageService.findUserByEmail(userData.email);
+     if (isDataSourceLoading) {
+        console.warn("Signup attempt while data source is loading.");
+        return null;
+    }
+    setIsAuthLoading(true);
+    const existingUser = await dataService.findUserByEmail(userData.email);
     if (existingUser) {
-      setIsLoading(false);
+      setIsAuthLoading(false);
       return null; // User already exists
     }
-    const newUser: User = {
-      id: crypto.randomUUID(),
+    const addedUser = await dataService.addUser({
       email: userData.email,
       password: userData.password,
       name: userData.name,
-      role: 'customer', // Default role
-      createdAt: new Date().toISOString(),
-      themePreference: 'system', // Default theme
-    };
-    const addedUser = localStorageService.addUser(newUser);
-    setIsLoading(false);
+      role: 'customer',
+      themePreference: 'system',
+    });
+    setIsAuthLoading(false);
     return addedUser;
   };
 
-  const logout = () => {
+  const logout = async () => {
     if (currentUser) {
-        localStorageService.addLoginActivity(currentUser.id, currentUser.email, 'logout');
+        await dataService.addLoginActivity(currentUser.id, currentUser.email, 'logout');
     }
-    localStorageService.setCurrentUser(null);
+    dataService.setCurrentUser(null);
     setCurrentUser(null);
   };
 
   const refreshUser = useCallback(() => {
-    loadUserFromStorage();
-  }, [loadUserFromStorage]);
+    if (!isDataSourceLoading) { // Check if data source is ready before refreshing
+        loadUserFromSession();
+    }
+  }, [loadUserFromSession, isDataSourceLoading]);
 
-  const updateUserThemePreference = (theme: Theme) => {
+  const updateUserThemePreference = async (theme: Theme) => {
     if (currentUser) {
       const updatedUser = { ...currentUser, themePreference: theme };
-      localStorageService.updateUser(updatedUser);
-      setCurrentUser(updatedUser); // Update context immediately
+      const result = await dataService.updateUser(updatedUser);
+      if (result) {
+        setCurrentUser(result as User & {role: UserRole}); // Update context immediately if successful
+      }
     }
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, signup, logout, refreshUser, updateUserThemePreference }}>
+    <AuthContext.Provider value={{ currentUser, isLoading: isAuthLoading || isDataSourceLoading, login, signup, logout, refreshUser, updateUserThemePreference }}>
       {children}
     </AuthContext.Provider>
   );

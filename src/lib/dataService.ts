@@ -1,0 +1,94 @@
+
+// src/lib/dataService.ts
+import type {
+  User, Product, Category, Cart, Order, LoginActivity, UserRole,
+  WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme
+} from '@/types';
+
+export interface IDataService {
+  // Initialization
+  initializeData: () => Promise<void>;
+
+  // User methods
+  getUsers: () => Promise<User[]>;
+  addUser: (user: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'role' | 'addresses' | 'themePreference'> & { role?: UserRole, themePreference?: Theme }) => Promise<User>;
+  updateUser: (updatedUser: User) => Promise<User | null>;
+  deleteUser: (userId: string) => Promise<boolean>;
+  findUserByEmail: (email: string) => Promise<User | undefined>;
+  findUserById: (userId: string) => Promise<User | undefined>;
+
+  // User Address methods
+  getUserAddresses: (userId: string) => Promise<Address[]>;
+  addAddressToUser: (userId: string, addressData: Omit<Address, 'id' | 'userId' | 'isDefault'> & { isDefault?: boolean }) => Promise<Address | null>;
+  updateUserAddress: (userId: string, updatedAddress: Address) => Promise<Address | null>;
+  deleteUserAddress: (userId: string, addressId: string) => Promise<boolean>;
+  setDefaultUserAddress: (userId: string, addressId: string) => Promise<void>;
+  findUserAddressById: (userId: string, addressId: string) => Promise<Address | undefined>;
+
+  // Product methods
+  getProducts: () => Promise<Product[]>;
+  addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'| 'views' | 'purchases' | 'averageRating' | 'reviewCount'>) => Promise<Product>;
+  updateProduct: (updatedProduct: Product) => Promise<Product | null>;
+  deleteProduct: (productId: string) => Promise<boolean>;
+  findProductById: (productId: string) => Promise<Product | undefined>;
+
+  // Category methods
+  getCategories: () => Promise<Category[]>;
+  addCategory: (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Category>;
+  updateCategory: (updatedCategory: Category) => Promise<Category | null>;
+  deleteCategory: (categoryId: string) => Promise<boolean>;
+  findCategoryById: (categoryId: string | null) => Promise<Category | undefined>;
+  getChildCategories: (parentId: string | null) => Promise<Category[]>;
+
+  // Cart methods
+  getCart: (userId: string) => Promise<Cart | null>;
+  updateCart: (cart: Cart) => Promise<void>;
+  clearCart: (userId: string) => Promise<void>;
+  moveToSavedForLater: (userId: string, productId: string) => Promise<void>;
+  moveToCartFromSaved: (userId: string, productId: string) => Promise<boolean>;
+  removeFromSavedForLater: (userId: string, productId: string) => Promise<void>;
+
+  // Order methods
+  getOrders: (userId?: string) => Promise<Order[]>;
+  addOrder: (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }) => Promise<Order>;
+
+  // Login Activity
+  getLoginActivity: () => Promise<LoginActivity[]>;
+  addLoginActivity: (userId: string, userEmail: string, type: 'login' | 'logout') => Promise<void>;
+
+  // Wishlist methods
+  getWishlist: (userId: string) => Promise<WishlistItem[]>;
+  addToWishlist: (userId: string, productId: string) => Promise<void>;
+  removeFromWishlist: (userId: string, productId: string) => Promise<void>;
+  isProductInWishlist: (userId: string, productId: string) => Promise<boolean>;
+
+  // Review methods
+  getReviewsForProduct: (productId: string) => Promise<Review[]>;
+  addReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => Promise<Review>;
+  deleteReview: (reviewId: string) => Promise<void>;
+
+  // Recently Viewed
+  getRecentlyViewed: (userId: string) => Promise<RecentlyViewedItem[]>;
+  addRecentlyViewed: (userId: string, productId: string) => Promise<void>;
+  
+  // Theme
+  getGlobalTheme: () => Promise<Theme>;
+  setGlobalTheme: (theme: Theme) => Promise<void>;
+  
+  // Admin Action Logs
+  getAdminActionLogs: () => Promise<AdminActionLog[]>;
+  addAdminActionLog: (logData: Omit<AdminActionLog, 'id' | 'timestamp'>) => Promise<void>;
+
+  // Current User (Session management specific)
+  // These are synchronous in localStorageService for immediate session access.
+  // Firestore would rely on Firebase Auth's own session management.
+  // The IDataService versions are kept synchronous for this specific purpose.
+  setCurrentUser: (user: User | null) => void;
+  getCurrentUser: () => (User & { role: UserRole }) | null;
+
+  // Image handling methods (delegated to specific services like IndexedDB or Firebase Storage)
+  saveImage: (entityId: string, imageType: string, imageFile: File) => Promise<string>;
+  getImage: (imageId: string) => Promise<Blob | null>;
+  deleteImage: (imageId: string) => Promise<void>;
+  deleteImagesForEntity: (imageIds: string[]) => Promise<void>;
+}

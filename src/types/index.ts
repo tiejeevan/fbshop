@@ -1,5 +1,7 @@
+
 export type UserRole = 'admin' | 'customer';
 export type Theme = 'light' | 'dark' | 'system';
+export type DataSourceType = 'local' | 'firebase';
 
 export interface Address {
   id: string;
@@ -21,9 +23,9 @@ export interface User {
   password?: string; // Optional for display/update, required for creation
   role: UserRole;
   name?: string;
-  createdAt: string;
-  updatedAt: string;
-  lastLogin?: string;
+  createdAt: string; // ISO Date string
+  updatedAt: string; // ISO Date string
+  lastLogin?: string; // ISO Date string
   themePreference?: Theme;
   addresses?: Address[];
 }
@@ -37,8 +39,8 @@ export interface Category {
   imageId: string | null;
   displayOrder: number;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string; // ISO Date string
+  updatedAt: string; // ISO Date string
 }
 
 export interface Product {
@@ -51,8 +53,8 @@ export interface Product {
   stock: number;
   categoryId: string;
   categoryName?: string; // For display purposes, not stored directly
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string; // ISO Date string
+  updatedAt: string; // ISO Date string
   views: number;
   purchases: number;
   averageRating: number;
@@ -62,7 +64,7 @@ export interface Product {
 export interface CartItem {
   productId: string;
   quantity: number;
-  price: number;
+  price: number; // Price at the time of adding to cart (could differ from current product price)
   name: string;
   primaryImageId?: string | null;
 }
@@ -71,7 +73,7 @@ export interface Cart {
   userId: string;
   items: CartItem[];
   savedForLaterItems?: CartItem[]; // Added for "Save for Later"
-  updatedAt: string;
+  updatedAt: string; // ISO Date string
 }
 
 export interface OrderItem {
@@ -87,39 +89,39 @@ export interface Order {
   userId: string;
   items: OrderItem[];
   totalAmount: number;
-  orderDate: string;
+  orderDate: string; // ISO Date string
   status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Completed';
-  shippingAddress: Address;
-  paymentDetails?: any;
+  shippingAddress: Address; // Embed the address directly
+  paymentDetails?: any; // e.g., { method: 'Card', transactionId: '...' }
 }
 
 export interface LoginActivity {
   id: string;
   userId: string;
-  userEmail: string;
-  timestamp: string;
+  userEmail: string; // For easier display if user object is not fetched
+  timestamp: string; // ISO Date string
   type: 'login' | 'logout';
 }
 
 export interface WishlistItem {
   userId: string;
   productId: string;
-  addedAt: string;
+  addedAt: string; // ISO Date string
 }
 
 export interface Review {
   id: string;
   productId: string;
   userId: string;
-  userName: string;
+  userName: string; // Denormalized for easier display
   rating: number;
   comment: string;
-  createdAt: string;
+  createdAt: string; // ISO Date string
 }
 
 export interface RecentlyViewedItem {
   productId: string;
-  viewedAt: string;
+  viewedAt: string; // ISO Date string
 }
 
 export interface UserRecentlyViewed {
@@ -131,9 +133,9 @@ export interface AdminActionLog {
   id: string;
   adminId: string;
   adminEmail: string;
-  actionType: string;
-  entityType?: string;
+  actionType: string; // e.g., PRODUCT_CREATE, CATEGORY_DELETE
+  entityType?: string; // e.g., Product, Category, User
   entityId?: string;
-  timestamp: string;
-  description: string;
+  timestamp: string; // ISO Date string
+  description: string; // Human-readable log message
 }
