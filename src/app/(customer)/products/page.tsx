@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Product, Category } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from '@/components/ui/input';
@@ -20,6 +19,7 @@ import { RecentlyViewedProducts } from '@/components/product/RecentlyViewedProdu
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductImage } from '@/components/product/ProductImage';
 import { ProductQuickViewModal } from '@/components/product/ProductQuickViewModal';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'views-desc' | 'purchases-desc' | 'rating-desc';
 
@@ -29,70 +29,94 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOption, setSortOption] = useState<SortOption>('name-asc');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Component-level loading
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isQuickViewModalOpen, setIsQuickViewModalOpen] = useState(false);
 
   useEffect(() => {
-    setIsLoading(true);
-    const allProducts = localStorageService.getProducts();
-    const allCategories = localStorageService.getCategories();
+    const fetchData = async () => {
+      if (isDataSourceLoading || !dataService) {
+        setIsLoading(true);
+        return;
+      }
+      setIsLoading(true); // For component's own loading state
 
-    const productsWithDetails = allProducts.map(p => {
-        const category = allCategories.find(c => c.id === p.categoryId);
-        const reviews = localStorageService.getReviewsForProduct(p.id);
-        const totalRating = reviews.reduce((sum, r) => sum + r.rating, 0);
-        const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0;
-        return {
-          ...p,
-          categoryName: category?.name || 'Uncategorized',
-          averageRating: averageRating,
-          reviewCount: reviews.length,
-        };
-    });
+      try {
+        const allProducts = await dataService.getProducts();
+        const allCategories = await dataService.getCategories();
 
-    setProducts(productsWithDetails);
-    setCategories(allCategories);
-    setIsLoading(false);
-  }, []);
+        const productsWithDetails = allProducts.map(p => {
+            const category = allCategories.find(c => c.id === p.categoryId);
+            return {
+              ...p,
+              categoryName: category?.name || 'Uncategorized',
+            };
+        });
 
-  const handleAddToCart = (product: Product, quantity: number = 1) => {
+        setProducts(productsWithDetails);
+        setCategories(allCategories);
+      } catch (error) {
+        console.error("Error fetching products/categories in ProductsPage:", error);
+        toast({ title: "Error", description: "Could not load product data.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [dataService, isDataSourceLoading, toast]);
+
+  const handleAddToCart = async (product: Product, quantity: number = 1) => {
     if (!currentUser) {
       toast({ title: "Login Required", variant: "destructive", description: "Please log in to add items to your cart." });
       return;
     }
-
-    const cart = localStorageService.getCart(currentUser.id) || { userId: currentUser.id, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
-    const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
-
-    if (existingItemIndex > -1) {
-      const newQuantity = cart.items[existingItemIndex].quantity + quantity;
-      if (newQuantity <= product.stock) {
-        cart.items[existingItemIndex].quantity = newQuantity;
-      } else {
-        toast({ title: "Stock Limit", variant: "destructive", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.` });
+    if (!dataService) {
+        toast({ title: "Error", description: "Data service not available.", variant: "destructive" });
         return;
-      }
-    } else {
-      if (quantity <= product.stock) {
-        cart.items.push({
-          productId: product.id,
-          quantity,
-          price: product.price,
-          name: product.name,
-          primaryImageId: product.primaryImageId,
-        });
-      } else {
-        toast({ title: "Stock Limit", variant: "destructive", description: `Only ${product.stock} units available.` });
-        return;
-      }
     }
-    localStorageService.updateCart(cart);
-    toast({ title: "Added to Cart", description: `${quantity} x ${product.name} added.` });
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
+
+    try {
+        let cart = await dataService.getCart(currentUser.id);
+        if (!cart) {
+          cart = { userId: currentUser.id, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
+        }
+
+        const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
+
+        if (existingItemIndex > -1) {
+        const newQuantityInCart = cart.items[existingItemIndex].quantity + quantity;
+        if (newQuantityInCart <= product.stock) {
+            cart.items[existingItemIndex].quantity = newQuantityInCart;
+        } else {
+            toast({ title: "Stock Limit", variant: "destructive", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.` });
+            return;
+        }
+        } else {
+        if (quantity <= product.stock) {
+            cart.items.push({
+            productId: product.id,
+            quantity,
+            price: product.price,
+            name: product.name,
+            primaryImageId: product.primaryImageId,
+            });
+        } else {
+            toast({ title: "Stock Limit", variant: "destructive", description: `Only ${product.stock} units available.` });
+            return;
+        }
+        }
+        await dataService.updateCart(cart);
+        toast({ title: "Added to Cart", description: `${quantity} x ${product.name} added.` });
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch (error) {
+        console.error("Error adding to cart in ProductsPage:", error);
+        toast({ title: "Cart Error", description: "Could not add item to cart.", variant: "destructive" });
+    }
   };
 
   const sortedAndFilteredProducts = useMemo(() => {
@@ -123,7 +147,7 @@ export default function ProductsPage() {
     setQuickViewProduct(null);
   };
 
-  if (isLoading) {
+  if (isLoading || isDataSourceLoading) { // Check both loading states
     return (
       <div className="space-y-8">
         <header className="text-center space-y-2">
@@ -258,7 +282,7 @@ export default function ProductsPage() {
           product={quickViewProduct}
           isOpen={isQuickViewModalOpen}
           onClose={closeQuickView}
-          onAddToCart={handleAddToCart}
+          onAddToCart={handleAddToCart} // Pass the async version
         />
       )}
     </div>

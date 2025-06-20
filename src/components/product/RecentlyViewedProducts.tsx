@@ -3,35 +3,51 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { localStorageService } from '@/lib/localStorage';
 import type { Product, RecentlyViewedItem } from '@/types';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eye } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ProductImage } from '@/components/product/ProductImage'; // Import new component
+import { ProductImage } from '@/components/product/ProductImage';
+import { useDataSource } from '@/contexts/DataSourceContext';
+import { useToast } from '@/hooks/use-toast';
 
 export function RecentlyViewedProducts() {
   const { currentUser } = useAuth();
   const [viewedProducts, setViewedProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Component-level loading
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (currentUser) {
+    const fetchRecentlyViewed = async () => {
+      if (!currentUser || isDataSourceLoading || !dataService) {
+        setIsLoading(currentUser && (isDataSourceLoading || !dataService)); // Only load if user exists and service might become available
+        if (!currentUser) setViewedProducts([]); // Clear if no user
+        return;
+      }
       setIsLoading(true);
-      const recentlyViewedItems: RecentlyViewedItem[] = localStorageService.getRecentlyViewed(currentUser.id);
-      const productDetails: Product[] = recentlyViewedItems
-        .map(item => localStorageService.findProductById(item.productId))
-        .filter((product): product is Product => product !== undefined);
-      setViewedProducts(productDetails);
-      setIsLoading(false);
-    } else {
-      setViewedProducts([]);
-      setIsLoading(false);
-    }
-  }, [currentUser]);
+      try {
+        const recentlyViewedItems: RecentlyViewedItem[] = await dataService.getRecentlyViewed(currentUser.id);
+        const productDetailsPromises: Promise<Product | undefined>[] = recentlyViewedItems
+          .map(item => dataService.findProductById(item.productId));
+        
+        const resolvedProductDetails = await Promise.all(productDetailsPromises);
+        const validProducts = resolvedProductDetails.filter((product): product is Product => product !== undefined);
+        
+        setViewedProducts(validProducts);
+      } catch (error) {
+        console.error("Error fetching recently viewed products:", error);
+        toast({ title: "Error", description: "Could not load recently viewed items.", variant: "destructive"});
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  if (!currentUser || viewedProducts.length === 0 && !isLoading) { // Don't render if no user or no products and not loading
+    fetchRecentlyViewed();
+  }, [currentUser, dataService, isDataSourceLoading, toast]);
+
+  if (!currentUser || (viewedProducts.length === 0 && !isLoading)) {
     return null;
   }
 
@@ -51,7 +67,7 @@ export function RecentlyViewedProducts() {
     );
   }
   
-  if (viewedProducts.length === 0) return null; // After loading, if still no products, render nothing
+  if (viewedProducts.length === 0) return null;
 
   return (
     <div className="mt-12">
