@@ -1,7 +1,7 @@
 
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation'; // Use from next/navigation
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { ShoppingBag, User, LogOut, Menu, ShoppingCart, PackageSearch, Heart, History, LayoutDashboard, MapPin, Globe } from 'lucide-react';
@@ -14,8 +14,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import React, { useEffect, useState } from 'react';
@@ -23,18 +21,27 @@ import { localStorageService } from '@/lib/localStorageService';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { LoginModal } from '@/components/auth/LoginModal';
-import { useTranslations, useLocale } from 'next-intl';
-import Link from 'next/link'; // Ensure this is from 'next/link'
-
+import Link from 'next/link';
 
 export function CustomerNavbar() {
   const { currentUser, logout } = useAuth();
   const router = useRouter();
-  const pathname = usePathname(); // This includes the locale
+  const pathname = usePathname();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [cartItemCount, setCartItemCount] = useState(0);
-  const t = useTranslations('CustomerNavbar');
-  const locale = useLocale();
+
+  // Hardcoded English strings
+  const translations = {
+    login: "Login",
+    adminDashboard: "Admin",
+    profile: "Profile",
+    myAddresses: "My Addresses",
+    orderHistory: "Order History",
+    wishlist: "Wishlist",
+    logout: "Logout",
+    toggleNavigation: "Toggle navigation menu",
+    storeName: "Local Commerce"
+  };
 
   useEffect(() => {
     const updateCartCount = () => {
@@ -62,28 +69,6 @@ export function CustomerNavbar() {
     router.push('/'); 
   };
 
-  const LanguageSwitcher = () => {
-    const currentPathWithoutLocale = pathname.startsWith(`/${locale}/`) ? pathname.substring(locale.length + 1) : pathname;
-    const targetPath = currentPathWithoutLocale === `/${locale}` ? '/' : currentPathWithoutLocale; // Handle root path case for /en or /es
-
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <Globe className="h-5 w-5" />
-            <span className="sr-only">Change language</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuRadioGroup value={locale} onValueChange={(value) => router.push(`/${value}${targetPath}`)}>
-            <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="es">Español</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  };
-
   const UserMenu = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -105,20 +90,20 @@ export function CustomerNavbar() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/profile"><User className="mr-2 h-4 w-4" /> {t('profile')}</Link>
+          <Link href="/profile"><User className="mr-2 h-4 w-4" /> {translations.profile}</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/profile/addresses"><MapPin className="mr-2 h-4 w-4" /> {t('myAddresses')}</Link>
+          <Link href="/profile/addresses"><MapPin className="mr-2 h-4 w-4" /> {translations.myAddresses}</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/profile/orders"><History className="mr-2 h-4 w-4" /> {t('orderHistory')}</Link>
+          <Link href="/profile/orders"><History className="mr-2 h-4 w-4" /> {translations.orderHistory}</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/profile/wishlist"><Heart className="mr-2 h-4 w-4" /> {t('wishlist')}</Link>
+          <Link href="/profile/wishlist"><Heart className="mr-2 h-4 w-4" /> {translations.wishlist}</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/10">
-          <LogOut className="mr-2 h-4 w-4" /> {t('logout')}
+          <LogOut className="mr-2 h-4 w-4" /> {translations.logout}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -129,7 +114,7 @@ export function CustomerNavbar() {
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
         <Link href="/products" className="flex items-center gap-2" onClick={() => setIsSheetOpen(false)}>
           <ShoppingBag className="h-7 w-7 text-primary" />
-          <span className="font-headline text-2xl font-semibold text-primary">{t('storeName')}</span>
+          <span className="font-headline text-2xl font-semibold text-primary">{translations.storeName}</span>
         </Link>
 
         <div className="flex items-center gap-1 sm:gap-2">
@@ -137,12 +122,12 @@ export function CustomerNavbar() {
             <Button variant="outline" size="sm" asChild className="hidden sm:flex">
               <Link href="/admin/dashboard">
                 <LayoutDashboard className="mr-2 h-4 w-4" />
-                {t('adminDashboard')}
+                {translations.adminDashboard}
               </Link>
             </Button>
           )}
           <ThemeToggle />
-          <LanguageSwitcher />
+          {/* LanguageSwitcher removed */}
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />
@@ -163,23 +148,23 @@ export function CustomerNavbar() {
             <SheetTrigger asChild className="md:hidden">
               <Button variant="outline" size="icon">
                 <Menu className="h-6 w-6" />
-                <span className="sr-only">{t('toggleNavigation')}</span>
+                <span className="sr-only">{translations.toggleNavigation}</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[300px] sm:w-[400px]">
               <nav className="mt-8 flex flex-col gap-4">
                 {currentUser && currentUser.role === 'admin' && (
                      <Link href="/admin/dashboard" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.includes("/admin") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}>
-                        <LayoutDashboard className="mr-2 h-5 w-5" /> {t('adminDashboard')}
+                        <LayoutDashboard className="mr-2 h-5 w-5" /> {translations.adminDashboard}
                     </Link>
                 )}
                  {currentUser && (
                    <>
                     <DropdownMenuSeparator />
-                     <Link href="/profile" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><User className="mr-2 h-5 w-5" /> {t('profile')}</Link>
-                     <Link href="/profile/addresses" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/addresses") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><MapPin className="mr-2 h-5 w-5" /> {t('myAddresses')}</Link>
-                     <Link href="/profile/orders" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/orders") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><History className="mr-2 h-5 w-5" /> {t('orderHistory')}</Link>
-                     <Link href="/profile/wishlist" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/wishlist") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Heart className="mr-2 h-5 w-5" /> {t('wishlist')}</Link>
+                     <Link href="/profile" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><User className="mr-2 h-5 w-5" /> {translations.profile}</Link>
+                     <Link href="/profile/addresses" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/addresses") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><MapPin className="mr-2 h-5 w-5" /> {translations.myAddresses}</Link>
+                     <Link href="/profile/orders" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/orders") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><History className="mr-2 h-5 w-5" /> {translations.orderHistory}</Link>
+                     <Link href="/profile/wishlist" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/wishlist") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Heart className="mr-2 h-5 w-5" /> {translations.wishlist}</Link>
                    </>
                  )}
               </nav>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -12,12 +13,21 @@ import { Button } from '@/components/ui/button';
 import { UniversalLoginForm } from './UniversalLoginForm';
 import { SignupForm } from './SignupForm';
 import { LogIn } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useToast } from '@/hooks/use-toast'; // Added for toast
 
 export function LoginModal() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'login' | 'signup'>('login');
-  const t = useTranslations('LoginModal');
+  const { toast } = useToast(); // Added for toast
+
+  // Hardcoded English strings
+  const translations = {
+    loginButton: "Login",
+    dialogTitleLogin: "User Login",
+    dialogTitleSignup: "User Sign Up",
+    signupSuccessTitle: "Account Created",
+    signupSuccessDescription: "Please log in to continue."
+  };
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
@@ -32,12 +42,9 @@ export function LoginModal() {
   };
 
   const handleSignupSuccess = () => {
-    // After signup, prompt to login within the modal
-    toast({ title: tDialogSignup('successTitle'), description: tDialogSignup('successDescription') });
+    toast({ title: translations.signupSuccessTitle, description: translations.signupSuccessDescription });
     setView('login'); 
-    // Optionally, could close the modal: setOpen(false);
   };
-
 
   const switchToSignup = () => {
     setView('signup');
@@ -47,20 +54,17 @@ export function LoginModal() {
     setView('login');
   };
 
-  const tDialogLogin = useTranslations('UniversalLoginForm');
-  const tDialogSignup = useTranslations('SignupForm');
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          <LogIn className="mr-2 h-4 w-4" /> {t('loginButton')}
+          <LogIn className="mr-2 h-4 w-4" /> {translations.loginButton}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden">
         <DialogHeader className="sr-only">
           <DialogTitle>
-            {view === 'login' ? t('dialogTitleLogin') : t('dialogTitleSignup')}
+            {view === 'login' ? translations.dialogTitleLogin : translations.dialogTitleSignup}
           </DialogTitle>
         </DialogHeader>
         

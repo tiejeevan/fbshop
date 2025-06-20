@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -11,7 +12,6 @@ import { CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from 
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
 
 const signupSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
@@ -28,14 +28,28 @@ type SignupFormInputs = z.infer<typeof signupSchema>;
 interface SignupFormProps {
   onNavigateToLogin?: () => void;
   onSignupSuccess?: () => void;
-  loginPath?: string; // Used if this form is on a dedicated page
+  loginPath?: string; 
 }
 
 export function SignupForm({ onNavigateToLogin, onSignupSuccess, loginPath }: SignupFormProps) {
   const { signup } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const t = useTranslations('SignupForm');
+  
+  // Hardcoded English strings
+  const translations = {
+    title: "Create an Account",
+    description: "Join Local Commerce today!",
+    nameLabel: "Full Name",
+    namePlaceholder: "John Doe",
+    emailLabel: "Email",
+    emailPlaceholder: "you@example.com",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm Password",
+    signupButton: "Sign Up",
+    alreadyHaveAccount: "Already have an account?",
+    loginLink: "Log in"
+  };
 
   const {
     register,
@@ -78,15 +92,15 @@ export function SignupForm({ onNavigateToLogin, onSignupSuccess, loginPath }: Si
   return (
     <>
       <CardHeader className="text-center pt-6 pb-4">
-        <CardTitle className="font-headline text-2xl md:text-3xl text-primary">{t('title')}</CardTitle>
-        <CardDescription className="text-sm">{t('description')}</CardDescription>
+        <CardTitle className="font-headline text-2xl md:text-3xl text-primary">{translations.title}</CardTitle>
+        <CardDescription className="text-sm">{translations.description}</CardDescription>
       </CardHeader>
       <CardContent className="px-6 pb-4">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
           <div className="space-y-1.5">
-            <Label htmlFor="name-signup">{t('nameLabel')}</Label>
+            <Label htmlFor="name-signup">{translations.nameLabel}</Label>
             <Input
-              id="name-signup" type="text" placeholder={t('namePlaceholder')}
+              id="name-signup" type="text" placeholder={translations.namePlaceholder}
               {...register('name')}
               aria-invalid={errors.name ? 'true' : 'false'}
               className={errors.name ? 'border-destructive' : ''}
@@ -94,9 +108,9 @@ export function SignupForm({ onNavigateToLogin, onSignupSuccess, loginPath }: Si
             {errors.name && <p className="text-xs text-destructive pt-1">{errors.name.message}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="email-signup">{t('emailLabel')}</Label>
+            <Label htmlFor="email-signup">{translations.emailLabel}</Label>
             <Input
-              id="email-signup" type="email" placeholder={t('emailPlaceholder')}
+              id="email-signup" type="email" placeholder={translations.emailPlaceholder}
               {...register('email')}
               aria-invalid={errors.email ? 'true' : 'false'}
               className={errors.email ? 'border-destructive' : ''}
@@ -104,7 +118,7 @@ export function SignupForm({ onNavigateToLogin, onSignupSuccess, loginPath }: Si
             {errors.email && <p className="text-xs text-destructive pt-1">{errors.email.message}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="password-signup">{t('passwordLabel')}</Label>
+            <Label htmlFor="password-signup">{translations.passwordLabel}</Label>
             <Input
               id="password-signup" type="password" placeholder="••••••••"
               {...register('password')}
@@ -114,7 +128,7 @@ export function SignupForm({ onNavigateToLogin, onSignupSuccess, loginPath }: Si
             {errors.password && <p className="text-xs text-destructive pt-1">{errors.password.message}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword-signup">{t('confirmPasswordLabel')}</Label>
+            <Label htmlFor="confirmPassword-signup">{translations.confirmPasswordLabel}</Label>
             <Input
               id="confirmPassword-signup" type="password" placeholder="••••••••"
               {...register('confirmPassword')}
@@ -125,23 +139,23 @@ export function SignupForm({ onNavigateToLogin, onSignupSuccess, loginPath }: Si
           </div>
           <Button type="submit" className="w-full !mt-6" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t('signupButton')}
+            {translations.signupButton}
           </Button>
         </form>
       </CardContent>
       <CardFooter className="flex flex-col items-center space-y-2 px-6 pb-6 pt-4">
         {onNavigateToLogin ? (
           <p className="text-sm text-muted-foreground">
-            {t('alreadyHaveAccount')}{' '}
+            {translations.alreadyHaveAccount}{' '}
             <Button variant="link" onClick={onNavigateToLogin} className="p-0 h-auto font-medium text-primary hover:underline">
-              {t('loginLink')}
+              {translations.loginLink}
             </Button>
           </p>
-        ) : loginPath ? ( // For dedicated signup page
+        ) : loginPath ? (
           <p className="text-sm text-muted-foreground">
-             {t('alreadyHaveAccount')}{' '}
+             {translations.alreadyHaveAccount}{' '}
             <a href={loginPath} className="font-medium text-primary hover:underline">
-              {t('loginLink')}
+              {translations.loginLink}
             </a>
           </p>
         ) : null}
