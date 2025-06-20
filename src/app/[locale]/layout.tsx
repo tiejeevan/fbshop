@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import '../globals.css'; // Adjusted path
@@ -21,8 +22,10 @@ interface RootLayoutProps {
 
 export default async function RootLayout({
   children,
-  params: {locale}
+  params // Changed: pass params directly
 }: Readonly<RootLayoutProps>) {
+  const locale = params.locale; // Access locale from params object
+
   // Providing all messages to the client
   // side is a simp_step approach. You could
   // also provide only the messages for the current route.
@@ -36,7 +39,7 @@ export default async function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet" />
       </head>
       <body className={`${inter.variable} font-body antialiased`}>
-        <NextIntlClientProvider messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           <AppProviders>
             <ThemeApplicator />
             {children}
