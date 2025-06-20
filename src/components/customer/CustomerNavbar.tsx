@@ -4,7 +4,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag, User, LogOut, Menu, ShoppingCart, PackageSearch, Heart, History, LayoutDashboard, MapPin, Globe } from 'lucide-react';
+import { ShoppingBag, User, LogOut, Menu, ShoppingCart, PackageSearch, Heart, History, LayoutDashboard, MapPin, Globe, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -16,12 +16,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import React, { useEffect, useState } from 'react';
-import { localStorageService } from '@/lib/localStorageService';
+import React, { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { LoginModal } from '@/components/auth/LoginModal';
 import Link from 'next/link';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export function CustomerNavbar() {
   const { currentUser, logout } = useAuth();
@@ -29,6 +29,7 @@ export function CustomerNavbar() {
   const pathname = usePathname();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [cartItemCount, setCartItemCount] = useState(0);
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
   // Hardcoded English strings
   const translations = {
@@ -43,30 +44,42 @@ export function CustomerNavbar() {
     storeName: "Local Commerce"
   };
 
-  useEffect(() => {
-    const updateCartCount = () => {
-      if (currentUser) {
-        const cart = localStorageService.getCart(currentUser.id);
+  const updateCartCount = useCallback(async () => {
+    if (currentUser && dataService && !isDataSourceLoading) {
+      try {
+        const cart = await dataService.getCart(currentUser.id);
         setCartItemCount(cart?.items.reduce((sum, item) => sum + item.quantity, 0) || 0);
-      } else {
+      } catch (error) {
+        console.error("Failed to fetch cart count:", error);
         setCartItemCount(0);
       }
+    } else {
+      setCartItemCount(0);
+    }
+  }, [currentUser, dataService, isDataSourceLoading]);
+
+
+  useEffect(() => {
+    if(!isDataSourceLoading){
+        updateCartCount();
+    }
+
+    const handleCartUpdate = () => {
+        if(!isDataSourceLoading){
+            updateCartCount();
+        }
     };
-
-    updateCartCount(); 
-
-    const handleCartUpdate = () => updateCartCount();
     window.addEventListener('cartUpdated', handleCartUpdate);
 
     return () => {
       window.removeEventListener('cartUpdated', handleCartUpdate);
     };
-  }, [currentUser, pathname]); 
+  }, [currentUser, pathname, updateCartCount, isDataSourceLoading, dataService]);
 
 
   const handleLogout = () => {
     logout();
-    router.push('/'); 
+    router.push('/');
   };
 
   const UserMenu = () => (
@@ -127,11 +140,12 @@ export function CustomerNavbar() {
             </Button>
           )}
           <ThemeToggle />
-          {/* LanguageSwitcher removed */}
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />
-              {cartItemCount > 0 && (
+              {isDataSourceLoading ? (
+                <Loader2 className="absolute -top-1 -right-1 h-4 w-4 animate-spin text-primary" />
+              ) : cartItemCount > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full">
                   {cartItemCount}
                 </Badge>
