@@ -7,32 +7,43 @@ const locales = ['en', 'es'];
 
 export default getRequestConfig(async ({locale}) => {
   // Validate that the incoming `locale` parameter is valid
-  // and normalize it (e.g., 'en-US' -> 'en').
   const baseLocale = locale.split('-')[0];
 
-  if (!locales.includes(baseLocale as any)) {
-    console.error(`[i18n.ts] Invalid locale provided: "${locale}". Supported: ${locales.join(', ')}. Triggering notFound.`);
+  if (!locales.includes(baseLocale)) {
+    console.error(`[i18n.ts - Minimal] Invalid locale provided: "${locale}". Supported: ${locales.join(', ')}. Triggering notFound.`);
     notFound();
   }
 
-  let messages;
-  try {
-    // Using a relative path from src/i18n.ts to src/messages/
-    messages = (await import(`./messages/${baseLocale}.json`)).default;
-  } catch (error) {
-    console.error(`[i18n.ts] Could not load messages for locale "${baseLocale}". Path: ./messages/${baseLocale}.json. Error:`, error);
-    // If messages for a valid locale are missing, treat as not found.
-    notFound();
+  // For testing, return minimal static messages
+  // This helps determine if the issue is finding the config file vs. loading messages.
+  if (baseLocale === 'en') {
+    return {
+      messages: {
+        HomePage: {
+          loading: "Loading Local Commerce..."
+        },
+        CustomerNavbar: {
+          login: "Login",
+          storeName: "Local Commerce"
+        }
+      }
+    };
+  } else if (baseLocale === 'es') {
+    return {
+      messages: {
+        HomePage: {
+          loading: "Cargando Comercio Local..."
+        },
+        CustomerNavbar: {
+          login: "Iniciar Sesión",
+          storeName: "Comercio Local"
+        }
+      }
+    };
   }
 
-  if (!messages) {
-    // This case should ideally be caught by the try-catch above,
-    // but as an extra safeguard:
-    console.error(`[i18n.ts] Messages object is undefined for locale "${baseLocale}" after import. Triggering notFound.`);
-    notFound();
-  }
-
-  return {
-    messages
-  };
+  // Fallback if locale is valid but not 'en' or 'es' (shouldn't happen with current locales array)
+  console.error(`[i18n.ts - Minimal] No static messages defined for locale: "${baseLocale}". Triggering notFound.`);
+  notFound();
 });
+
