@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { WishlistButton } from '@/components/customer/WishlistButton';
 import { ReviewList } from '@/components/product/ReviewList';
-import { ReviewForm } from '@/components/product/ReviewForm'; // Corrected import path
+import { ReviewForm } from '@/components/product/ReviewForm';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductImage } from '@/components/product/ProductImage';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
 import { LoginModal } from '@/components/auth/LoginModal';
-import { StickyAddToCartBar } from '@/components/product/StickyAddToCartBar';
+// import { StickyAddToCartBar } from '@/components/product/StickyAddToCartBar'; // Removed StickyAddToCartBar
 
 
 const MAX_TOTAL_IMAGES = 10;
@@ -61,8 +61,8 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const [allProductImageIdsState, setAllProductImageIdsState] = useState<string[]>([]);
   const [isZoomed, setIsZoomed] = useState(false);
 
-  const [showStickyBar, setShowStickyBar] = useState(false);
-  const mainAddToCartRef = useRef<HTMLDivElement>(null);
+  // const [showStickyBar, setShowStickyBar] = useState(false); // State for sticky bar removed
+  // const mainAddToCartRef = useRef<HTMLDivElement>(null); // Ref can be removed if not used elsewhere
 
   const fetchProductData = useCallback((productId: string) => {
     setIsLoading(true);
@@ -105,26 +105,26 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   }, [params.id, fetchProductData]);
 
 
-  // Sticky Add to Cart Bar Logic
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setShowStickyBar(!entry.isIntersecting && entry.boundingClientRect.bottom < 0);
-      },
-      { threshold: 0 } // Trigger as soon as the element is partially out of view
-    );
+  // Sticky Add to Cart Bar Logic removed
+  // useEffect(() => {
+  //   const observer = new IntersectionObserver(
+  //     ([entry]) => {
+  //       setShowStickyBar(!entry.isIntersecting && entry.boundingClientRect.bottom < 0);
+  //     },
+  //     { threshold: 0 }
+  //   );
 
-    const currentRef = mainAddToCartRef.current;
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
+  //   const currentRef = mainAddToCartRef.current;
+  //   if (currentRef) {
+  //     observer.observe(currentRef);
+  //   }
 
-    return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
-    };
-  }, [product]); // Re-run if product changes, in case layout shifts
+  //   return () => {
+  //     if (currentRef) {
+  //       observer.unobserve(currentRef);
+  //     }
+  //   };
+  // }, [product]);
 
   const currentDisplayableImageIds = useMemo(() => {
     if (isEditing) {
@@ -189,21 +189,21 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 
   const handleQuantityChange = (newQuantity: number) => {
     if (!product) return;
-    let updatedQuantity = Math.max(1, newQuantity); // Ensure quantity is at least 1
+    let updatedQuantity = Math.max(1, newQuantity); 
     if (updatedQuantity > product.stock) {
       updatedQuantity = product.stock;
-      if (product.stock > 0) { // Only toast if stock is actually available
+      if (product.stock > 0) { 
         toast({ title: "Stock Limit", description: `Only ${product.stock} units available.`, variant: "destructive" });
       }
     }
-    if (product.stock === 0) updatedQuantity = 0; // Can't select quantity if no stock
-    else if (updatedQuantity === 0 && product.stock > 0) updatedQuantity = 1; // Prevent setting to 0 if stock exists
+    if (product.stock === 0) updatedQuantity = 0; 
+    else if (updatedQuantity === 0 && product.stock > 0) updatedQuantity = 1; 
 
     setQuantity(updatedQuantity);
   };
   
   const handleAddToCart = () => {
-    if (!product || quantity === 0) return; // Don't add if quantity is 0
+    if (!product || quantity === 0) return; 
     if (!currentUser) {
       toast({ title: "Login Required", description: "Please log in to add items to your cart.", variant: "destructive" });
       return;
@@ -296,7 +296,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     }
     finalAdditionalImageIds = imagesToKeepOrAddNew;
 
-    const oldProductSnapshot: Product = { ...product }; // For log comparison
+    const oldProductSnapshot: Product = { ...product }; 
 
     const updatedProductData: Product = {
       ...product,
@@ -315,7 +315,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
         localStorageService.deleteReview(reviewId);
     }
     
-    // Admin Log
     const logDescription = generateProductChangeDescription(oldProductSnapshot, updatedProductData, imageChangeDescriptions);
     if (currentUser) {
         localStorageService.addAdminActionLog({
@@ -436,7 +435,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     if (!product || !currentUser) return;
     const productName = product.name;
     const productId = product.id;
-    await localStorageService.deleteProduct(productId); // This now handles image deletion too
+    await localStorageService.deleteProduct(productId); 
      localStorageService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
@@ -634,12 +633,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           )}
            {(reviews.length > 0 || product.averageRating) && !isEditing && (
             <div className="flex items-center gap-2">
-               {/* StarRatingDisplay from @/components/product/StarRatingDisplay was here, but ReviewForm is imported from there.
-                  Assuming StarRatingDisplay component exists and is imported correctly.
-                  If StarRatingDisplay is the one intended here, its import needs to be added or fixed.
-                  For now, leaving this potentially problematic if StarRatingDisplay wasn't also moved/correctly imported.
-                  However, the error was specifically about ReviewForm, so this line isn't the direct cause of *that* error.
-                */}
             </div>
           )}
           
@@ -669,8 +662,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
             <Badge variant="destructive" className="text-sm">Out of Stock</Badge>
           )}
 
-          {/* Main Add to Cart Section - Ref for sticky bar */}
-          <div ref={mainAddToCartRef}>
+          <div>
             {product.stock > 0 && !isEditing && (
                 <div className="flex items-center gap-4 pt-4">
                 <div className="flex items-center border rounded-md">
@@ -773,13 +765,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           <p className="text-muted-foreground">No reviews yet for this product.</p>
         )}
       </div>
-      <StickyAddToCartBar
-        product={product}
-        quantity={quantity}
-        onQuantityChange={handleQuantityChange}
-        onAddToCart={handleAddToCart}
-        isVisible={showStickyBar && !isEditing && product.stock > 0}
-      />
+      {/* StickyAddToCartBar removed */}
     </div>
   );
 }
@@ -812,10 +798,3 @@ const generateProductChangeDescription = (oldProduct: Product, newData: Partial<
   if (changes.length === 0) return `No significant changes detected for product "${newData.name || oldProduct.name}".`;
   return `Updated product "${newData.name || oldProduct.name}": ${changes.join(' ')}`;
 };
-
-// Helper function to safely get a string for data-ai-hint (no longer used for ProductImage, kept for reference)
-// const getProductImageHint = (productName: string | undefined, type: string): string => {
-//   if (!productName) return type;
-//   return `${productName.split(" ")[0]} ${type}`.toLowerCase().slice(0, 20); 
-// }
-
