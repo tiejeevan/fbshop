@@ -22,32 +22,41 @@ let db: Firestore | null = null;
 // let storage;
 
 if (typeof window !== 'undefined') {
-  if (!getApps().length) {
-    try {
-      if (
-        firebaseConfig.apiKey &&
-        firebaseConfig.authDomain &&
-        firebaseConfig.projectId
-      ) {
+  // Check if all essential Firebase config keys are present
+  const essentialKeys: (keyof typeof firebaseConfig)[] = ['apiKey', 'authDomain', 'projectId'];
+  const missingEssentialKeys = essentialKeys.filter(key => !firebaseConfig[key]);
+
+  if (missingEssentialKeys.length > 0) {
+    console.error(
+      `Firebase Initialization ABORTED: Missing critical Firebase configuration variables in your .env file: ${missingEssentialKeys.join(', ')}. ` +
+      "Please ensure all NEXT_PUBLIC_FIREBASE_* variables are correctly set. Firebase will not be available."
+    );
+    // db will remain null, and DataSourceContext will handle this by preventing a switch to Firebase
+  } else {
+    if (!getApps().length) {
+      try {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         // auth = getAuth(app);
         // storage = getStorage(app);
         console.log("Firebase initialized successfully.");
-      } else {
-        console.warn("Firebase configuration is missing. Firebase will not be initialized.");
+      } catch (error) {
+        console.error("Firebase initialization error during initializeApp or getFirestore:", error);
+        app = null;
+        db = null;
       }
-    } catch (error) {
-      console.error("Firebase initialization error:", error);
-      // Fallback or error handling for Firebase init failure
-      app = null;
-      db = null;
+    } else {
+      app = getApp();
+      try {
+        db = getFirestore(app); // Ensure db is also fetched for existing app
+        // auth = getAuth(app);
+        // storage = getStorage(app);
+        console.log("Firebase app already initialized, using existing instance.");
+      } catch (error) {
+          console.error("Error getting Firestore from existing Firebase app:", error);
+          db = null;
+      }
     }
-  } else {
-    app = getApp();
-    db = getFirestore(app);
-    // auth = getAuth(app);
-    // storage = getStorage(app);
   }
 }
 
