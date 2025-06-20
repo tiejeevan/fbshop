@@ -60,21 +60,22 @@ export function CustomerNavbar() {
 
 
   useEffect(() => {
-    if(!isDataSourceLoading){
+    // Initial call to update cart count when component mounts or dependencies change
+    if (!isDataSourceLoading && dataService && currentUser) {
         updateCartCount();
     }
 
+    // Event listener for cart updates
     const handleCartUpdate = () => {
-        if(!isDataSourceLoading){
-            updateCartCount();
-        }
+        // updateCartCount already checks for dataService and currentUser
+        updateCartCount();
     };
     window.addEventListener('cartUpdated', handleCartUpdate);
 
     return () => {
       window.removeEventListener('cartUpdated', handleCartUpdate);
     };
-  }, [currentUser, pathname, updateCartCount, isDataSourceLoading, dataService]);
+  }, [updateCartCount, isDataSourceLoading, pathname, currentUser, dataService]); // Added currentUser and dataService to ensure effect runs if they change affecting initial call logic
 
 
   const handleLogout = () => {
@@ -143,7 +144,7 @@ export function CustomerNavbar() {
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />
-              {isDataSourceLoading ? (
+              {isDataSourceLoading && !currentUser ? ( // Show loader if data source is loading AND no current user (initial app load)
                 <Loader2 className="absolute -top-1 -right-1 h-4 w-4 animate-spin text-primary" />
               ) : cartItemCount > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full">

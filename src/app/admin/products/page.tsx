@@ -8,30 +8,44 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
-import { localStorageService } from '@/lib/localStorageService';
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye, Loader2 } from 'lucide-react';
 import type { Product, Category } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ProductImage } from '@/components/product/ProductImage';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+  const [isComponentLoading, setIsComponentLoading] = useState(true);
 
-  const fetchProductsAndCategories = useCallback(() => {
-    setIsLoading(true);
-    const fetchedProducts = localStorageService.getProducts();
-    const fetchedCategories = localStorageService.getCategories();
-    setProducts(fetchedProducts);
-    setCategories(fetchedCategories);
-    setIsLoading(false);
-  }, []);
+
+  const fetchProductsAndCategories = useCallback(async () => {
+    if (isDataSourceLoading || !dataService) {
+      setIsComponentLoading(true);
+      return;
+    }
+    setIsComponentLoading(true);
+    try {
+      const fetchedProducts = await dataService.getProducts();
+      const fetchedCategories = await dataService.getCategories();
+      setProducts(fetchedProducts);
+      setCategories(fetchedCategories);
+    } catch (error) {
+        console.error("Error fetching products/categories for admin:", error);
+        toast({ title: "Error", description: "Could not load product or category data.", variant: "destructive" });
+        setProducts([]);
+        setCategories([]);
+    } finally {
+      setIsComponentLoading(false);
+    }
+  }, [dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
     fetchProductsAndCategories();
@@ -42,33 +56,44 @@ export default function AdminProductsPage() {
   };
 
   const handleDeleteProduct = async () => {
-    if (!productToDelete || !currentUser) {
-        toast({ title: "Error", description: "Product data or admin session missing for deletion.", variant: "destructive" });
+    if (!productToDelete || !currentUser || !dataService) {
+        toast({ title: "Error", description: "Product data, admin session, or data service missing for deletion.", variant: "destructive" });
         setProductToDelete(null);
         return;
     }
-    const productName = productToDelete.name; 
+    const productName = productToDelete.name;
     const productId = productToDelete.id;
 
-    const success = await localStorageService.deleteProduct(productId);
-    if (success) {
-      await localStorageService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
-        actionType: 'PRODUCT_DELETE',
-        entityType: 'Product',
-        entityId: productId,
-        description: `Deleted product "${productName}" (ID: ${productId.substring(0,8)}...).`
-      });
-      toast({ title: "Product Deleted", description: `"${productName}" deleted.` });
-      fetchProductsAndCategories();
-    } else {
-      toast({ title: "Error Deleting Product", variant: "destructive" });
+    try {
+      const success = await dataService.deleteProduct(productId);
+      if (success) {
+        await dataService.addAdminActionLog({
+          adminId: currentUser.id,
+          adminEmail: currentUser.email,
+          actionType: 'PRODUCT_DELETE',
+          entityType: 'Product',
+          entityId: productId,
+          description: `Deleted product "${productName}" (ID: ${productId.substring(0,8)}...).`
+        });
+        toast({ title: "Product Deleted", description: `"${productName}" deleted.` });
+        fetchProductsAndCategories(); // Re-fetch to update the list
+      } else {
+        toast({ title: "Error Deleting Product", description: "Failed to delete product from the data source.", variant: "destructive" });
+      }
+    } catch (error) {
+        console.error("Error during product deletion process:", error);
+        toast({ title: "Error Deleting Product", description: "An unexpected error occurred.", variant: "destructive" });
     }
     setProductToDelete(null);
   };
 
-  if (isLoading) return <div className="flex justify-center items-center h-64">Loading products...</div>;
+  if (isDataSourceLoading || isComponentLoading) {
+    return (
+        <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mr-2"/> Loading products...
+        </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -114,7 +139,7 @@ export default function AdminProductsPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium">
-                        <Link href={`/products/${product.id}`} className="hover:underline text-primary">
+                        <Link href={`/products/${product.id}`} className="hover:underline text-primary" target="_blank" rel="noopener noreferrer" title={`View ${product.name} on storefront (ID: ${product.id.substring(0,6)}...)`}>
                             {product.name}
                         </Link>
                       </TableCell>
