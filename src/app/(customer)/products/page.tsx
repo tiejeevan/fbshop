@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -5,11 +6,11 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { localStorageService } from '@/lib/localStorage';
+import { localStorageService } from '@/lib/localStorageService';
 import type { Product, Category } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from '@/components/ui/input';
-import { ShoppingCart, Search, Star, Eye, Camera, Loader2 } from 'lucide-react'; // Added Camera, Loader2
+import { ShoppingCart, Search, Star, Eye, Camera, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -19,7 +20,7 @@ import { RecentlyViewedProducts } from '@/components/product/RecentlyViewedProdu
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductImage } from '@/components/product/ProductImage';
 import { ProductQuickViewModal } from '@/components/product/ProductQuickViewModal';
-import { describeImageForSearch } from '@/ai/flows/describe-image-for-search'; // New Genkit flow import
+import { describeImageForSearch } from '@/ai/flows/describe-image-for-search';
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'views-desc' | 'purchases-desc' | 'rating-desc';
 
@@ -35,7 +36,7 @@ export default function ProductsPage() {
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isQuickViewModalOpen, setIsQuickViewModalOpen] = useState(false);
-  const [isVisualSearching, setIsVisualSearching] = useState(false); // For Genkit loading
+  const [isVisualSearching, setIsVisualSearching] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -99,7 +100,7 @@ export default function ProductsPage() {
   const sortedAndFilteredProducts = useMemo(() => {
     return products
       .filter(product => (selectedCategory && selectedCategory !== 'all') ? product.categoryId === selectedCategory : true)
-      .filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()) || product.description?.toLowerCase().includes(searchTerm.toLowerCase())) // Search in description too
+      .filter(product => product.name.toLowerCase().includes(searchTerm.toLowerCase()) || product.description?.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => {
         switch (sortOption) {
           case 'name-asc': return a.name.localeCompare(b.name);
@@ -128,8 +129,6 @@ export default function ProductsPage() {
     setIsVisualSearching(true);
     toast({ title: "Visual Search Activated", description: "AI is 'analyzing' a hypothetical image..." });
     try {
-      // In a real scenario, you might pass some context or an actual (downscaled/mocked) image data URI.
-      // For this mock, we'll call it without specific input for the AI to be creative.
       const result = await describeImageForSearch();
       if (result && result.description) {
         setSearchTerm(result.description);
@@ -139,7 +138,19 @@ export default function ProductsPage() {
       }
     } catch (error) {
       console.error("Visual search error:", error);
-      toast({ title: "AI Error", description: "Visual search failed.", variant: "destructive" });
+      // Enhanced logging for easier debugging by the user
+      if (error instanceof Error) {
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      // Attempt to stringify the error object for more details, handling potential circular references
+      try {
+        console.error("Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      } catch (stringifyError) {
+        console.error("Could not stringify the full error object:", stringifyError);
+      }
+      toast({ title: "AI Error", description: "Visual search failed. Check browser console for details.", variant: "destructive" });
     } finally {
       setIsVisualSearching(false);
     }
@@ -155,7 +166,7 @@ export default function ProductsPage() {
         </header>
         <div className="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-card rounded-lg shadow">
           <Skeleton className="h-10 flex-grow rounded-md" />
-          <Skeleton className="h-10 w-10 rounded-md shrink-0" /> {/* For visual search button */}
+          <Skeleton className="h-10 w-10 rounded-md shrink-0" />
           <Skeleton className="h-10 w-full md:w-[200px] rounded-md" />
           <Skeleton className="h-10 w-full md:w-[220px] rounded-md" />
         </div>
@@ -299,3 +310,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+

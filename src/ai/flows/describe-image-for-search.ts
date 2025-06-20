@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -53,11 +54,11 @@ const describeImageForSearchFlow = ai.defineFlow(
     inputSchema: DescribeImageInputSchema,
     outputSchema: DescribeImageOutputSchema,
   },
-  async input => {
+  async (input): Promise<DescribeImageOutput> => {
     const {output} = await prompt(input);
-    if (!output) {
-        // Fallback in case AI fails to generate structured output
-        return { description: "popular electronics" };
+    if (!output || typeof output.description !== 'string' || output.description.trim() === '') {
+        console.warn("Genkit flow 'describeImageForSearchFlow': AI output was empty, invalid, or did not match schema. Using fallback.");
+        return { description: "fallback: AI visual search term" }; // More distinct fallback
     }
     return output;
   }
