@@ -10,10 +10,6 @@ export default createMiddleware({
 
   // Optionally, configure locale detection strategies
   localeDetection: true, 
-
-  // By default, the middleware will look for `i18n.ts` (or `.js`)
-  // in the same directory. If `middleware.ts` is in `src/`, then
-  // `i18n.ts` should also be in `src/`.
 });
  
 export const config = {
