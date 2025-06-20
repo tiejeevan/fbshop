@@ -1,13 +1,12 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Edit, Trash2, Star, MapPin, Home } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Star, MapPin, Home, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Address } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -28,32 +27,55 @@ import {
 } from '@/components/ui/dialog';
 import { AddressForm, type AddressFormValues } from '@/components/customer/AddressForm';
 import { Badge } from '@/components/ui/badge';
+import { useDataSource } from '@/contexts/DataSourceContext'; // Added
 
 export default function AddressesPage() {
   const { currentUser, isLoading: authLoading, refreshUser } = useAuth();
   const [addresses, setAddresses] = useState<Address[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isComponentLoading, setIsComponentLoading] = useState(true); // Renamed
   const [addressToEdit, setAddressToEdit] = useState<Address | null>(null);
   const [addressToDelete, setAddressToDelete] = useState<Address | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isFormSubmitting, setIsFormSubmitting] = useState(false);
   const { toast } = useToast();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // Added
+
+  const fetchAddresses = useCallback(async () => {
+    if (!currentUser || !dataService || isDataSourceLoading) {
+      setIsComponentLoading(true);
+      return;
+    }
+    setIsComponentLoading(true);
+    try {
+      const userAddresses = await dataService.getUserAddresses(currentUser.id);
+      setAddresses(userAddresses);
+    } catch (error) {
+      console.error("Error fetching addresses:", error);
+      toast({ title: "Error", description: "Could not load addresses.", variant: "destructive" });
+      setAddresses([]);
+    } finally {
+      setIsComponentLoading(false);
+    }
+  }, [currentUser, dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    if (currentUser) {
-      setAddresses(localStorageService.getUserAddresses(currentUser.id));
+    if (!authLoading) { // Only fetch if auth state is resolved
+        fetchAddresses();
     }
-    setIsLoading(false);
-  }, [currentUser]);
+  }, [currentUser, authLoading, fetchAddresses]);
 
   const handleAddAddress = async (data: AddressFormValues) => {
-    if (!currentUser) return;
+    if (!currentUser || !dataService) {
+        toast({ title: "Error", description: "User or data service not available.", variant: "destructive" });
+        return;
+    }
     setIsFormSubmitting(true);
     try {
-      localStorageService.addAddressToUser(currentUser.id, data);
+      await dataService.addAddressToUser(currentUser.id, data);
       toast({ title: 'Address Added', description: 'Your new address has been saved.' });
-      refreshUserAddresses();
+      fetchAddresses(); // Re-fetch to update list
       setIsFormModalOpen(false);
+      refreshUser(); // Potentially refresh user data if addresses are part of user object
     } catch (error) {
       toast({ title: 'Error', description: 'Could not add address.', variant: 'destructive' });
     } finally {
@@ -62,15 +84,19 @@ export default function AddressesPage() {
   };
 
   const handleEditAddress = async (data: AddressFormValues, addressId?: string) => {
-    if (!currentUser || !addressId) return;
+    if (!currentUser || !addressId || !dataService) {
+        toast({ title: "Error", description: "User, address ID or data service not available.", variant: "destructive" });
+        return;
+    }
     setIsFormSubmitting(true);
     try {
       const addressToUpdate: Address = { ...data, id: addressId, userId: currentUser.id };
-      localStorageService.updateUserAddress(currentUser.id, addressToUpdate);
+      await dataService.updateUserAddress(currentUser.id, addressToUpdate);
       toast({ title: 'Address Updated', description: 'Your address has been updated.' });
-      refreshUserAddresses();
+      fetchAddresses();
       setAddressToEdit(null);
       setIsFormModalOpen(false);
+      refreshUser();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not update address.', variant: 'destructive' });
     } finally {
@@ -78,38 +104,39 @@ export default function AddressesPage() {
     }
   };
 
-  const handleDeleteAddress = () => {
-    if (!currentUser || !addressToDelete) return;
+  const handleDeleteAddress = async () => {
+    if (!currentUser || !addressToDelete || !dataService) {
+        toast({ title: "Error", description: "User, address to delete or data service not available.", variant: "destructive" });
+        return;
+    }
     try {
-      localStorageService.deleteUserAddress(currentUser.id, addressToDelete.id);
+      await dataService.deleteUserAddress(currentUser.id, addressToDelete.id);
       toast({ title: 'Address Deleted' });
-      refreshUserAddresses();
+      fetchAddresses();
+      refreshUser();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not delete address.', variant: 'destructive' });
     }
     setAddressToDelete(null);
   };
 
-  const handleSetDefaultAddress = (addressId: string) => {
-    if (!currentUser) return;
+  const handleSetDefaultAddress = async (addressId: string) => {
+    if (!currentUser || !dataService) {
+        toast({ title: "Error", description: "User or data service not available.", variant: "destructive" });
+        return;
+    }
     try {
-      localStorageService.setDefaultUserAddress(currentUser.id, addressId);
+      await dataService.setDefaultUserAddress(currentUser.id, addressId);
       toast({ title: 'Default Address Updated' });
-      refreshUserAddresses();
+      fetchAddresses();
+      refreshUser();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not set default address.', variant: 'destructive' });
     }
   };
 
-  const refreshUserAddresses = () => {
-    if (currentUser) {
-      setAddresses(localStorageService.getUserAddresses(currentUser.id));
-      refreshUser();
-    }
-  };
-
-  if (authLoading || isLoading) {
-    return <div className="text-center py-10">Loading addresses...</div>;
+  if (authLoading || isDataSourceLoading || isComponentLoading) {
+    return <div className="text-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto"/> Loading addresses...</div>;
   }
   if (!currentUser) {
     return <div className="text-center py-10">Please log in to manage your addresses.</div>;

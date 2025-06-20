@@ -1,67 +1,108 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Product, WishlistItem } from '@/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { HeartCrack, ShoppingCart, ArrowLeft } from 'lucide-react';
+import { HeartCrack, ShoppingCart, ArrowLeft, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ProductImage } from '@/components/product/ProductImage';
+import { useDataSource } from '@/contexts/DataSourceContext'; // Added
 
 export default function WishlistPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isComponentLoading, setIsComponentLoading] = useState(true); // Renamed
   const { toast } = useToast();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // Added
 
-  useEffect(() => {
-    if (currentUser) {
-      const userWishlistItems: WishlistItem[] = localStorageService.getWishlist(currentUser.id);
-      const productDetails: Product[] = userWishlistItems
-        .map(item => localStorageService.findProductById(item.productId))
+  const fetchWishlist = useCallback(async () => {
+    if (!currentUser || !dataService || isDataSourceLoading) {
+      setIsComponentLoading(true);
+      return;
+    }
+    setIsComponentLoading(true);
+    try {
+      const userWishlistItems: WishlistItem[] = await dataService.getWishlist(currentUser.id);
+      const productDetailsPromises: Promise<Product | undefined>[] = userWishlistItems
+        .map(item => dataService.findProductById(item.productId));
+      
+      const resolvedProductDetails = await Promise.all(productDetailsPromises);
+      const validProducts = resolvedProductDetails
         .filter((product): product is Product => product !== undefined)
-        .sort((a,b) => {
+        .sort((a,b) => { // Sort by addedAt date, descending
             const itemA = userWishlistItems.find(i => i.productId === a.id);
             const itemB = userWishlistItems.find(i => i.productId === b.id);
             return new Date(itemB?.addedAt || 0).getTime() - new Date(itemA?.addedAt || 0).getTime();
         });
-      setWishlistProducts(productDetails);
+      setWishlistProducts(validProducts);
+    } catch (error) {
+      console.error("Error fetching wishlist products:", error);
+      toast({ title: "Error", description: "Could not load wishlist.", variant: "destructive" });
+      setWishlistProducts([]);
+    } finally {
+      setIsComponentLoading(false);
     }
-    setIsLoading(false);
-  }, [currentUser]);
+  }, [currentUser, dataService, isDataSourceLoading, toast]);
 
-  const handleRemoveFromWishlist = (productId: string) => {
-    if (!currentUser) return;
-    localStorageService.removeFromWishlist(currentUser.id, productId);
-    setWishlistProducts(prev => prev.filter(p => p.id !== productId));
-    toast({ title: "Removed from Wishlist" });
-    window.dispatchEvent(new CustomEvent('wishlistUpdated'));
+  useEffect(() => {
+    if (!authLoading) { // Fetch only when auth state is resolved
+        fetchWishlist();
+    }
+
+    const handleWishlistUpdate = () => fetchWishlist();
+    window.addEventListener('wishlistUpdated', handleWishlistUpdate);
+    return () => window.removeEventListener('wishlistUpdated', handleWishlistUpdate);
+
+  }, [currentUser, authLoading, fetchWishlist]);
+
+  const handleRemoveFromWishlist = async (productId: string) => {
+    if (!currentUser || !dataService) return;
+    try {
+        await dataService.removeFromWishlist(currentUser.id, productId);
+        setWishlistProducts(prev => prev.filter(p => p.id !== productId));
+        toast({ title: "Removed from Wishlist" });
+        window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { isGeneralUpdate: true } }));
+    } catch (error) {
+        toast({ title: "Error", description: "Could not remove from wishlist.", variant: "destructive" });
+    }
   };
 
-  const handleAddToCart = (product: Product) => {
-    if (!currentUser) {
-      toast({ title: "Login Required", variant: "destructive" }); return;
+  const handleAddToCart = async (product: Product) => {
+    if (!currentUser || !dataService) {
+      toast({ title: "Error", description: "User or data service not available.", variant: "destructive" }); return;
     }
-    const cart = localStorageService.getCart(currentUser.id) || { userId: currentUser.id, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
-    const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
-    if (existingItemIndex > -1) {
-      if (cart.items[existingItemIndex].quantity < product.stock) cart.items[existingItemIndex].quantity += 1;
-      else { toast({ title: "Stock Limit", variant: "destructive" }); return; }
-    } else {
-      if (product.stock > 0) cart.items.push({ productId: product.id, quantity: 1, price: product.price, name: product.name, primaryImageId: product.primaryImageId });
-      else { toast({ title: "Out of Stock", variant: "destructive" }); return; }
+    try {
+        let cart = await dataService.getCart(currentUser.id);
+        if (!cart) {
+          cart = { userId: currentUser.id, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
+        }
+        const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
+        if (existingItemIndex > -1) {
+          if (cart.items[existingItemIndex].quantity < product.stock) cart.items[existingItemIndex].quantity += 1;
+          else { toast({ title: "Stock Limit", variant: "destructive" }); return; }
+        } else {
+          if (product.stock > 0) cart.items.push({ productId: product.id, quantity: 1, price: product.price, name: product.name, primaryImageId: product.primaryImageId });
+          else { toast({ title: "Out of Stock", variant: "destructive" }); return; }
+        }
+        await dataService.updateCart(cart);
+        toast({ title: "Added to Cart", description: `${product.name} added.` });
+        window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch (error) {
+        toast({ title: "Error", description: "Could not add to cart.", variant: "destructive" });
     }
-    localStorageService.updateCart(cart);
-    toast({ title: "Added to Cart", description: `${product.name} added.` });
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
-  if (authLoading || isLoading) return <div className="text-center py-10">Loading...</div>;
-  if (!currentUser) return <div className="text-center py-10">Please <Link href="/login?redirect=/profile/wishlist" className="text-primary hover:underline">login</Link>.</div>;
+  if (authLoading || isDataSourceLoading || isComponentLoading) {
+    return <div className="text-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /> Loading...</div>;
+  }
+  
+  if (!currentUser) {
+    return <div className="text-center py-10">Please <Link href="/login?redirect=/profile/wishlist" className="text-primary hover:underline">login</Link>.</div>;
+  }
 
   if (wishlistProducts.length === 0) {
     return (

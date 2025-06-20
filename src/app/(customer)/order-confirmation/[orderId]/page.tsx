@@ -1,47 +1,85 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react'; // Removed 'use'
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Order } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Package, ArrowLeft, ShoppingBag } from 'lucide-react';
+import { CheckCircle, Package, ArrowLeft, ShoppingBag, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ProductImage } from '@/components/product/ProductImage';
+import { useDataSource } from '@/contexts/DataSourceContext';
+import { useToast } from '@/hooks/use-toast';
 
-export default function OrderConfirmationPage({ params }: { params: { orderId: string } }) { // Direct params
+export default function OrderConfirmationPage({ params }: { params: { orderId: string } }) {
   const { currentUser } = useAuth();
   const router = useRouter();
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+  const { toast } = useToast();
+
+  const fetchOrder = useCallback(async (orderId: string, userId?: string) => {
+    if (!dataService || isDataSourceLoading) {
+      setIsLoading(true);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      // Firestore implementation of getOrders can take userId for filtering.
+      // If userId is not passed, it fetches all orders (admin scenario).
+      // For confirmation page, we always need orders for the current user.
+      if (userId) {
+        const userOrders = await dataService.getOrders(userId);
+        const fetchedOrder = userOrders.find(o => o.id === orderId);
+        if (fetchedOrder) {
+          setOrder(fetchedOrder);
+        } else {
+          toast({title: "Order Not Found", variant: "destructive"});
+          router.replace('/profile/orders');
+        }
+      } else {
+         toast({title: "User not identified", variant: "destructive"});
+         router.replace('/login'); // Or handle as appropriate
+      }
+    } catch (error) {
+      console.error("Error fetching order for confirmation:", error);
+      toast({title: "Error", description:"Could not load order details.", variant: "destructive"});
+      router.replace('/profile/orders');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dataService, isDataSourceLoading, router, toast]);
 
   useEffect(() => {
-    if (params?.orderId) { // Check if params.orderId is available
+    if (params?.orderId) {
       if (currentUser) {
-        const fetchedOrder = localStorageService.getOrders(currentUser.id).find(o => o.id === params.orderId);
-        if (fetchedOrder) setOrder(fetchedOrder);
-        else router.replace('/profile/orders');
-      } else if (!currentUser) {
+        fetchOrder(params.orderId, currentUser.id);
+      } else if (!isDataSourceLoading && !currentUser) { // Only redirect if not loading and no user
           router.replace(`/login?redirect=/order-confirmation/${params.orderId}`);
       }
-    } else if (!params?.orderId && !isLoading) { // If params.orderId is not available and not loading, redirect
+    } else if (!params?.orderId && !isLoading && !isDataSourceLoading) {
       router.replace('/profile/orders');
     }
-    setIsLoading(false);
-  }, [currentUser, params, router, isLoading]); // Added isLoading and params to deps
+  }, [currentUser, params, fetchOrder, isLoading, isDataSourceLoading, router]);
 
-  if (isLoading || !params?.orderId) return <div className="text-center py-20">Loading...</div>; // Check params.orderId
-  if (!order) return (
+  if (isLoading || isDataSourceLoading || !params?.orderId) {
+    return <div className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /> Loading...</div>;
+  }
+  
+  if (!order) {
+    return (
     <div className="text-center py-20 space-y-4">
       <Package className="h-16 w-16 mx-auto text-destructive" />
       <h1 className="font-headline text-3xl text-destructive">Order Not Found</h1>
       <Button asChild variant="outline"><Link href="/profile/orders"><ArrowLeft className="mr-2 h-4 w-4" /> View Orders</Link></Button>
     </div>
-  );
+    );
+  }
+
 
   return (
     <div className="container mx-auto py-12 px-4 text-center max-w-2xl">

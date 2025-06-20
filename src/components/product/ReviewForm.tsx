@@ -9,11 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { localStorageService } from '@/lib/localStorage';
-import type { Review } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { Star } from 'lucide-react';
+import { Star, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 const reviewSchema = z.object({
   rating: z.number().min(1, "Rating is required").max(5),
@@ -33,6 +32,7 @@ export function ReviewForm({ productId, userId, userName, onReviewSubmitted }: R
   const [hoverRating, setHoverRating] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
   const {
     register,
@@ -56,9 +56,13 @@ export function ReviewForm({ productId, userId, userName, onReviewSubmitted }: R
   };
 
   const onSubmit: SubmitHandler<ReviewFormValues> = async (data) => {
+    if (!dataService || isDataSourceLoading) {
+        toast({ title: "Service Unavailable", description: "Cannot submit review now.", variant: "destructive"});
+        return;
+    }
     setIsSubmitting(true);
     try {
-      localStorageService.addReview({
+      await dataService.addReview({
         productId,
         userId,
         userName,
@@ -66,8 +70,8 @@ export function ReviewForm({ productId, userId, userName, onReviewSubmitted }: R
         comment: data.comment,
       });
       toast({ title: "Review Submitted", description: "Thank you for your feedback!" });
-      reset(); // Reset form fields
-      onReviewSubmitted(); // Notify parent to refresh reviews
+      reset(); 
+      onReviewSubmitted(); 
     } catch (error) {
       console.error("Error submitting review:", error);
       toast({ title: "Submission Error", description: "Could not submit your review. Please try again.", variant: "destructive" });
@@ -113,8 +117,8 @@ export function ReviewForm({ productId, userId, userName, onReviewSubmitted }: R
           </div>
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={isSubmitting || currentRating === 0}>
-            {isSubmitting && <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-primary" />}
+          <Button type="submit" disabled={isSubmitting || currentRating === 0 || isDataSourceLoading}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Submit Review
           </Button>
         </CardFooter>

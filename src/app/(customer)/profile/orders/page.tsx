@@ -1,32 +1,57 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Order } from '@/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PackageSearch, ArrowLeft } from 'lucide-react';
+import { PackageSearch, ArrowLeft, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ProductImage } from '@/components/product/ProductImage';
+import { useDataSource } from '@/contexts/DataSourceContext'; // Added
+import { useToast } from '@/hooks/use-toast'; // Added
 
 export default function OrderHistoryPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isComponentLoading, setIsComponentLoading] = useState(true); // Renamed
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // Added
+  const { toast } = useToast(); // Added
+
+  const fetchOrders = useCallback(async () => {
+    if (!currentUser || !dataService || isDataSourceLoading) {
+      setIsComponentLoading(true); // Keep loading if dependencies not ready
+      return;
+    }
+    setIsComponentLoading(true);
+    try {
+      const userOrders = await dataService.getOrders(currentUser.id);
+      setOrders(userOrders);
+    } catch (error) {
+      console.error("Error fetching order history:", error);
+      toast({ title: "Error", description: "Could not load order history.", variant: "destructive" });
+      setOrders([]); // Clear orders on error
+    } finally {
+      setIsComponentLoading(false);
+    }
+  }, [currentUser, dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    if (currentUser) {
-      setOrders(localStorageService.getOrders(currentUser.id));
+    if (!authLoading) { // Only fetch if auth state is resolved
+        fetchOrders();
     }
-    setIsLoading(false);
-  }, [currentUser]);
+  }, [currentUser, authLoading, fetchOrders]); // fetchOrders is memoized
 
-  if (authLoading || isLoading) return <div className="text-center py-10">Loading...</div>;
-  if (!currentUser) return <div className="text-center py-10">Please <Link href="/login?redirect=/profile/orders" className="text-primary hover:underline">login</Link>.</div>;
+  if (authLoading || isDataSourceLoading || isComponentLoading) {
+    return <div className="text-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /> Loading...</div>;
+  }
+  
+  if (!currentUser) { // This check should ideally happen after authLoading is false
+    return <div className="text-center py-10">Please <Link href="/login?redirect=/profile/orders" className="text-primary hover:underline">login</Link>.</div>;
+  }
 
   if (orders.length === 0) {
     return (
@@ -82,6 +107,19 @@ export default function OrderHistoryPage() {
                    )
                 )}
               </ul>
+                 {order.shippingAddress && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="text-md font-semibold mb-1 text-foreground">Shipping Address:</h4>
+                    <div className="text-sm text-muted-foreground">
+                      <p>{order.shippingAddress.recipientName}</p>
+                      <p>{order.shippingAddress.addressLine1}</p>
+                      {order.shippingAddress.addressLine2 && <p>{order.shippingAddress.addressLine2}</p>}
+                      <p>{order.shippingAddress.city}, {order.shippingAddress.stateOrProvince} {order.shippingAddress.postalCode}</p>
+                      <p>{order.shippingAddress.country}</p>
+                      {order.shippingAddress.phoneNumber && <p>Phone: {order.shippingAddress.phoneNumber}</p>}
+                    </div>
+                  </div>
+                )}
             </AccordionContent>
           </AccordionItem>
         ))}

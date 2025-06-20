@@ -1,9 +1,8 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react'; // Removed 'use'
+import React, { useEffect, useState, useCallback } from 'react';
 import { CategoryForm, CategoryFormValues } from '../../CategoryForm';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -11,9 +10,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService';
+import { useDataSource } from '@/contexts/DataSourceContext';
+// Removed: import { saveImage as saveImageToDB, deleteImage as deleteImageFromDB } from '@/lib/indexedDbService'; - Now handled by dataService
 
-const generateCategoryChangeDescription = (oldCategory: Category, newData: CategoryFormValues, imageChanged: boolean): string => {
+const generateCategoryChangeDescription = (oldCategory: Category, newData: CategoryFormValues, imageChanged: boolean, oldParentName?: string, newParentName?: string): string => {
   const changes: string[] = [];
   if (oldCategory.name !== newData.name) {
     changes.push(`Name changed from "${oldCategory.name}" to "${newData.name}".`);
@@ -25,9 +25,9 @@ const generateCategoryChangeDescription = (oldCategory: Category, newData: Categ
     changes.push('Description updated.');
   }
   if (oldCategory.parentId !== newData.parentId) {
-    const oldParentName = oldCategory.parentId ? (localStorageService.findCategoryById(oldCategory.parentId)?.name || 'N/A') : 'None';
-    const newParentName = newData.parentId ? (localStorageService.findCategoryById(newData.parentId)?.name || 'N/A') : 'None';
-    changes.push(`Parent category changed from "${oldParentName}" to "${newParentName}".`);
+    const oldP = oldParentName || (oldCategory.parentId ? 'N/A' : 'None');
+    const newP = newParentName || (newData.parentId ? 'N/A' : 'None');
+    changes.push(`Parent category changed from "${oldP}" to "${newP}".`);
   }
   if (oldCategory.displayOrder !== newData.displayOrder) {
     changes.push(`Display order changed from ${oldCategory.displayOrder} to ${newData.displayOrder}.`);
@@ -49,30 +49,50 @@ const generateCategoryChangeDescription = (oldCategory: Category, newData: Categ
 };
 
 
-export default function EditCategoryPage({ params }: { params: { id: string } }) { // Removed Promise
+export default function EditCategoryPage({ params }: { params: { id: string } }) {
   const [category, setCategory] = useState<Category | null>(null);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
-  useEffect(() => {
-    if(params?.id) { // Check if params.id exists
-      const fetchedCategory = localStorageService.findCategoryById(params.id);
+  const fetchCategoryData = useCallback(async (categoryId: string) => {
+    if (isDataSourceLoading || !dataService) {
+      setIsLoading(true);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const [fetchedCategory, fetchedAllCategories] = await Promise.all([
+        dataService.findCategoryById(categoryId),
+        dataService.getCategories()
+      ]);
+      
       if (fetchedCategory) {
         setCategory(fetchedCategory);
       } else {
         toast({ title: "Category Not Found", variant: "destructive" });
         router.push('/admin/categories');
       }
+      setAllCategories(fetchedAllCategories);
+    } catch (error) {
+      console.error("Error fetching category data:", error);
+      toast({ title: "Error", description: "Could not load category data.", variant: "destructive"});
+    } finally {
+      setIsLoading(false);
     }
-    setAllCategories(localStorageService.getCategories());
-    setIsLoading(false);
-  }, [params, router, toast]); // Added params to dependency
+  }, [dataService, isDataSourceLoading, router, toast]);
+
+  useEffect(() => {
+    if(params?.id) {
+      fetchCategoryData(params.id);
+    }
+  }, [params, fetchCategoryData]);
 
   const handleEditCategory = async (data: CategoryFormValues, imageFile: File | null, id?: string) => {
-    if (!id || !category || !currentUser) {
+    if (!id || !category || !currentUser || !dataService) {
       toast({ title: "Error", description: "Missing data or admin session.", variant: "destructive" });
       return;
     }
@@ -80,31 +100,34 @@ export default function EditCategoryPage({ params }: { params: { id: string } })
     const oldCategorySnapshot = { ...category };
     let newImageId = category.imageId;
     let imageUpdatedInThisAction = false;
+    
+    const oldParentName = oldCategorySnapshot.parentId ? (await dataService.findCategoryById(oldCategorySnapshot.parentId))?.name : undefined;
+    const newParentName = data.parentId ? (await dataService.findCategoryById(data.parentId))?.name : undefined;
 
     try {
       if (imageFile) {
         if (category.imageId) {
-          await deleteImageFromDB(category.imageId);
+          await dataService.deleteImage(category.imageId);
         }
-        newImageId = await saveImageToDB(`category_${data.slug || category.slug}`, 'main', imageFile);
+        newImageId = await dataService.saveImage(`category_${data.slug || category.slug}`, 'main', imageFile);
         imageUpdatedInThisAction = true;
       } else if (data.imageId === null && category.imageId) {
-        await deleteImageFromDB(category.imageId);
+        await dataService.deleteImage(category.imageId);
         newImageId = null;
-        imageUpdatedInThisAction = true;
+        imageUpdatedInThisAction = true; // Image was present and now removed
       }
 
       const updatedCategoryData: Category = {
-        ...category,
-        ...data,
-        imageId: newImageId,
-        id,
-        updatedAt: new Date().toISOString(),
+        ...category, // Spread old category to keep createdAt, id, etc.
+        ...data, // Spread new form values
+        imageId: newImageId, // Set new imageId
+        id, // Ensure ID is correct
+        updatedAt: new Date().toISOString(), // Handled by service usually, but good for client state
       };
-      localStorageService.updateCategory(updatedCategoryData);
+      await dataService.updateCategory(updatedCategoryData);
 
-      const logDescription = generateCategoryChangeDescription(oldCategorySnapshot, data, imageUpdatedInThisAction);
-      await localStorageService.addAdminActionLog({
+      const logDescription = generateCategoryChangeDescription(oldCategorySnapshot, data, imageUpdatedInThisAction, oldParentName, newParentName);
+      await dataService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'CATEGORY_UPDATE',
@@ -121,7 +144,7 @@ export default function EditCategoryPage({ params }: { params: { id: string } })
     }
   };
 
-  if (isLoading || !params?.id) { // Check params.id
+  if (isLoading || isDataSourceLoading || !params?.id) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading category data...</div>;
   }
 

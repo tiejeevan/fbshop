@@ -13,6 +13,7 @@ import type { User, UserRole } from '@/types';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// No localStorageService needed here
 
 const customerFormSchemaBase = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }).optional(),
@@ -65,8 +66,8 @@ export function CustomerForm({ initialData, onFormSubmit, isEditing = false }: C
       ? {
           name: initialData.name || '',
           email: initialData.email,
-          password: '',
-          confirmPassword: '',
+          password: '', // Always empty for edit form initially
+          confirmPassword: '', // Always empty for edit form initially
           role: initialData.role || 'customer',
         }
       : {
@@ -83,6 +84,7 @@ export function CustomerForm({ initialData, onFormSubmit, isEditing = false }: C
       setValue('name', initialData.name || '');
       setValue('email', initialData.email);
       setValue('role', initialData.role || 'customer');
+      // Password fields are intentionally not pre-filled for edit
     }
   }, [initialData, setValue]);
 
@@ -91,7 +93,7 @@ export function CustomerForm({ initialData, onFormSubmit, isEditing = false }: C
     try {
       await onFormSubmit(data, initialData?.id);
     } catch (error) {
-      // Error is handled by onFormSubmit and toast is shown there
+      // Error is handled by onFormSubmit in parent and toast is shown there
     } finally {
       setIsSubmitting(false);
     }
@@ -100,8 +102,8 @@ export function CustomerForm({ initialData, onFormSubmit, isEditing = false }: C
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle className="font-headline text-2xl">{isEditing ? 'Edit Customer' : 'Create New Customer'}</CardTitle>
-        <CardDescription>{isEditing ? 'Update the details of this customer.' : 'Fill in the form to add a new customer.'}</CardDescription>
+        <CardTitle className="font-headline text-2xl">{isEditing ? 'Edit User' : 'Create New User'}</CardTitle>
+        <CardDescription>{isEditing ? 'Update the details of this user.' : 'Fill in the form to add a new user.'}</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-6">
@@ -123,7 +125,11 @@ export function CustomerForm({ initialData, onFormSubmit, isEditing = false }: C
                 name="role"
                 control={control}
                 render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value as UserRole} defaultValue={initialData?.role || 'customer'}>
+                    <Select 
+                        onValueChange={field.onChange as (value: string) => void} 
+                        value={field.value as UserRole} 
+                        defaultValue={initialData?.role || 'customer'}
+                    >
                         <SelectTrigger id="role">
                         <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
@@ -156,7 +162,7 @@ export function CustomerForm({ initialData, onFormSubmit, isEditing = false }: C
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {isEditing ? 'Save Changes' : 'Create Customer'}
+            {isEditing ? 'Save Changes' : 'Create User'}
           </Button>
         </CardFooter>
       </form>

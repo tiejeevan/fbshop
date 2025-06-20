@@ -15,10 +15,10 @@ import { Switch } from '@/components/ui/switch';
 import type { Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { Loader2, ImagePlus, UploadCloud, Trash2 } from 'lucide-react';
-import { localStorageService } from '@/lib/localStorageService';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { ProductImage } from '@/components/product/ProductImage';
+// Removed: import { localStorageService } from '@/lib/localStorageService'; - No longer needed
 
 const MAX_FILE_SIZE_MB = 0.5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -37,9 +37,9 @@ const categorySchema = z.object({
 export type CategoryFormValues = z.infer<typeof categorySchema>;
 
 interface CategoryFormProps {
-  initialData?: Category | null;
+  initialData?: Partial<Category> | null; // Can be partial for new form
   onFormSubmit: (data: CategoryFormValues, imageFile: File | null, id?: string) => Promise<void>;
-  allCategories: Category[];
+  allCategories: Category[]; // Still needed for parent selection
 }
 
 interface ImageFileState {
@@ -62,24 +62,15 @@ export function CategoryForm({ initialData, onFormSubmit, allCategories }: Categ
     formState: { errors },
   } = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
-    defaultValues: initialData
-      ? {
-          ...initialData,
-          parentId: initialData.parentId || null,
-          imageId: initialData.imageId || null,
-          slug: initialData.slug || '',
-          displayOrder: initialData.displayOrder || 0,
-          isActive: initialData.isActive === undefined ? true : initialData.isActive,
-        }
-      : {
-          name: '',
-          slug: '',
-          description: '',
-          parentId: null,
-          imageId: null,
-          displayOrder: (localStorageService.getCategories().length > 0 ? Math.max(...localStorageService.getCategories().map(c => c.displayOrder)) : 0) + 1,
-          isActive: true,
-        },
+    defaultValues: {
+        name: initialData?.name || '',
+        slug: initialData?.slug || '',
+        description: initialData?.description || '',
+        parentId: initialData?.parentId || null,
+        imageId: initialData?.imageId || null,
+        displayOrder: initialData?.displayOrder === undefined ? 0 : initialData.displayOrder, // Default to 0, parent page should provide for new
+        isActive: initialData?.isActive === undefined ? true : initialData.isActive,
+      }
   });
 
   const categoryName = watch('name');
@@ -87,21 +78,19 @@ export function CategoryForm({ initialData, onFormSubmit, allCategories }: Categ
 
   useEffect(() => {
     if (initialData) {
-      Object.keys(initialData).forEach(key => {
-        const typedKey = key as keyof CategoryFormValues;
-        if (typedKey === 'parentId' && initialData[typedKey] === undefined) {
-            setValue(typedKey, null as any);
-        } else if (typedKey === 'imageId' && initialData[typedKey] === undefined) {
-             setValue(typedKey, null as any);
-        } else if (typedKey === 'isActive' && initialData[typedKey] === undefined) {
-            setValue(typedKey, true as any);
-        } else if (typedKey === 'displayOrder' && initialData[typedKey] === undefined) {
-            setValue(typedKey, 0 as any);
-        }
-        else if (initialData[key as keyof Category] !== undefined) {
-            setValue(typedKey, initialData[key as keyof Category] as any);
-        }
-      });
+      setValue('name', initialData.name || '');
+      setValue('slug', initialData.slug || '');
+      setValue('description', initialData.description || '');
+      setValue('parentId', initialData.parentId || null);
+      setValue('imageId', initialData.imageId || null);
+      setValue('displayOrder', initialData.displayOrder === undefined ? 0 : initialData.displayOrder);
+      setValue('isActive', initialData.isActive === undefined ? true : initialData.isActive);
+      if (initialData.imageId) {
+        // If initialData has an imageId but no file is selected yet,
+        // imageState should be set to reflect that there's an existing image.
+        // Preview for existing images is handled by ProductImage component directly.
+        setImageState({ file: null, previewUrl: null });
+      }
     }
   }, [initialData, setValue]);
 
@@ -126,7 +115,7 @@ export function CategoryForm({ initialData, onFormSubmit, allCategories }: Categ
 
       if (imageState.previewUrl && imageState.previewUrl.startsWith('blob:')) URL.revokeObjectURL(imageState.previewUrl);
       setImageState({ file, previewUrl: URL.createObjectURL(file) });
-      setValue('imageId', 'new_image_placeholder'); 
+      setValue('imageId', 'new_image_placeholder'); // Indicate a new file is staged
     }
     event.target.value = '';
   };
@@ -134,7 +123,7 @@ export function CategoryForm({ initialData, onFormSubmit, allCategories }: Categ
   const removeImage = () => {
     if (imageState.previewUrl && imageState.previewUrl.startsWith('blob:')) URL.revokeObjectURL(imageState.previewUrl);
     setImageState({ file: null, previewUrl: null });
-    setValue('imageId', null); 
+    setValue('imageId', null);
     const fileInput = document.getElementById('categoryImageFile') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
   };
@@ -171,8 +160,8 @@ export function CategoryForm({ initialData, onFormSubmit, allCategories }: Categ
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle className="font-headline text-2xl">{initialData ? 'Edit Category' : 'Create New Category'}</CardTitle>
-        <CardDescription>{initialData ? 'Update details.' : 'Add a new category.'}</CardDescription>
+        <CardTitle className="font-headline text-2xl">{initialData?.id ? 'Edit Category' : 'Create New Category'}</CardTitle>
+        <CardDescription>{initialData?.id ? 'Update details.' : 'Add a new category.'}</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmitHandler)}>
         <CardContent className="space-y-6">
@@ -272,10 +261,11 @@ export function CategoryForm({ initialData, onFormSubmit, allCategories }: Categ
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {initialData ? 'Save Changes' : 'Create Category'}
+            {initialData?.id ? 'Save Changes' : 'Create Category'}
           </Button>
         </CardFooter>
       </form>
     </Card>
   );
 }
+

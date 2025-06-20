@@ -11,9 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { localStorageService } from '@/lib/localStorageService';
 import { Loader2, MapPin, History, Heart } from 'lucide-react';
 import Link from 'next/link';
+import { useDataSource } from '@/contexts/DataSourceContext'; // Added
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
@@ -26,6 +26,7 @@ export default function ProfilePage() {
   const { currentUser, refreshUser, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // Added
 
   const {
     register,
@@ -44,11 +45,16 @@ export default function ProfilePage() {
   }, [currentUser, setValue]);
 
   const onSubmit: SubmitHandler<ProfileFormValues> = async (data) => {
-    if (!currentUser) return;
+    if (!currentUser || !dataService) { // Check for dataService
+      toast({ title: "Error", description: "User or data service not available.", variant: "destructive"});
+      return;
+    }
     setIsSubmitting(true);
     try {
+      // Email cannot be changed directly here, only name.
+      // Password changes would need a separate, more secure form.
       const updatedUserData = { ...currentUser, name: data.name };
-      localStorageService.updateUser(updatedUserData);
+      await dataService.updateUser(updatedUserData); // Use dataService
       refreshUser(); 
       toast({ title: 'Profile Updated', description: 'Your name has been successfully updated.' });
     } catch (error) {
@@ -59,7 +65,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || isDataSourceLoading) { // Check both loading states
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading profile...</div>;
   }
 
@@ -91,7 +97,7 @@ export default function ProfilePage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || isDataSourceLoading}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>

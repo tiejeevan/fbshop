@@ -1,54 +1,74 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { CategoryForm, CategoryFormValues } from '../CategoryForm';
-import { localStorageService } from '@/lib/localStorageService';
 import type { Category } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { saveImage as saveImageToDB } from '@/lib/indexedDbService';
+import { useDataSource } from '@/contexts/DataSourceContext';
+// Removed: import { saveImage as saveImageToDB } from '@/lib/indexedDbService'; - Now handled by dataService
 
 export default function NewCategoryPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { currentUser } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+
+  const fetchInitialData = useCallback(async () => {
+    if (isDataSourceLoading || !dataService) {
+      setIsLoading(true);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const fetchedCategories = await dataService.getCategories();
+      setAllCategories(fetchedCategories);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      toast({ title: "Error", description: "Could not load categories.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    setAllCategories(localStorageService.getCategories());
-  }, []);
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const handleCreateCategory = async (data: CategoryFormValues, imageFile: File | null) => {
-    if (!currentUser) {
-      toast({ title: "Authentication Error", variant: "destructive" });
+    if (!currentUser || !dataService) {
+      toast({ title: "Authentication or Data Service Error", variant: "destructive" });
       return;
     }
     try {
       let imageId: string | null = null;
       if (imageFile) {
-        imageId = await saveImageToDB(`category_${data.slug}`, 'main', imageFile);
+        imageId = await dataService.saveImage(`category_${data.slug}`, 'main', imageFile);
       }
 
-      const newCategory = localStorageService.addCategory({
+      const newCategory = await dataService.addCategory({
         ...data,
         imageId,
       });
 
       let logDescription = `Created category "${newCategory.name}" (ID: ${newCategory.id.substring(0,8)}) with slug "${newCategory.slug}".`;
       if (newCategory.parentId) {
-        const parentName = localStorageService.findCategoryById(newCategory.parentId)?.name || 'Unknown Parent';
+        const parentCat = await dataService.findCategoryById(newCategory.parentId);
+        const parentName = parentCat?.name || 'Unknown Parent';
         logDescription += ` Parent: "${parentName}".`;
       }
       if (imageId) logDescription += ' Image added.';
       logDescription += ` Status: ${newCategory.isActive ? 'Active' : 'Inactive'}. Display Order: ${newCategory.displayOrder}.`;
 
 
-      await localStorageService.addAdminActionLog({
+      await dataService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'CATEGORY_CREATE',
@@ -65,6 +85,17 @@ export default function NewCategoryPage() {
     }
   };
 
+  const nextDisplayOrder = allCategories.length > 0 ? Math.max(...allCategories.map(c => c.displayOrder)) + 1 : 1;
+  const newCategoryInitialData: Partial<Category> = {
+    displayOrder: nextDisplayOrder,
+    isActive: true,
+  };
+
+
+  if (isLoading || isDataSourceLoading) {
+    return <div className="flex justify-center items-center h-64"><Loader2 className="mr-2 h-8 w-8 animate-spin text-primary"/>Loading categories...</div>;
+  }
+
   return (
     <div className="space-y-6">
       <Button variant="outline" asChild className="mb-4">
@@ -72,7 +103,11 @@ export default function NewCategoryPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Categories
         </Link>
       </Button>
-      <CategoryForm onFormSubmit={handleCreateCategory} allCategories={allCategories} />
+      <CategoryForm 
+        initialData={newCategoryInitialData} 
+        onFormSubmit={handleCreateCategory} 
+        allCategories={allCategories} 
+      />
     </div>
   );
 }

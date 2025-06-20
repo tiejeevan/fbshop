@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,28 +9,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ProductImage } from './ProductImage';
 import type { Product } from '@/types';
-import { ShoppingCart, Minus, Plus, X, ExternalLink } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, X, ExternalLink, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { localStorageService } from '@/lib/localStorage';
+// Removed: import { localStorageService } from '@/lib/localStorage'; - Not used directly
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
+import { useDataSource } from '@/contexts/DataSourceContext';
+
 
 interface ProductQuickViewModalProps {
   product: Product | null;
   isOpen: boolean;
   onClose: () => void;
-  onAddToCart: (product: Product, quantity: number) => void;
+  // onAddToCart is now expected to be async as it will use dataService
+  onAddToCart: (product: Product, quantity: number) => Promise<void>; 
 }
 
 export function ProductQuickViewModal({ product, isOpen, onClose, onAddToCart }: ProductQuickViewModalProps) {
   const [quantity, setQuantity] = useState(1);
   const { currentUser } = useAuth();
   const { toast } = useToast();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // For potential direct operations or checks
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   useEffect(() => {
     if (product) {
-      setQuantity(1); // Reset quantity when product changes or modal opens
+      setQuantity(1); 
     }
   }, [product, isOpen]);
 
@@ -44,18 +50,30 @@ export function ProductQuickViewModal({ product, isOpen, onClose, onAddToCart }:
     });
   };
 
-  const handleDirectAddToCart = () => {
+  const handleDirectAddToCart = async () => {
     if (!currentUser) {
       toast({ title: "Login Required", description: "Please log in to add items to your cart.", variant: "destructive" });
-      onClose(); // Close modal to potentially show login modal from navbar
+      onClose(); 
       return;
+    }
+    if (!dataService) {
+        toast({ title: "Error", description: "Data service not available.", variant: "destructive" });
+        return;
     }
     if (quantity > product.stock) {
       toast({ title: "Stock Limit", description: `Only ${product.stock} units available.`, variant: "destructive" });
       return;
     }
-    onAddToCart(product, quantity);
-    onClose();
+    setIsAddingToCart(true);
+    try {
+        await onAddToCart(product, quantity); // onAddToCart is now async
+    } catch (error) {
+        console.error("Error in ProductQuickViewModal onAddToCart:", error);
+        // Toast is likely handled by the parent onAddToCart implementation
+    } finally {
+        setIsAddingToCart(false);
+        onClose(); // Close modal after attempt
+    }
   };
 
   return (
@@ -134,10 +152,11 @@ export function ProductQuickViewModal({ product, isOpen, onClose, onAddToCart }:
                 </Button>
                 <Button 
                   onClick={handleDirectAddToCart} 
-                  disabled={product.stock === 0 || quantity > product.stock}
+                  disabled={product.stock === 0 || quantity > product.stock || isAddingToCart || isDataSourceLoading}
                   className="flex-1"
                 >
-                  <ShoppingCart className="mr-2 h-5 w-5" /> Add to Cart
+                  {isAddingToCart ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShoppingCart className="mr-2 h-5 w-5" />} 
+                  Add to Cart
                 </Button>
               </div>
             </DialogFooter>
