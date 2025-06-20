@@ -9,17 +9,49 @@ import type {
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
 import {
-  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup, documentId, queryEqual
 } from 'firebase/firestore';
 
 // Import the original localStorageDataService for fallbacks or specific local operations
-import { localStorageDataService as localDBServiceFallback } from './localStorageDataService';
-import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, deleteImage as deleteImageFromLocalDB, deleteImagesForProduct as deleteImagesForEntityFromLocalDB } from './indexedDbService';
+import { localStorageDataService as localDBServiceFallback } from './localStorageDataService'; // For fallbacks
+import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, deleteImage as deleteImageFromLocalDB, deleteImagesForEntity as deleteImagesForEntityFromLocalDB } from './indexedDbService';
 
 
 let db: Firestore | null = null;
 
-const MAX_FIRESTORE_ADMIN_LOGS = 500;
+const MAX_FIRESTORE_ADMIN_LOGS = 500; // Max logs to keep in Firestore via client-side trim attempt
+const BATCH_LIMIT = 490; // Firestore batch write limit is 500, keep some buffer
+
+// Helper to convert Firestore Timestamps in nested objects/arrays
+function convertTimestampsToISO(data: any): any {
+  if (data instanceof Timestamp) {
+    return data.toDate().toISOString();
+  }
+  if (Array.isArray(data)) {
+    return data.map(item => convertTimestampsToISO(item));
+  }
+  if (typeof data === 'object' && data !== null) {
+    const res: { [key: string]: any } = {};
+    for (const key in data) {
+      res[key] = convertTimestampsToISO(data[key]);
+    }
+    return res;
+  }
+  return data;
+}
+
+// Helper to map Firestore doc snapshot to typed object
+function mapDocToType<T extends { id: string }>(docSnap: import('firebase/firestore').DocumentSnapshot): T | undefined {
+    if (!docSnap.exists()) return undefined;
+    const data = docSnap.data();
+    const convertedData = convertTimestampsToISO(data);
+    return { ...convertedData, id: docSnap.id } as T;
+}
+
+function mapDocsToTypeArray<T extends { id: string }>(querySnapshot: import('firebase/firestore').QuerySnapshot): T[] {
+    return querySnapshot.docs.map(d => mapDocToType<T>(d) as T).filter(item => item !== undefined);
+}
+
 
 export const firestoreDataService: IDataService & { initialize: (firestoreInstance: Firestore) => void } = {
   initialize: (firestoreInstance: Firestore) => {
@@ -33,24 +65,26 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         return;
     }
     console.log("Checking Firestore for initial data setup (seed)...");
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", "admin@localcommerce.com"), limit(1));
-    const adminSnapshot = await getDocs(q);
 
+    // Seed Admin User
+    const usersCol = collection(db, "users");
+    const adminQuery = query(usersCol, where("email", "==", "admin@localcommerce.com"), limit(1));
+    const adminSnapshot = await getDocs(adminQuery);
     if (adminSnapshot.empty) {
         console.log("Admin user not found in Firestore, creating one...");
-        const adminData: Omit<User, 'id' | 'password' | 'createdAt' | 'updatedAt'> = { // Timestamps will be server-generated
+        const adminData: Omit<User, 'id' | 'createdAt' | 'updatedAt'> = {
             email: 'admin@localcommerce.com',
+            password: 'password', // In a real app, hash this or use Firebase Auth
             role: 'admin',
             name: 'Administrator (Firestore)',
             themePreference: 'system',
             addresses: [],
         };
         try {
-            const userDocRef = doc(collection(db, "users"));
+            const userDocRef = doc(usersCol); // Let Firestore generate ID
             await setDoc(userDocRef, {
                 ...adminData,
-                id: userDocRef.id,
+                id: userDocRef.id, // Store the ID within the document
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             });
@@ -58,21 +92,22 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         } catch (error) {
             console.error("Error creating default admin user in Firestore:", error);
         }
-    } else {
-        // console.log("Admin user already exists in Firestore.");
     }
 
+    // Seed Categories
     const categoriesCol = collection(db, "categories");
     const catSnapshot = await getDocs(query(categoriesCol, limit(1)));
     if (catSnapshot.empty) {
         console.log("No categories found in Firestore, seeding initial categories...");
         const mockCategories: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>[] = [
-          { name: 'Electronics (FS)', slug: 'electronics-fs', description: 'FS Gadgets', parentId: null, imageId: null, displayOrder: 1, isActive: true },
-          { name: 'Books (FS)', slug: 'books-fs', description: 'FS Books', parentId: null, imageId: null, displayOrder: 2, isActive: true },
+          { name: 'Electronics (FS)', slug: 'electronics-fs', description: 'FS Gadgets & Devices', parentId: null, imageId: null, displayOrder: 1, isActive: true },
+          { name: 'Books (FS)', slug: 'books-fs', description: 'FS Fiction & Non-Fiction', parentId: null, imageId: null, displayOrder: 2, isActive: true },
+          { name: 'Home Goods (FS)', slug: 'home-goods-fs', description: 'FS For your home', parentId: null, imageId: null, displayOrder: 3, isActive: true },
+          { name: 'Apparel (FS)', slug: 'apparel-fs', description: 'FS Clothing & Accessories', parentId: null, imageId: null, displayOrder: 4, isActive: true },
         ];
         const batch = writeBatch(db);
         mockCategories.forEach(catData => {
-            const catDocRef = doc(collection(db, "categories"));
+            const catDocRef = doc(categoriesCol);
             batch.set(catDocRef, {
                 ...catData,
                 id: catDocRef.id,
@@ -83,78 +118,101 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         await batch.commit();
         console.log("Initial categories seeded to Firestore.");
     }
-    // console.log("Firestore data initialization check complete.");
+
+    // Seed Products
+    const productsCol = collection(db, "products");
+    const prodSnapshot = await getDocs(query(productsCol, limit(1)));
+    if (prodSnapshot.empty) {
+        console.log("No products found in Firestore, seeding initial products...");
+        const allCategories = mapDocsToTypeArray<Category>(await getDocs(categoriesCol));
+        const electronicsCat = allCategories.find(c => c.slug === 'electronics-fs');
+        const booksCat = allCategories.find(c => c.slug === 'books-fs');
+
+        const mockProducts: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'>[] = [
+          { name: 'FS Wireless Headphones X3000', description: 'Firestore-backed immersive sound with noise-cancelling.', price: 159.99, stock: 55, categoryId: electronicsCat?.id || allCategories[0]?.id || '', primaryImageId: null, additionalImageIds: [] },
+          { name: 'FS Smartwatch ConnectUltra', description: 'Track fitness and stay connected with this FS smartwatch.', price: 279.50, stock: 35, categoryId: electronicsCat?.id || allCategories[0]?.id || '', primaryImageId: null, additionalImageIds: [] },
+          { name: 'FS The Algorithmic Detective', description: 'A thrilling tech mystery novel, Firestore edition.', price: 22.99, stock: 110, categoryId: booksCat?.id || allCategories[1]?.id || '', primaryImageId: null, additionalImageIds: [] },
+        ];
+        const batch = writeBatch(db);
+        mockProducts.forEach(prodData => {
+            const prodDocRef = doc(productsCol);
+            batch.set(prodDocRef, {
+                ...prodData,
+                id: prodDocRef.id,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                views: Math.floor(Math.random() * 100),
+                purchases: Math.floor(Math.random() * 20),
+                averageRating: 0,
+                reviewCount: 0,
+            });
+        });
+        await batch.commit();
+        console.log("Initial products seeded to Firestore.");
+    }
+    console.log("Firestore data initialization check complete.");
   },
 
   async getUsers(): Promise<User[]> {
     if (!db) throw new Error("Firestore not initialized");
     const usersCol = collection(db, "users");
     const userSnapshot = await getDocs(usersCol);
-    return userSnapshot.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            id: d.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            lastLogin: (data.lastLogin as Timestamp)?.toDate().toISOString(),
-        } as User;
-    });
+    return mapDocsToTypeArray<User>(userSnapshot);
   },
   async addUser(userData): Promise<User> {
     if (!db) throw new Error("Firestore not initialized");
     const usersRef = collection(db, "users");
-    const docRef = doc(usersRef);
+    const docRef = doc(usersRef); // Firestore generates ID
     const nowServerTimestamp = serverTimestamp();
     const newUserFSData = {
-      ...userData,
-      id: docRef.id,
+      ...userData, // email, password (store hashed in real app), name
+      id: docRef.id, // Store the generated ID within the document
       createdAt: nowServerTimestamp,
       updatedAt: nowServerTimestamp,
       role: userData.role || 'customer',
       themePreference: userData.themePreference || 'system',
-      addresses: [],
+      addresses: [], // Initialize with empty addresses
     };
     await setDoc(docRef, newUserFSData);
-    return {
-        ...userData, // Original data
-        id: docRef.id, // Plus new ID
-        createdAt: new Date().toISOString(), // Client-side approx for immediate use
-        updatedAt: new Date().toISOString(), // Client-side approx
+    // For immediate return, create a client-side version with approximate timestamps
+    const clientNewUser: User = {
+        ...userData,
+        id: docRef.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         role: userData.role || 'customer',
         themePreference: userData.themePreference || 'system',
         addresses: [],
-    } as User;
+    };
+    return clientNewUser;
   },
   async updateUser(updatedUser: User): Promise<User | null> {
     if (!db) throw new Error("Firestore not initialized");
     const userRef = doc(db, "users", updatedUser.id);
     const updatePayload: any = { ...updatedUser };
-    delete updatePayload.id; // Do not write the id field itself into the document
+    delete updatePayload.id;
     updatePayload.updatedAt = serverTimestamp();
-    // Password should ideally be handled by Firebase Auth, not directly in Firestore
     if (updatePayload.password === undefined || updatePayload.password === '') {
-        delete updatePayload.password; // Don't update password if empty or undefined
+        delete updatePayload.password;
     }
-
     await updateDoc(userRef, updatePayload);
     const docSnap = await getDoc(userRef);
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        return {
-            ...data,
-            id: docSnap.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as User;
-    }
-    return null;
+    return mapDocToType<User>(docSnap);
   },
   async deleteUser(userId: string): Promise<boolean> {
     if (!db) throw new Error("Firestore not initialized");
     try {
       await deleteDoc(doc(db, "users", userId));
-      // TODO: Consider deleting associated user data in other collections (carts, orders, reviews, etc.)
+      // TODO: Cascade delete related data (wishlist, orders, reviews for this user) if necessary.
+      // For now, this only deletes the user document.
+      // Also clear their cart from localStorage (as carts are local)
+      localDBServiceFallback.clearCart(userId);
+      // Remove wishlist items (which are in Firestore)
+      const wishlistCol = collection(db, `users/${userId}/wishlist`);
+      const wishlistSnapshot = await getDocs(wishlistCol);
+      const batch = writeBatch(db);
+      wishlistSnapshot.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
       return true;
     } catch (error) {
       console.error("Error deleting user from Firestore:", error);
@@ -167,14 +225,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const q = query(usersRef, where("email", "==", email), limit(1));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-      const docSnap = querySnapshot.docs[0];
-      const data = docSnap.data();
-      return {
-            ...data,
-            id: docSnap.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as User;
+      return mapDocToType<User>(querySnapshot.docs[0]);
     }
     return undefined;
   },
@@ -182,16 +233,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const docRef = doc(db, "users", userId);
     const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-      return {
-            ...data,
-            id: docSnap.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as User;
-    }
-    return undefined;
+    return mapDocToType<User>(docSnap);
   },
 
   async getUserAddresses(userId: string): Promise<Address[]> {
@@ -199,13 +241,12 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return user?.addresses || [];
   },
   async addAddressToUser(userId, addressData): Promise<Address | null> {
-    if (!db) throw new Error("Firestore not initialized");
     const user = await this.findUserById(userId);
     if (!user) return null;
     const newAddress: Address = {
       ...addressData,
-      id: doc(collection(db, "users")).id.substring(0, 20), // Firestore auto-IDs are 20 chars
-      userId,
+      id: doc(collection(db!, "users")).id.substring(0, 20), // Generate a client-side ID for sub-object
+      userId, // Not strictly needed if embedded, but good for consistency
       isDefault: addressData.isDefault || false,
     };
     const addresses = user.addresses || [];
@@ -265,15 +306,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const productsCol = collection(db, "products");
     const productSnapshot = await getDocs(productsCol);
-    return productSnapshot.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            id: d.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Product;
-    });
+    return mapDocsToTypeArray<Product>(productSnapshot);
   },
   async addProduct(productData): Promise<Product> {
     if (!db) throw new Error("Firestore not initialized");
@@ -296,8 +329,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
      return {
         ...productData,
         id: docRef.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(), // Approx for client
+        updatedAt: new Date().toISOString(), // Approx for client
         views:0, purchases:0, averageRating:0, reviewCount:0
     } as Product;
   },
@@ -309,27 +342,27 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     updatePayload.updatedAt = serverTimestamp();
     await updateDoc(productRef, updatePayload);
     const docSnap = await getDoc(productRef);
-     if (docSnap.exists()) {
-        const data = docSnap.data();
-        return {
-            ...data,
-            id: docSnap.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Product;
-    }
-    return null;
+    return mapDocToType<Product>(docSnap);
   },
   async deleteProduct(productId: string): Promise<boolean> {
     if (!db) throw new Error("Firestore not initialized");
     try {
-      // Also delete associated images if they were in Firebase Storage
-      const product = await this.findProductById(productId);
-      if(product?.primaryImageId) await this.deleteImage(product.primaryImageId);
-      if(product?.additionalImageIds) await this.deleteImagesForEntity(product.additionalImageIds);
+      const productRef = doc(db, "products", productId);
+      const product = await this.findProductById(productId); // To get image IDs for local deletion
 
-      await deleteDoc(doc(db, "products", productId));
-      // TODO: Delete reviews for this product from Firestore
+      // Delete reviews subcollection
+      const reviewsCol = collection(db, `products/${productId}/reviews`);
+      const reviewsSnapshot = await getDocs(reviewsCol);
+      const batch = writeBatch(db!); // db will be defined here
+      reviewsSnapshot.docs.forEach(d => batch.delete(d.ref));
+      
+      // Delete the product document itself
+      batch.delete(productRef);
+      await batch.commit();
+
+      // Delete images from IndexedDB (as per current setup)
+      if(product?.primaryImageId) await deleteImageFromLocalDB(product.primaryImageId);
+      if(product?.additionalImageIds) await deleteImagesForEntityFromLocalDB(product.additionalImageIds);
       return true;
     } catch (e) {
       console.error("Error deleting product from Firestore:", e);
@@ -340,16 +373,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const docRef = doc(db, "products", productId);
     const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      return {
-            ...data,
-            id: docSnap.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Product;
-    }
-    return undefined;
+    return mapDocToType<Product>(docSnap);
   },
 
   async getCategories(): Promise<Category[]> {
@@ -357,15 +381,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const categoriesCol = collection(db, "categories");
     const q = query(categoriesCol, orderBy("displayOrder"));
     const categorySnapshot = await getDocs(q);
-    return categorySnapshot.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            id: d.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Category;
-    });
+    return mapDocsToTypeArray<Category>(categorySnapshot);
   },
   async addCategory(categoryData): Promise<Category> {
     if (!db) throw new Error("Firestore not initialized");
@@ -382,8 +398,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return {
       ...categoryData,
       id: docRef.id,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(), // Approx
+      updatedAt: new Date().toISOString(), // Approx
     } as Category;
   },
   async updateCategory(updatedCategory: Category): Promise<Category | null> {
@@ -394,37 +410,37 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     updatePayload.updatedAt = serverTimestamp();
     await updateDoc(catRef, updatePayload);
     const docSnap = await getDoc(catRef);
-     if (docSnap.exists()) {
-        const data = docSnap.data();
-        return {
-            ...data,
-            id: docSnap.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Category;
-    }
-    return null;
+    return mapDocToType<Category>(docSnap);
   },
   async deleteCategory(categoryId: string): Promise<boolean> {
-     if (!db) throw new Error("Firestore not initialized");
+    if (!db) throw new Error("Firestore not initialized");
     try {
-      // Check for subcategories or products using this category before deleting
-      const subcategories = await this.getChildCategories(categoryId);
-      if (subcategories.length > 0) {
-        console.error(`Cannot delete category ${categoryId}, it has subcategories.`);
-        return false; // Or throw error
-      }
-      const productsQuery = query(collection(db, "products"), where("categoryId", "==", categoryId), limit(1));
-      const productsSnapshot = await getDocs(productsQuery);
-      if (!productsSnapshot.empty) {
-          console.error(`Cannot delete category ${categoryId}, it's used by products.`);
-          return false; // Or throw error
-      }
-      // If imageId is from Firebase Storage, delete it. For now, assume it's local.
-      const category = await this.findCategoryById(categoryId);
-      if(category?.imageId) await this.deleteImage(category.imageId);
+      const categoryToDelete = await this.findCategoryById(categoryId);
+      if (!categoryToDelete) return false;
 
-      await deleteDoc(doc(db, "categories", categoryId));
+      const batch = writeBatch(db);
+
+      // Unassign category from products
+      const productsQuery = query(collection(db, "products"), where("categoryId", "==", categoryId));
+      const productsSnapshot = await getDocs(productsQuery);
+      productsSnapshot.forEach(prodDoc => {
+        batch.update(prodDoc.ref, { categoryId: null, updatedAt: serverTimestamp() });
+      });
+
+      // Unset parentId for child categories
+      const childCategoriesQuery = query(collection(db, "categories"), where("parentId", "==", categoryId));
+      const childCategoriesSnapshot = await getDocs(childCategoriesQuery);
+      childCategoriesSnapshot.forEach(childDoc => {
+        batch.update(childDoc.ref, { parentId: null, updatedAt: serverTimestamp() });
+      });
+
+      // Delete the category image from IndexedDB
+      if(categoryToDelete.imageId) await deleteImageFromLocalDB(categoryToDelete.imageId);
+
+      // Delete the category document
+      batch.delete(doc(db, "categories", categoryId));
+      
+      await batch.commit();
       return true;
     } catch (e) {
       console.error("Error deleting category from Firestore:", e);
@@ -435,58 +451,33 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db || !categoryId) return undefined;
     const docRef = doc(db, "categories", categoryId);
     const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      return {
-            ...data,
-            id: docSnap.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Category;
-    }
-    return undefined;
+    return mapDocToType<Category>(docSnap);
   },
   async getChildCategories(parentId: string | null): Promise<Category[]> {
     if (!db) throw new Error("Firestore not initialized");
     const categoriesCol = collection(db, "categories");
     const q = query(categoriesCol, where("parentId", "==", parentId), orderBy("displayOrder"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            id: d.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Category;
-    });
+    return mapDocsToTypeArray<Category>(snapshot);
   },
 
-  // Cart methods: These are complex for Firestore if they need to be persistent and shared.
-  // Often, carts are kept client-side (like current localStorage) or in a temporary user-specific doc.
-  // For this initial toggle, we will fallback to local storage behavior for carts.
+  // Cart methods will continue to use LocalStorage fallback for simplicity in this phase
   async getCart(userId: string): Promise<Cart | null> {
-    console.warn("Firestore getCart: Using localStorage fallback.");
-    return localDBServiceFallback.getCart(userId);
+    return localDBServiceFallback.getCart(userId); // Async to match interface
   },
   async updateCart(cart: Cart): Promise<void> {
-    console.warn("Firestore updateCart: Using localStorage fallback.");
-    return localDBServiceFallback.updateCart(cart);
+    return localDBServiceFallback.updateCart(cart); // Async to match interface
   },
   async clearCart(userId: string): Promise<void> {
-    console.warn("Firestore clearCart: Using localStorage fallback.");
-    return localDBServiceFallback.clearCart(userId);
+    return localDBServiceFallback.clearCart(userId); // Async to match interface
   },
   async moveToSavedForLater(userId: string, productId: string): Promise<void> {
-    console.warn("Firestore moveToSavedForLater: Using localStorage fallback.");
     return localDBServiceFallback.moveToSavedForLater(userId, productId);
   },
   async moveToCartFromSaved(userId: string, productId: string): Promise<boolean> {
-    console.warn("Firestore moveToCartFromSaved: Using localStorage fallback.");
     return localDBServiceFallback.moveToCartFromSaved(userId, productId);
   },
   async removeFromSavedForLater(userId: string, productId: string): Promise<void> {
-    console.warn("Firestore removeFromSavedForLater: Using localStorage fallback.");
     return localDBServiceFallback.removeFromSavedForLater(userId, productId);
   },
 
@@ -497,26 +488,18 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       q = query(collection(db, "orders"), where("userId", "==", userId), orderBy("orderDate", "desc"));
     }
     const orderSnapshot = await getDocs(q);
-    return orderSnapshot.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            id: d.id,
-            orderDate: (data.orderDate as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Order;
-    });
+    return mapDocsToTypeArray<Order>(orderSnapshot);
   },
   async addOrder(orderData): Promise<Order> {
     if (!db) throw new Error("Firestore not initialized");
     const ordersRef = collection(db, "orders");
-    const docRef = doc(ordersRef);
+    const newOrderRef = doc(ordersRef); // Generate new order ID
 
-    // Prepare order items and update product stock in a transaction
     try {
-      const newOrder = await runTransaction(db, async (transaction) => {
+      const finalOrder = await runTransaction(db, async (transaction) => {
         const orderItemsWithDetails: OrderItem[] = [];
         for (const item of orderData.items) {
-          const productRef = doc(db, "products", item.productId);
+          const productRef = doc(db!, "products", item.productId);
           const productSnap = await transaction.get(productRef);
           if (!productSnap.exists()) {
             throw new Error(`Product ${item.productId} not found.`);
@@ -528,8 +511,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
           
           orderItemsWithDetails.push({
             ...item,
-            name: product?.name || 'Unknown Product',
-            primaryImageId: product?.primaryImageId,
+            name: product.name || 'Unknown Product',
+            primaryImageId: product.primaryImageId,
           });
           
           transaction.update(productRef, { 
@@ -541,23 +524,25 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
         const newOrderDataFS = {
           ...orderData,
+          id: newOrderRef.id, // Use pre-generated ID
           items: orderItemsWithDetails,
           shippingAddress: orderData.shippingAddress,
-          id: docRef.id,
-          orderDate: serverTimestamp(), // Use server timestamp
+          orderDate: serverTimestamp(),
         };
-        transaction.set(docRef, newOrderDataFS);
+        transaction.set(newOrderRef, newOrderDataFS);
+        
+        // For immediate return to client
         return {
-            ...orderData, // original data for immediate return
+            ...orderData,
+            id: newOrderRef.id,
             items: orderItemsWithDetails,
-            id: docRef.id,
-            orderDate: new Date().toISOString(), // client-side approx
+            orderDate: new Date().toISOString(), // Client-side approximation
         } as Order;
       });
-      return newOrder;
+      return finalOrder;
     } catch (e) {
       console.error("Firestore addOrder transaction failed: ", e);
-      throw e; // Re-throw to be caught by calling function
+      throw e;
     }
   },
 
@@ -566,14 +551,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const logsCol = collection(db, "loginActivities");
     const q = query(logsCol, orderBy("timestamp", "desc"), limit(100));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            id: d.id,
-            timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as LoginActivity;
-    });
+    return mapDocsToTypeArray<LoginActivity>(snapshot);
   },
   async addLoginActivity(userId, userEmail, type): Promise<void> {
     if (!db) throw new Error("Firestore not initialized");
@@ -591,13 +569,11 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         await updateDoc(userRef, {
             lastLogin: serverTimestamp(),
             updatedAt: serverTimestamp()
-        });
+        }).catch(err => console.error("Error updating lastLogin:", err));
     }
   },
 
   setCurrentUser(user: User | null): void {
-    // Firebase Auth handles its own session. This is for local state if needed.
-    // For toggle compatibility, call the local fallback's setCurrentUser.
     localDBServiceFallback.setCurrentUser(user);
   },
   getCurrentUser(): (User & { role: UserRole }) | null {
@@ -607,8 +583,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async getWishlist(userId: string): Promise<WishlistItem[]> {
     if (!db) throw new Error("Firestore not initialized");
     const wishlistCol = collection(db, `users/${userId}/wishlist`);
-    const snapshot = await getDocs(wishlistCol);
-    return snapshot.docs.map(d => d.data() as WishlistItem);
+    const snapshot = await getDocs(query(wishlistCol, orderBy("addedAt", "desc")));
+    return mapDocsToTypeArray<WishlistItem>(snapshot);
   },
   async addToWishlist(userId: string, productId: string): Promise<void> {
     if (!db) throw new Error("Firestore not initialized");
@@ -632,82 +608,149 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const reviewsCol = collection(db, `products/${productId}/reviews`);
     const q = query(reviewsCol, orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => {
-        const data = d.data();
-        return {
-            ...data,
-            id: d.id,
-            createdAt: (data.createdAt as Timestamp)?.toDate().toISOString() || new Date(0).toISOString(),
-        } as Review;
-    });
+    return mapDocsToTypeArray<Review>(snapshot);
   },
   async addReview(reviewData): Promise<Review> {
     if (!db) throw new Error("Firestore not initialized");
     const reviewsCol = collection(db, `products/${reviewData.productId}/reviews`);
-    const docRef = doc(reviewsCol);
+    const reviewDocRef = doc(reviewsCol);
     const newReviewFSData = {
       ...reviewData,
-      id: docRef.id,
+      id: reviewDocRef.id,
       createdAt: serverTimestamp(),
     };
-    await setDoc(docRef, newReviewFSData);
 
-    // Update product averageRating and reviewCount (transaction recommended)
     const productRef = doc(db, "products", reviewData.productId);
     await runTransaction(db, async (transaction) => {
+        transaction.set(reviewDocRef, newReviewFSData); // Add the new review
+
         const productDoc = await transaction.get(productRef);
         if (!productDoc.exists()) throw "Product not found for review update!";
-        const productData = productDoc.data();
-        const currentReviews = await getDocs(query(collection(db, `products/${reviewData.productId}/reviews`))); // Re-fetch for accuracy
-        const newReviewCount = currentReviews.size;
-        const newTotalRating = currentReviews.docs.reduce((sum, doc) => sum + (doc.data().rating as number), 0);
+        
+        // To get the most accurate count and average, we'd ideally query the subcollection
+        // But within a transaction, reads must come before writes.
+        // For simplicity, we'll estimate based on current product data + this new review.
+        // A more robust solution uses a Cloud Function to update aggregates.
+        const productData = productDoc.data() as Product;
+        const oldReviewCount = productData.reviewCount || 0;
+        const oldTotalRating = (productData.averageRating || 0) * oldReviewCount;
+        
+        const newReviewCount = oldReviewCount + 1;
+        const newTotalRating = oldTotalRating + reviewData.rating;
+        const newAverageRating = newTotalRating / newReviewCount;
+
         transaction.update(productRef, {
-            averageRating: newReviewCount > 0 ? newTotalRating / newReviewCount : 0,
+            averageRating: newAverageRating,
             reviewCount: newReviewCount,
             updatedAt: serverTimestamp(),
         });
     });
-
-    return { ...reviewData, id: docRef.id, createdAt: new Date().toISOString() };
+    return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() }; // Approx for client
   },
-  async deleteReview(reviewId: string): Promise<void> { // reviewId format: products/productId/reviews/reviewDocId
+  async deleteReview(reviewIdString: string): Promise<void> { // Expects reviewIdString to be `productId/reviewDocId`
     if (!db) throw new Error("Firestore not initialized");
-    console.warn(`Firestore deleteReview for ${reviewId}: Needs productID to properly update product stats. Assuming reviewId IS the full path or specific doc ID for now.`);
-    // This is tricky because reviewId alone doesn't tell us the product.
-    // We'd need to query for the review across all products or have the full path.
-    // For now, this will be a TODO or require a more specific ID structure.
-    // await deleteDoc(doc(db, "reviews", reviewId)); // If 'reviews' is a root collection
-    // If reviews are subcollections: Need product ID.
-    // For now, this method is largely a placeholder for Firestore.
-    throw new Error("Firestore deleteReview: Full implementation required with product context.");
+    
+    const parts = reviewIdString.split('/');
+    if (parts.length !== 2) {
+        console.error("Invalid reviewId format for Firestore deletion. Expected 'productId/reviewDocId'. Got:", reviewIdString);
+        // Attempt a collectionGroup query as a fallback, less efficient
+        const reviewsGroup = collectionGroup(db, 'reviews');
+        const q = query(reviewsGroup, where(documentId(), '==', reviewIdString)); // Assuming reviewIdString is the actual doc ID
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            console.warn(`Review with ID ${reviewIdString} not found via collectionGroup query.`);
+            return;
+        }
+        const reviewDocToDelete = snapshot.docs[0];
+        const reviewData = reviewDocToDelete.data() as Review;
+        const productId = reviewData.productId;
+        const reviewActualId = reviewDocToDelete.id;
+        
+        const reviewRef = doc(db, `products/${productId}/reviews`, reviewActualId);
+        const productRef = doc(db, "products", productId);
+
+        await runTransaction(db, async (transaction) => {
+            transaction.delete(reviewRef); // Delete the review
+
+            const productDoc = await transaction.get(productRef);
+            if (productDoc.exists()) {
+                // Update product aggregates (similar logic to addReview, but decrementing)
+                // This is an estimation. For true accuracy after multiple deletes, re-querying is needed.
+                const productData = productDoc.data() as Product;
+                const oldReviewCount = productData.reviewCount || 0;
+                const oldTotalRating = (productData.averageRating || 0) * oldReviewCount;
+
+                const newReviewCount = Math.max(0, oldReviewCount - 1);
+                const newTotalRating = oldTotalRating - reviewData.rating;
+                const newAverageRating = newReviewCount > 0 ? newTotalRating / newReviewCount : 0;
+                
+                transaction.update(productRef, {
+                    averageRating: newAverageRating,
+                    reviewCount: newReviewCount,
+                    updatedAt: serverTimestamp(),
+                });
+            }
+        });
+        return; // Exit after successful collectionGroup based deletion
+    }
+
+    // If format was correct from start
+    const [productId, reviewDocId] = parts;
+    const reviewRef = doc(db, `products/${productId}/reviews`, reviewDocId);
+    const reviewSnap = await getDoc(reviewRef);
+    if (!reviewSnap.exists()) {
+        console.warn(`Review ${reviewIdString} not found for deletion.`);
+        return;
+    }
+    const reviewDataToDelete = reviewSnap.data() as Review;
+    const productRef = doc(db, "products", productId);
+
+    await runTransaction(db, async (transaction) => {
+        transaction.delete(reviewRef);
+
+        const productDoc = await transaction.get(productRef);
+        if (productDoc.exists()) {
+            const productData = productDoc.data() as Product;
+            const oldReviewCount = productData.reviewCount || 0;
+            const oldTotalRating = (productData.averageRating || 0) * oldReviewCount;
+            const newReviewCount = Math.max(0, oldReviewCount - 1);
+            const newTotalRating = oldTotalRating - reviewDataToDelete.rating;
+            const newAverageRating = newReviewCount > 0 ? newTotalRating / newReviewCount : 0;
+            transaction.update(productRef, {
+                averageRating: newAverageRating,
+                reviewCount: newReviewCount,
+                updatedAt: serverTimestamp(),
+            });
+        }
+    });
   },
 
   async getRecentlyViewed(userId: string): Promise<RecentlyViewedItem[]> {
-    // This is often client-side or a small array in user doc.
-    console.warn("Firestore getRecentlyViewed: Using localStorage fallback.");
-    return localDBServiceFallback.getRecentlyViewed(userId);
+    return localDBServiceFallback.getRecentlyViewed(userId); // Async to match interface
   },
   async addRecentlyViewed(userId: string, productId: string): Promise<void> {
-    // Could update a 'recentlyViewed' array in the user document in Firestore.
-    console.warn("Firestore addRecentlyViewed: Using localStorage fallback and updating product views locally.");
-    // Update product views (even if recently viewed is local for now)
-    const product = await this.findProductById(productId);
-    if (product && db) { // Ensure db is available if we were to write to Firestore
+    // Update product views in Firestore
+    if (db) {
         const productRef = doc(db, "products", productId);
-        await updateDoc(productRef, {
-            views: (product.views || 0) + 1,
-            updatedAt: serverTimestamp()
-        });
+        const productSnap = await getDoc(productRef);
+        if (productSnap.exists()) {
+            const productData = productSnap.data() as Product;
+            await updateDoc(productRef, {
+                views: (productData.views || 0) + 1,
+                updatedAt: serverTimestamp()
+            });
+        }
     }
-    return localDBServiceFallback.addRecentlyViewed(userId, productId); // Fallback for list
+    return localDBServiceFallback.addRecentlyViewed(userId, productId); // Manage the list locally
   },
 
   async getGlobalTheme(): Promise<Theme> {
-    console.warn("Firestore getGlobalTheme: Returning 'system' as default. TODO: Implement settings doc in Firestore.");
-    return 'system';
+    // Could be stored in a specific 'settings' document in Firestore
+    return localDBServiceFallback.getGlobalTheme(); // Async to match interface
   },
   async setGlobalTheme(theme: Theme): Promise<void> {
-    console.warn("Firestore setGlobalTheme: Not implemented. TODO: Implement settings doc in Firestore. Theme was:", theme);
+    return localDBServiceFallback.setGlobalTheme(theme); // Async to match interface
   },
 
   async getAdminActionLogs(): Promise<AdminActionLog[]> {
@@ -715,41 +758,41 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const logsCollection = collection(db, 'adminActionLogs');
     const q = query(logsCollection, orderBy('timestamp', 'desc'), limit(MAX_FIRESTORE_ADMIN_LOGS));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-        ...data,
-        id: docSnap.id,
-        timestamp: (data.timestamp as Timestamp).toDate().toISOString(),
-      } as AdminActionLog;
-    });
+    return mapDocsToTypeArray<AdminActionLog>(snapshot);
   },
   async addAdminActionLog(logData: Omit<AdminActionLog, 'id' | 'timestamp'>): Promise<void> {
     if (!db) throw new Error("Firestore not initialized for admin logs");
     const logsCollection = collection(db, 'adminActionLogs');
-    await addDoc(logsCollection, {
+    const logDocRef = doc(logsCollection);
+    await setDoc(logDocRef, {
       ...logData,
+      id: logDocRef.id,
       timestamp: serverTimestamp(),
     });
-    // TODO: Implement log trimming if storing in Firestore to manage size (e.g., Cloud Function)
+
+    // Basic client-side trimming (not ideal for scale, better with Cloud Function + TTL)
+    const snapshot = await getDocs(query(logsCollection, orderBy('timestamp', 'asc')));
+    if (snapshot.size > MAX_FIRESTORE_ADMIN_LOGS) {
+        const batch = writeBatch(db);
+        let numToDelete = snapshot.size - MAX_FIRESTORE_ADMIN_LOGS;
+        for (let i = 0; i < numToDelete && i < snapshot.docs.length && i < BATCH_LIMIT; i++) {
+            batch.delete(snapshot.docs[i].ref);
+        }
+        await batch.commit().catch(err => console.error("Error trimming admin logs:", err));
+    }
   },
 
-  // Image handling methods (delegate to local IndexedDB for now)
-  // In a full Firebase setup, these would interact with Firebase Storage.
+  // Image handling methods (delegate to local IndexedDB as per plan)
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
-    console.warn(`Firestore saveImage for ${entityId}/${imageType}: Using IndexedDB fallback.`);
     return saveImageToLocalDB(entityId, imageType, imageFile);
   },
   async getImage(imageId: string): Promise<Blob | null> {
-    console.warn(`Firestore getImage for ${imageId}: Using IndexedDB fallback.`);
     return getImageFromLocalDB(imageId);
   },
   async deleteImage(imageId: string): Promise<void> {
-    console.warn(`Firestore deleteImage for ${imageId}: Using IndexedDB fallback.`);
     return deleteImageFromLocalDB(imageId);
   },
   async deleteImagesForEntity(imageIds: string[]): Promise<void> {
-    console.warn(`Firestore deleteImagesForEntity: Using IndexedDB fallback.`);
     return deleteImagesForEntityFromLocalDB(imageIds);
   },
 };
