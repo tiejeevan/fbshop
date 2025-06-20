@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation'; // Use from next/navigation
@@ -23,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { useTranslations, useLocale } from 'next-intl';
-import Link from 'next-intl/link'; // Use next-intl's Link for locale-aware navigation
+import Link from 'next/link'; // CORRECTED IMPORT
 
 
 export function CustomerNavbar() {
@@ -62,7 +63,9 @@ export function CustomerNavbar() {
   };
 
   const LanguageSwitcher = () => {
-    const currentPathWithoutLocale = pathname.startsWith(`/${locale}`) ? pathname.substring(locale.length + 1) : pathname;
+    const currentPathWithoutLocale = pathname.startsWith(`/${locale}/`) ? pathname.substring(locale.length + 1) : pathname;
+    const targetPath = currentPathWithoutLocale === `/${locale}` ? '/' : currentPathWithoutLocale; // Handle root path case for /en or /es
+
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -72,7 +75,7 @@ export function CustomerNavbar() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuRadioGroup value={locale} onValueChange={(value) => router.replace(`/${value}${currentPathWithoutLocale}`)}>
+          <DropdownMenuRadioGroup value={locale} onValueChange={(value) => router.push(`/${value}${targetPath}`)}>
             <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
             <DropdownMenuRadioItem value="es">Español</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
@@ -129,22 +132,6 @@ export function CustomerNavbar() {
           <span className="font-headline text-2xl font-semibold text-primary">{t('storeName')}</span>
         </Link>
 
-        {/* Nav links can be added here if needed, using next-intl's Link */}
-        {/* <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-          {navLinks.map(link => (
-            <Link
-              key={link.label}
-              href={link.href}
-              className={cn(
-                "transition-colors hover:text-primary",
-                pathname.endsWith(link.href) ? "text-primary font-semibold" : "text-muted-foreground"
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav> */}
-
         <div className="flex items-center gap-1 sm:gap-2">
           {currentUser && currentUser.role === 'admin' && (
             <Button variant="outline" size="sm" asChild className="hidden sm:flex">
@@ -186,7 +173,6 @@ export function CustomerNavbar() {
                         <LayoutDashboard className="mr-2 h-5 w-5" /> {t('adminDashboard')}
                     </Link>
                 )}
-                {/* Original navLinks can be mapped here if they exist */}
                  {currentUser && (
                    <>
                     <DropdownMenuSeparator />
