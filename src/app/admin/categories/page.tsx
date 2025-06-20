@@ -7,9 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter, ChevronDown, ChevronRight, CheckCircle, XCircle } from 'lucide-react';
-import { localStorageService } from '@/lib/localStorageService';
-import type { Category, AdminActionLog } from '@/types';
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter, ChevronDown, ChevronRight, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import type { Category, Product, AdminActionLog } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -21,7 +20,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,6 +27,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ProductImage } from '@/components/product/ProductImage';
 import { cn } from '@/lib/utils';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 
 interface DisplayCategory extends Category {
@@ -40,7 +39,8 @@ interface DisplayCategory extends Category {
 
 export default function AdminCategoriesPage() {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [isComponentLoading, setIsComponentLoading] = useState(true);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [categoriesToBatchAction, setCategoriesToBatchAction] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,17 +50,34 @@ export default function AdminCategoriesPage() {
 
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
-  const fetchCategories = useCallback(() => {
-    setIsLoading(true);
-    const fetchedCategories = localStorageService.getCategories();
-    setAllCategories(fetchedCategories);
-    setIsLoading(false);
-  }, []);
+  const fetchData = useCallback(async () => {
+    if (isDataSourceLoading || !dataService) {
+      setIsComponentLoading(true);
+      return;
+    }
+    setIsComponentLoading(true);
+    try {
+      const [fetchedCategories, fetchedProducts] = await Promise.all([
+        dataService.getCategories(),
+        dataService.getProducts()
+      ]);
+      setAllCategories(fetchedCategories);
+      setAllProducts(fetchedProducts);
+    } catch (error) {
+      console.error("Error fetching categories/products for admin:", error);
+      toast({ title: "Error", description: "Could not load category or product data.", variant: "destructive" });
+      setAllCategories([]);
+      setAllProducts([]);
+    } finally {
+      setIsComponentLoading(false);
+    }
+  }, [dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
+    fetchData();
+  }, [fetchData]);
 
   const toggleExpand = (categoryId: string) => {
     setExpandedCategories(prev => ({ ...prev, [categoryId]: !prev[categoryId] }));
@@ -71,55 +88,52 @@ export default function AdminCategoriesPage() {
       const nameMatch = cat.name.toLowerCase().includes(searchTerm.toLowerCase());
       const descriptionMatch = cat.description?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
       const searchMatch = searchTerm ? (nameMatch || descriptionMatch) : true;
-
       const statusMatch = filterStatus === 'all' || (filterStatus === 'active' && cat.isActive) || (filterStatus === 'inactive' && !cat.isActive);
-
       const hierarchyMatch = filterHierarchy === 'all' ||
                              (filterHierarchy === 'toplevel' && !cat.parentId) ||
                              (filterHierarchy === 'subcategories' && !!cat.parentId);
-
       return searchMatch && statusMatch && hierarchyMatch;
     });
 
-    const buildHierarchy = (parentId: string | null, level: number): DisplayCategory[] => {
+    const buildHierarchy = (parentId: string | null, level: number, currentProducts: Product[]): DisplayCategory[] => {
       return filtered
         .filter(cat => cat.parentId === parentId)
         .sort((a,b) => a.displayOrder - b.displayOrder)
         .map(cat => ({
           ...cat,
           level,
-          productCount: localStorageService.getProducts().filter(p => p.categoryId === cat.id).length,
-          children: buildHierarchy(cat.id, level + 1),
+          productCount: currentProducts.filter(p => p.categoryId === cat.id).length,
+          children: buildHierarchy(cat.id, level + 1, currentProducts),
           isExpanded: expandedCategories[cat.id] === undefined ? true : expandedCategories[cat.id],
         }));
     };
 
-    return buildHierarchy(null, 0);
+    return buildHierarchy(null, 0, allProducts);
 
-  }, [allCategories, searchTerm, filterStatus, filterHierarchy, expandedCategories]);
+  }, [allCategories, allProducts, searchTerm, filterStatus, filterHierarchy, expandedCategories]);
 
   const handleDeleteCategory = async () => {
-    if (!categoryToDelete || !currentUser) return;
+    if (!categoryToDelete || !currentUser || !dataService) return;
 
-    const children = localStorageService.getChildCategories(categoryToDelete.id);
+    const children = await dataService.getChildCategories(categoryToDelete.id);
     if (children.length > 0) {
         toast({ title: "Cannot Delete", description: `Category "${categoryToDelete.name}" has ${children.length} subcategories. Please reassign or delete them first.`, variant: "destructive", duration: 5000 });
         setCategoryToDelete(null);
         return;
     }
-    const productsUsingCategory = localStorageService.getProducts().filter(p => p.categoryId === categoryToDelete.id);
+    const productsUsingCategory = allProducts.filter(p => p.categoryId === categoryToDelete.id);
     if (productsUsingCategory.length > 0) {
         toast({ title: "Cannot Delete", description: `Category "${categoryToDelete.name}" is used by ${productsUsingCategory.length} product(s). Reassign them first.`, variant: "destructive", duration: 5000 });
         setCategoryToDelete(null);
         return;
     }
 
-    const categoryName = categoryToDelete.name; 
+    const categoryName = categoryToDelete.name;
     const categoryId = categoryToDelete.id;
 
-    const success = await localStorageService.deleteCategory(categoryId);
+    const success = await dataService.deleteCategory(categoryId);
     if (success) {
-      await localStorageService.addAdminActionLog({
+      await dataService.addAdminActionLog({
         adminId: currentUser.id,
         adminEmail: currentUser.email,
         actionType: 'CATEGORY_DELETE',
@@ -128,7 +142,7 @@ export default function AdminCategoriesPage() {
         description: `Deleted category "${categoryName}" (ID: ${categoryId.substring(0,8)}...).`
       });
       toast({ title: "Category Deleted" });
-      fetchCategories();
+      fetchData(); // Refetch all data
       setCategoriesToBatchAction(prev => prev.filter(id => id !== categoryId));
     } else {
       toast({ title: "Error Deleting Category", variant: "destructive" });
@@ -137,7 +151,7 @@ export default function AdminCategoriesPage() {
   };
 
   const handleBatchAction = async (action: 'delete' | 'setActive' | 'setInactive') => {
-    if (categoriesToBatchAction.length === 0 || !currentUser) {
+    if (categoriesToBatchAction.length === 0 || !currentUser || !dataService) {
       toast({ title: "No categories selected or admin not found", variant: "destructive" });
       return;
     }
@@ -152,8 +166,8 @@ export default function AdminCategoriesPage() {
       if (!category) continue;
 
       if (action === 'delete') {
-        const children = localStorageService.getChildCategories(catId);
-        const products = localStorageService.getProducts().filter(p => p.categoryId === catId);
+        const children = await dataService.getChildCategories(catId);
+        const products = allProducts.filter(p => p.categoryId === catId);
         if (children.length > 0 || products.length > 0) {
           skippedCount++;
           let reason = "";
@@ -162,16 +176,16 @@ export default function AdminCategoriesPage() {
           skippedMessages.push(`Skipped "${category.name}": Has ${reason}.`);
           continue;
         }
-        if (await localStorageService.deleteCategory(catId)) {
+        if (await dataService.deleteCategory(catId)) {
             successCount++;
             affectedCategoryNames.push(category.name);
         }
       } else if (action === 'setActive') {
-        localStorageService.updateCategory({ ...category, isActive: true, updatedAt: new Date().toISOString() });
+        await dataService.updateCategory({ ...category, isActive: true, updatedAt: new Date().toISOString() });
         successCount++;
         affectedCategoryNames.push(category.name);
       } else if (action === 'setInactive') {
-        localStorageService.updateCategory({ ...category, isActive: false, updatedAt: new Date().toISOString() });
+        await dataService.updateCategory({ ...category, isActive: false, updatedAt: new Date().toISOString() });
         successCount++;
         affectedCategoryNames.push(category.name);
       }
@@ -187,7 +201,7 @@ export default function AdminCategoriesPage() {
         } else if (action === 'setInactive') {
             logDescription = `Batch set ${successCount} categories to inactive: ${affectedCategoryNames.slice(0,3).join(', ')}${affectedCategoryNames.length > 3 ? '...' : ''}.`;
         }
-        await localStorageService.addAdminActionLog({
+        await dataService.addAdminActionLog({
             adminId: currentUser.id,
             adminEmail: currentUser.email,
             actionType: `CATEGORY_BATCH_${action.toUpperCase()}`,
@@ -195,7 +209,6 @@ export default function AdminCategoriesPage() {
             description: logDescription
         });
     }
-
 
     if (skippedCount > 0) {
         toast({
@@ -208,7 +221,7 @@ export default function AdminCategoriesPage() {
     } else {
         toast({ title: "Batch Action", description: "No categories were affected."})
     }
-    fetchCategories();
+    fetchData(); // Refetch all data
     setCategoriesToBatchAction([]);
   };
 
@@ -240,7 +253,6 @@ export default function AdminCategoriesPage() {
     if (visibleIds.length === 0) return false;
     return visibleIds.every(id => categoriesToBatchAction.includes(id));
   }, [filteredAndStructuredCategories, categoriesToBatchAction]);
-
 
   const renderCategoryRow = (category: DisplayCategory) => (
     <React.Fragment key={category.id}>
@@ -295,8 +307,10 @@ export default function AdminCategoriesPage() {
     </React.Fragment>
   );
 
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-64">Loading categories...</div>;
+  const currentLoadingState = isComponentLoading || isDataSourceLoading;
+
+  if (currentLoadingState) {
+    return <div className="flex justify-center items-center h-64"><Loader2 className="mr-2 h-8 w-8 animate-spin text-primary"/>Loading categories...</div>;
   }
 
   return (
@@ -386,15 +400,22 @@ export default function AdminCategoriesPage() {
             <AlertDialogHeader><AlertDialogTitle>Delete "{categoryToDelete.name}"?</AlertDialogTitle>
               <AlertDialogDescription>
                 This will permanently delete the category.
-                {localStorageService.getChildCategories(categoryToDelete.id).length > 0 && <span className="block mt-2 font-semibold text-destructive">This category has subcategories. They must be moved or deleted first.</span>}
-                {localStorageService.getProducts().filter(p => p.categoryId === categoryToDelete.id).length > 0 && <span className="block mt-2 font-semibold text-destructive">This category has products. They must be reassigned first.</span>}
+                {(async () => { const children = await dataService?.getChildCategories(categoryToDelete.id); return children && children.length > 0; })() && <span className="block mt-2 font-semibold text-destructive">This category has subcategories. They must be moved or deleted first.</span>}
+                {allProducts.filter(p => p.categoryId === categoryToDelete.id).length > 0 && <span className="block mt-2 font-semibold text-destructive">This category has products. They must be reassigned first.</span>}
                 This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                disabled={localStorageService.getChildCategories(categoryToDelete.id).length > 0 || localStorageService.getProducts().filter(p => p.categoryId === categoryToDelete.id).length > 0}>
+                disabled={
+                    (async () => {
+                        if (!dataService) return true; // Disable if service not ready
+                        const children = await dataService.getChildCategories(categoryToDelete.id);
+                        const productsInCategory = allProducts.filter(p => p.categoryId === categoryToDelete.id);
+                        return children.length > 0 || productsInCategory.length > 0;
+                    })()
+                }>
                 Confirm Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -404,3 +425,5 @@ export default function AdminCategoriesPage() {
     </div>
   );
 }
+
+    
