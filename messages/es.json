@@ -1,0 +1,56 @@
+{
+  "CustomerNavbar": {
+    "login": "Iniciar Sesión",
+    "adminDashboard": "Administración",
+    "profile": "Perfil",
+    "myAddresses": "Mis Direcciones",
+    "orderHistory": "Historial de Pedidos",
+    "wishlist": "Lista de Deseos",
+    "logout": "Cerrar Sesión",
+    "toggleNavigation": "Alternar menú de navegación",
+    "storeName": "Comercio Local"
+  },
+  "LoginModal": {
+    "loginButton": "Iniciar Sesión",
+    "dialogTitleLogin": "Inicio de Sesión de Usuario",
+    "dialogTitleSignup": "Registro de Usuario"
+  },
+  "UniversalLoginForm": {
+    "customerLoginTitle": "Acceso Cliente",
+    "adminLoginTitle": "Acceso Administrador",
+    "customerDescription": "Accede a tu cuenta para seguir comprando.",
+    "adminDescription": "Accede al panel de administración.",
+    "emailLabel": "Correo Electrónico",
+    "emailPlaceholder": "tu@ejemplo.com",
+    "passwordLabel": "Contraseña",
+    "loginButton": "Iniciar Sesión",
+    "loginAsAdmin": "Iniciar como Admin",
+    "loginAsCustomer": "Iniciar como Cliente",
+    "dontHaveAccount": "¿No tienes una cuenta?",
+    "signUpLink": "Regístrate"
+  },
+  "SignupForm": {
+    "title": "Crear una Cuenta",
+    "description": "¡Únete a Comercio Local hoy!",
+    "nameLabel": "Nombre Completo",
+    "namePlaceholder": "Juan Pérez",
+    "emailLabel": "Correo Electrónico",
+    "emailPlaceholder": "tu@ejemplo.com",
+    "passwordLabel": "Contraseña",
+    "confirmPasswordLabel": "Confirmar Contraseña",
+    "signupButton": "Registrarse",
+    "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+    "loginLink": "Iniciar sesión"
+  },
+  "HomePage": {
+    "loading": "Cargando Comercio Local..."
+  },
+  "AdminLoginPage": {
+    "title": "Acceso al Portal de Admin",
+    "description": "Accede al panel de gestión de Comercio Local."
+  },
+  "CustomerLoginPage": {
+    "title": "¡Bienvenido de Nuevo!",
+    "description": "Inicia sesión para continuar comprando."
+  }
+}

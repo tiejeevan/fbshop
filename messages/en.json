@@ -1,0 +1,56 @@
+{
+  "CustomerNavbar": {
+    "login": "Login",
+    "adminDashboard": "Admin",
+    "profile": "Profile",
+    "myAddresses": "My Addresses",
+    "orderHistory": "Order History",
+    "wishlist": "Wishlist",
+    "logout": "Logout",
+    "toggleNavigation": "Toggle navigation menu",
+    "storeName": "Local Commerce"
+  },
+  "LoginModal": {
+    "loginButton": "Login",
+    "dialogTitleLogin": "User Login",
+    "dialogTitleSignup": "User Sign Up"
+  },
+  "UniversalLoginForm": {
+    "customerLoginTitle": "Customer Login",
+    "adminLoginTitle": "Admin Login",
+    "customerDescription": "Access your account to continue shopping.",
+    "adminDescription": "Access the management dashboard.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "passwordLabel": "Password",
+    "loginButton": "Login",
+    "loginAsAdmin": "Login as Admin",
+    "loginAsCustomer": "Login as Customer",
+    "dontHaveAccount": "Don't have an account?",
+    "signUpLink": "Sign up"
+  },
+  "SignupForm": {
+    "title": "Create an Account",
+    "description": "Join Local Commerce today!",
+    "nameLabel": "Full Name",
+    "namePlaceholder": "John Doe",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "passwordLabel": "Password",
+    "confirmPasswordLabel": "Confirm Password",
+    "signupButton": "Sign Up",
+    "alreadyHaveAccount": "Already have an account?",
+    "loginLink": "Log in"
+  },
+  "HomePage": {
+    "loading": "Loading Local Commerce..."
+  },
+  "AdminLoginPage": {
+    "title": "Admin Portal Login",
+    "description": "Access the Local Commerce management dashboard."
+  },
+  "CustomerLoginPage": {
+    "title": "Welcome Back!",
+    "description": "Login to continue shopping."
+  }
+}

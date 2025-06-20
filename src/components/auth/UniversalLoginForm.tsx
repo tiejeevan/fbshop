@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -10,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation'; // From next/navigation for App Router
 import { useToast } from '@/hooks/use-toast';
 import type { UserRole } from '@/types';
 import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
@@ -34,6 +34,7 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [currentLoginRole, setCurrentLoginRole] = useState<UserRole>(initialRole);
+  const t = useTranslations('UniversalLoginForm');
 
   const {
     register,
@@ -54,12 +55,11 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
         reset();
 
         if (user.role === 'admin') {
-          router.push('/admin/dashboard');
+          router.push('/admin/dashboard'); // next-intl Link/router handles locale prefix
         } else {
-          router.push('/products');
+          router.push('/products'); // next-intl Link/router handles locale prefix
         }
       } else {
-        // This case means user was not found or password incorrect
          toast({
           title: 'Login Failed',
           description: 'Invalid email or password.',
@@ -80,25 +80,25 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
 
   const handleRoleToggle = () => {
     setCurrentLoginRole(prevRole => prevRole === 'customer' ? 'admin' : 'customer');
-    reset(); // Reset form when toggling role
+    reset(); 
   };
 
   return (
     <>
       <CardHeader className="text-center pt-6 pb-4">
         <CardTitle className="font-headline text-2xl md:text-3xl text-primary">
-          {currentLoginRole === 'customer' ? 'Customer Login' : 'Admin Login'}
+          {currentLoginRole === 'customer' ? t('customerLoginTitle') : t('adminLoginTitle')}
         </CardTitle>
         <CardDescription className="text-sm">
-          {currentLoginRole === 'customer' ? 'Access your account to continue shopping.' : 'Access the management dashboard.'}
+          {currentLoginRole === 'customer' ? t('customerDescription') : t('adminDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="px-6 pb-4">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
           <div className="space-y-1.5">
-            <Label htmlFor="email-universal">Email</Label>
+            <Label htmlFor="email-universal">{t('emailLabel')}</Label>
             <Input
-              id="email-universal" type="email" placeholder="you@example.com"
+              id="email-universal" type="email" placeholder={t('emailPlaceholder')}
               {...register('email')}
               aria-invalid={errors.email ? 'true' : 'false'}
               className={errors.email ? 'border-destructive' : ''}
@@ -106,7 +106,7 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
             {errors.email && <p className="text-xs text-destructive pt-1">{errors.email.message}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="password-universal">Password</Label>
+            <Label htmlFor="password-universal">{t('passwordLabel')}</Label>
             <Input
               id="password-universal" type="password" placeholder="••••••••"
               {...register('password')}
@@ -117,19 +117,19 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
           </div>
           <Button type="submit" className="w-full !mt-6" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Login
+            {t('loginButton')}
           </Button>
         </form>
       </CardContent>
       <CardFooter className="flex flex-col items-center space-y-2 px-6 pb-6 pt-4">
         <Button variant="link" onClick={handleRoleToggle} className="text-sm h-auto p-1">
-          {currentLoginRole === 'customer' ? 'Login as Admin' : 'Login as Customer'}
+          {currentLoginRole === 'customer' ? t('loginAsAdmin') : t('loginAsCustomer')}
         </Button>
         {currentLoginRole === 'customer' && onSwitchToSignup && (
           <p className="text-sm text-muted-foreground">
-            Don&apos;t have an account?{' '}
+            {t('dontHaveAccount')}{' '}
             <Button variant="link" onClick={onSwitchToSignup} className="p-0 h-auto font-medium text-primary hover:underline">
-              Sign up
+              {t('signUpLink')}
             </Button>
           </p>
         )}
