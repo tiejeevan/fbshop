@@ -8,27 +8,15 @@ export default createMiddleware({
   defaultLocale: 'en',
 
   // Optionally, configure locale detection strategies
-  localeDetection: true, // Enable auto-detection (based on Accept-Language header)
+  localeDetection: true, 
 
-  // Prefix handling (optional, default is 'as-needed')
-  // localePrefix: 'always', // e.g., always show /en/products
-
-  // Pathname internationalization (optional)
-  // pathnames: {
-  //   // If all pathnames are the same across locales, you can use '/'
-  //   // e.g., if you have `/products` for both English and Spanish
-  //   '/products': '/products',
- 
-  //   // If you have different pathnames per locale
-  //   '/products': {
-  //     en: '/products',
-  //     es: '/productos'
-  //   }
-  // }
+  // By default, the middleware will look for `i18n.ts` (or `.js`)
+  // in the same directory. If `middleware.ts` is in `src/`, then
+  // `i18n.ts` should also be in `src/`.
 });
  
 export const config = {
   // Match only internationalized pathnames
-  // Skip internal paths like `/_next`
+  // Skip internal paths like `/_next` and static assets
   matcher: ['/', '/(en|es)/:path*']
 };

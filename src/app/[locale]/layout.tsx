@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ThemeApplicator } from '@/components/shared/ThemeApplicator';
 import {NextIntlClientProvider} from 'next-intl';
 import {getMessages} from 'next-intl/server';
+import {notFound} from 'next/navigation'; // Import notFound
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -17,19 +18,34 @@ export const metadata: Metadata = {
 
 interface RootLayoutProps {
   children: React.ReactNode;
-  params: {locale: string};
+  params: {locale: string}; // params will be passed directly
 }
+
+// Define supported locales (can be imported from i18n.ts or a shared config if needed)
+const locales = ['en', 'es'];
 
 export default async function RootLayout({
   children,
-  params // Changed: pass params directly
+  params
 }: Readonly<RootLayoutProps>) {
-  const locale = params.locale; // Access locale from params object
+  const locale = params.locale;
 
+  // Validate locale
+  if (!locales.includes(locale)) {
+    notFound();
+  }
+ 
   // Providing all messages to the client
-  // side is a simp_step approach. You could
+  // side is a simple approach. You could
   // also provide only the messages for the current route.
-  const messages = await getMessages();
+  let messages;
+  try {
+    messages = await getMessages();
+  } catch (error) {
+    console.error("Error fetching messages in RootLayout:", error);
+    // If getMessages throws (e.g., due to config issues), render notFound
+    notFound();
+  }
  
   return (
     <html lang={locale} suppressHydrationWarning>
