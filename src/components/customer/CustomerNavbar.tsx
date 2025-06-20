@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { useTranslations, useLocale } from 'next-intl';
-import Link from 'next/link'; // CORRECTED IMPORT
+import Link from 'next/link'; // Ensure this is from 'next/link'
 
 
 export function CustomerNavbar() {

@@ -1,13 +1,13 @@
 
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import '../globals.css'; // Adjusted path
+import '../globals.css'; // Corrected path
 import { AppProviders } from '@/components/AppProviders';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeApplicator } from '@/components/shared/ThemeApplicator';
 import {NextIntlClientProvider} from 'next-intl';
 import {getMessages} from 'next-intl/server';
-import {notFound} from 'next/navigation'; // Import notFound
+import {notFound} from 'next/navigation';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 
 interface RootLayoutProps {
   children: React.ReactNode;
-  params: {locale: string}; // params will be passed directly
+  params: {locale: string};
 }
 
 // Define supported locales (can be imported from i18n.ts or a shared config if needed)
@@ -32,18 +32,20 @@ export default async function RootLayout({
 
   // Validate locale
   if (!locales.includes(locale)) {
+    console.error(`[RootLayout] Invalid locale param: "${locale}". Supported: ${locales.join(', ')}. Triggering notFound.`);
     notFound();
   }
  
-  // Providing all messages to the client
-  // side is a simple approach. You could
-  // also provide only the messages for the current route.
   let messages;
   try {
     messages = await getMessages();
   } catch (error) {
-    console.error("Error fetching messages in RootLayout:", error);
-    // If getMessages throws (e.g., due to config issues), render notFound
+    console.error(`[RootLayout] Error fetching messages for locale "${locale}". This likely means i18n.ts had an issue. Error:`, error);
+    notFound();
+  }
+
+  if (!messages) {
+    console.error(`[RootLayout] Messages object is undefined for locale "${locale}" after getMessages(). i18n.ts might not be correctly returning messages. Triggering notFound.`);
     notFound();
   }
  

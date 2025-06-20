@@ -1,6 +1,6 @@
 
 import {getRequestConfig} from 'next-intl/server';
-import {notFound} from 'next/navigation';
+import {notFound} from 'next/navigation'; // Ensure this is imported
 
 // Define supported locales
 const locales = ['en', 'es'];
@@ -17,12 +17,18 @@ export default getRequestConfig(async ({locale}) => {
 
   let messages;
   try {
-    // Use a relative path from src/i18n.ts to src/messages/
-    messages = (await import(`./messages/${baseLocale}.json`)).default;
+    // Use the @ alias which points to src/
+    messages = (await import(`@/messages/${baseLocale}.json`)).default;
   } catch (error) {
     console.error(`[next-intl] Could not load messages for locale "${baseLocale}". Error:`, error);
     // If messages for a valid locale are missing, treat as not found.
-    // This prevents rendering with a broken i18n context.
+    notFound();
+  }
+
+  if (!messages) {
+    // This case should ideally be caught by the try-catch above,
+    // but as an extra safeguard:
+    console.error(`[next-intl] Messages object is undefined for locale "${baseLocale}" after import. Triggering notFound.`);
     notFound();
   }
  
@@ -30,3 +36,4 @@ export default getRequestConfig(async ({locale}) => {
     messages
   };
 });
+
