@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -6,10 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Printer, Mail, Wand2, ArrowRight, Truck } from 'lucide-react';
-import { parseIndianAddress, type ParseIndianAddressOutput } from '@/ai/flows/parse-indian-address';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
@@ -23,6 +22,17 @@ type Address = {
     phone?: string;
 };
 
+// This is a simplified type for the form, as the full ParseIndianAddressOutput is no longer needed.
+type ToAddressForm = {
+    recipientName: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    phoneNumber: string;
+}
+
 const initialFromAddress: Address = {
     name: 'Local Commerce Inc.',
     line1: '123 E-commerce Way',
@@ -32,7 +42,7 @@ const initialFromAddress: Address = {
     phone: '555-0101',
 };
 
-const initialToAddress: Partial<ParseIndianAddressOutput> = {
+const initialToAddress: ToAddressForm = {
     recipientName: '',
     addressLine1: '',
     addressLine2: '',
@@ -44,9 +54,7 @@ const initialToAddress: Partial<ParseIndianAddressOutput> = {
 
 export default function ShippingLabelEnginePage() {
     const [fromAddress, setFromAddress] = useState<Address>(initialFromAddress);
-    const [toAddress, setToAddress] = useState<Partial<ParseIndianAddressOutput>>(initialToAddress);
-    const [unstructuredAddress, setUnstructuredAddress] = useState('');
-    const [isParsing, setIsParsing] = useState(false);
+    const [toAddress, setToAddress] = useState<ToAddressForm>(initialToAddress);
     const [trackingNumber, setTrackingNumber] = useState('');
 
     const labelRef = useRef<HTMLDivElement>(null);
@@ -59,24 +67,6 @@ export default function ShippingLabelEnginePage() {
     const generateTrackingNumber = () => {
         const randomPart = Math.random().toString(36).substring(2, 11).toUpperCase();
         setTrackingNumber(`LC${randomPart}`);
-    };
-
-    const handleParseAddress = async () => {
-        if (!unstructuredAddress.trim()) {
-            toast({ title: 'Input Required', description: 'Please enter an address to parse.', variant: 'destructive' });
-            return;
-        }
-        setIsParsing(true);
-        try {
-            const result = await parseIndianAddress({ unstructuredAddress });
-            setToAddress(result);
-            toast({ title: 'Address Parsed Successfully', description: 'Address fields have been populated.' });
-        } catch (error) {
-            console.error('Error parsing address:', error);
-            toast({ title: 'Parsing Failed', description: 'Could not parse the address. Please check the format or enter manually.', variant: 'destructive' });
-        } finally {
-            setIsParsing(false);
-        }
     };
 
     const handlePrint = () => {
@@ -97,7 +87,7 @@ export default function ShippingLabelEnginePage() {
                 <h1 className="font-headline text-3xl text-primary flex items-center gap-3">
                     <Truck /> Shipping Label Engine
                 </h1>
-                <p className="text-muted-foreground mt-1">Generate and print shipping labels. Use the AI parser for Indian addresses.</p>
+                <p className="text-muted-foreground mt-1">Generate and print shipping labels by manually entering address details.</p>
             </header>
 
             <div className="grid md:grid-cols-2 gap-8 items-start">
@@ -105,33 +95,11 @@ export default function ShippingLabelEnginePage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Label Details</CardTitle>
-                        <CardDescription>Enter the recipient details below.</CardDescription>
+                        <CardDescription>Enter the recipient's shipping information below.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <Alert>
-                            <Wand2 className="h-4 w-4" />
-                            <AlertTitle>AI Address Parser</AlertTitle>
-                            <AlertDescription>
-                                Paste a full Indian address below and click "Parse with AI" to automatically fill the fields.
-                            </AlertDescription>
-                        </Alert>
-                        <div className="space-y-2">
-                            <Label htmlFor="unstructuredAddress">Recipient Address (Paste here)</Label>
-                            <Textarea
-                                id="unstructuredAddress"
-                                placeholder="e.g., Ramesh Kumar, Flat 5B, Diamond Heights, 123 MG Road, Bandra West, Mumbai, Maharashtra 400050, Ph: 9876543210"
-                                value={unstructuredAddress}
-                                onChange={(e) => setUnstructuredAddress(e.target.value)}
-                                rows={5}
-                            />
-                        </div>
-                        <Button onClick={handleParseAddress} disabled={isParsing} className="w-full">
-                            {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                            Parse with AI
-                        </Button>
-                        <Separator />
                         <div className="space-y-4">
-                            <h3 className="font-medium text-lg">Parsed Recipient Address</h3>
+                            <h3 className="font-medium text-lg">Recipient Address</h3>
                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="toName">Recipient Name</Label>
