@@ -3,14 +3,15 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { localStorageService } from '@/lib/localStorageService';
-import type { Product, User, Order, Category, LoginActivity, OrderItem } from '@/types';
+import type { Product, User, Order, Category, LoginActivity } from '@/types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
-import { DollarSign, ShoppingBag, Users, Package, Activity, TrendingUp, Eye, Filter } from 'lucide-react';
+import { DollarSign, ShoppingBag, Users, Package, Activity, TrendingUp, Eye, Filter, Loader2 } from 'lucide-react';
 import { format, subDays, parseISO, startOfWeek, startOfMonth, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, endOfDay, endOfWeek, endOfMonth } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useDataSource } from '@/contexts/DataSourceContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface AnalyticsStats {
   totalProducts: number;
@@ -74,10 +75,42 @@ export default function AdminAnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriodOption>('30d');
 
-  const allOrders = useMemo(() => localStorageService.getOrders(), []);
-  const allProducts = useMemo(() => localStorageService.getProducts(), []);
-  const allCategories = useMemo(() => localStorageService.getCategories(), []);
-  const allLoginActivities = useMemo(() => localStorageService.getLoginActivity(), []);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [allLoginActivities, setAllLoginActivities] = useState<LoginActivity[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    const fetchAllData = async () => {
+      if (isDataSourceLoading || !dataService) return;
+      setIsLoading(true);
+      try {
+        const [orders, products, categories, activities, users] = await Promise.all([
+          dataService.getOrders(),
+          dataService.getProducts(),
+          dataService.getCategories(),
+          dataService.getLoginActivity(),
+          dataService.getUsers()
+        ]);
+        setAllOrders(orders);
+        setAllProducts(products);
+        setAllCategories(categories);
+        setAllLoginActivities(activities);
+        setAllUsers(users);
+      } catch (e) {
+        toast({ title: "Error loading analytics data", variant: "destructive" });
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAllData();
+  }, [dataService, isDataSourceLoading, toast]);
+
 
   const filteredOrders = useMemo(() => {
     if (selectedTimePeriod === 'all') return allOrders;
@@ -93,7 +126,7 @@ export default function AdminAnalyticsPage() {
 
 
   useEffect(() => {
-    setIsLoading(true);
+    if (isLoading) return;
     
     const totalRevenue = allOrders.reduce((sum, order) => sum + order.totalAmount, 0);
     const sevenDaysAgo = subDays(new Date(), 7);
@@ -104,7 +137,7 @@ export default function AdminAnalyticsPage() {
     setStats({
       totalProducts: allProducts.length,
       totalCategories: allCategories.length,
-      totalCustomers: localStorageService.getUsers().filter(u => u.role === 'customer').length,
+      totalCustomers: allUsers.filter(u => u.role === 'customer').length,
       totalOrders: allOrders.length,
       totalRevenue,
       recentLogins,
@@ -203,8 +236,7 @@ export default function AdminAnalyticsPage() {
     }
     setUserActivity(mockUserActivity);
 
-    setIsLoading(false);
-  }, [filteredOrders, allProducts, allCategories, allLoginActivities, selectedTimePeriod, allOrders]);
+  }, [filteredOrders, allProducts, allCategories, allLoginActivities, allUsers, allOrders, selectedTimePeriod, isLoading]);
 
   const dynamicChartConfig = useMemo(() => {
     const config: ChartConfig = { ...chartConfigBase };
@@ -222,8 +254,8 @@ export default function AdminAnalyticsPage() {
   }, [categorySales, productPerformance]);
 
 
-  if (isLoading || !stats) {
-    return <div className="text-center py-10">Loading analytics data...</div>;
+  if (isLoading || isDataSourceLoading || !stats) {
+    return <div className="text-center py-10"><Loader2 className="h-8 w-8 animate-spin mx-auto"/> Loading analytics data...</div>;
   }
 
   const topNProductsByRevenue = productPerformance.slice(0, 5);

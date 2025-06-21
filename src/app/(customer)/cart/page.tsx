@@ -7,42 +7,54 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { localStorageService } from '@/lib/localStorageService';
-import type { Cart, CartItem } from '@/types';
-import { ArrowLeft, Trash2, ShoppingBag, Minus, Plus, Save, PackageSearch, ShoppingCartIcon } from 'lucide-react';
+import type { Cart, CartItem, Product } from '@/types';
+import { ArrowLeft, Trash2, ShoppingBag, Minus, Plus, Save, PackageSearch, ShoppingCartIcon, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { ProductImage } from '@/components/product/ProductImage';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { currentUser } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const router = useRouter();
   const { toast } = useToast();
 
-  const loadCart = useCallback(() => {
-    if (currentUser) {
-      setIsLoading(true);
-      const userCart = localStorageService.getCart(currentUser.id);
+  const loadCartAndProducts = useCallback(async () => {
+    if (!currentUser || isDataSourceLoading || !dataService) {
+      if (!isDataSourceLoading && !currentUser) setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const [userCart, products] = await Promise.all([
+        dataService.getCart(currentUser.id),
+        dataService.getProducts()
+      ]);
       setCart(userCart);
-      setIsLoading(false);
-    } else {
+      setAllProducts(products);
+    } catch (error) {
+      console.error("Error loading cart/products:", error);
+      toast({ title: "Error", description: "Could not load cart data.", variant: "destructive" });
+    } finally {
       setIsLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    loadCart();
-    const handleCartUpdate = () => loadCart();
+    loadCartAndProducts();
+    const handleCartUpdate = () => loadCartAndProducts();
     window.addEventListener('cartUpdated', handleCartUpdate);
     return () => window.removeEventListener('cartUpdated', handleCartUpdate);
-  }, [loadCart]);
+  }, [loadCartAndProducts]);
 
-  const handleQuantityChange = (productId: string, newQuantity: number) => {
-    if (!currentUser || !cart) return;
-    const productDetails = localStorageService.findProductById(productId);
+  const handleQuantityChange = async (productId: string, newQuantity: number) => {
+    if (!currentUser || !cart || !dataService) return;
+    const productDetails = allProducts.find(p => p.id === productId);
     if (!productDetails) {
         toast({title: "Error", description: "Product details not found.", variant: "destructive"});
         return;
@@ -59,53 +71,53 @@ export default function CartPage() {
     );
     const updatedCart = { ...cart, items: updatedItems };
     setCart(updatedCart);
-    localStorageService.updateCart(updatedCart);
+    await dataService.updateCart(updatedCart);
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
-  const handleRemoveItem = (productId: string) => {
-    if (!currentUser || !cart) return;
+  const handleRemoveItem = async (productId: string) => {
+    if (!currentUser || !cart || !dataService) return;
     const updatedItems = cart.items.filter(item => item.productId !== productId);
     const updatedCart = { ...cart, items: updatedItems };
     setCart(updatedCart);
-    localStorageService.updateCart(updatedCart);
+    await dataService.updateCart(updatedCart);
     toast({ title: "Item Removed" });
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
-  const handleMoveToSavedForLater = (productId: string) => {
-    if (!currentUser) return;
-    localStorageService.moveToSavedForLater(currentUser.id, productId);
+  const handleMoveToSavedForLater = async (productId: string) => {
+    if (!currentUser || !dataService) return;
+    await dataService.moveToSavedForLater(currentUser.id, productId);
     toast({ title: "Item Saved for Later" });
-    loadCart(); 
+    loadCartAndProducts();
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
-  const handleMoveToCartFromSaved = (productId: string) => {
-    if (!currentUser) return;
-    const success = localStorageService.moveToCartFromSaved(currentUser.id, productId);
+  const handleMoveToCartFromSaved = async (productId: string) => {
+    if (!currentUser || !dataService) return;
+    const success = await dataService.moveToCartFromSaved(currentUser.id, productId);
     if (success) {
         toast({ title: "Item Moved to Cart" });
     } else {
         toast({ title: "Could not move item", description: "Item may be out of stock.", variant: "destructive" });
     }
-    loadCart();
+    loadCartAndProducts();
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
-  const handleRemoveFromSaved = (productId: string) => {
-    if (!currentUser) return;
-    localStorageService.removeFromSavedForLater(currentUser.id, productId);
+  const handleRemoveFromSaved = async (productId: string) => {
+    if (!currentUser || !dataService) return;
+    await dataService.removeFromSavedForLater(currentUser.id, productId);
     toast({ title: "Removed from Saved" });
-    loadCart();
+    loadCartAndProducts();
   };
 
   const subtotal = cart?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
   const hasActiveItems = cart && cart.items.length > 0;
   const hasSavedItems = cart && cart.savedForLaterItems && cart.savedForLaterItems.length > 0;
 
-  if (isLoading) {
-    return <div className="text-center py-20">Loading cart...</div>;
+  if (isLoading || isDataSourceLoading) {
+    return <div className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin mx-auto"/> Loading cart...</div>;
   }
   if (!currentUser) {
     router.push('/login?redirect=/cart');
@@ -129,7 +141,7 @@ export default function CartPage() {
         <div className="lg:col-span-2 space-y-6">
           {hasActiveItems ? (
             cart.items.map(item => {
-              const productDetails = localStorageService.findProductById(item.productId);
+              const productDetails = allProducts.find(p => p.id === item.productId);
               return (
               <Card key={item.productId} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-md">
                 <ProductImage
@@ -200,34 +212,37 @@ export default function CartPage() {
           <Separator className="my-8"/>
           <h2 className="font-headline text-3xl text-primary mb-6">Saved For Later</h2>
           <div className="grid gap-6 md:grid-cols-2 lg:col-span-2">
-            {cart.savedForLaterItems?.map(item => (
-              <Card key={`saved-${item.productId}`} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-sm">
-                <ProductImage
-                  imageId={item.primaryImageId}
-                  alt={item.name}
-                  className="w-20 h-20 rounded-md border"
-                  imageClassName="object-cover"
-                   width={80} height={80}
-                  placeholderIconSize="w-8 h-8"
-                  data-ai-hint="saved item"
-                />
-                <div className="flex-grow text-center sm:text-left">
-                  <Link href={`/products/${item.productId}`} className="hover:underline">
-                      <h3 className="text-md font-semibold text-foreground">{item.name}</h3>
-                  </Link>
-                  <p className="text-sm text-muted-foreground">${item.price.toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
-                </div>
-                <div className="flex flex-col gap-2 items-stretch sm:items-end">
-                  <Button size="sm" onClick={() => handleMoveToCartFromSaved(item.productId)} disabled={(localStorageService.findProductById(item.productId)?.stock || 0) < item.quantity}>
-                    <ShoppingCartIcon className="mr-2 h-4 w-4"/>Add to Cart
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleRemoveFromSaved(item.productId)} className="text-xs text-destructive hover:bg-destructive/5">
-                    <Trash2 className="mr-1 h-3 w-3"/>Remove
-                  </Button>
-                </div>
-              </Card>
-            ))}
+            {cart.savedForLaterItems?.map(item => {
+                const productDetails = allProducts.find(p => p.id === item.productId);
+                return (
+                  <Card key={`saved-${item.productId}`} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-sm">
+                    <ProductImage
+                      imageId={item.primaryImageId}
+                      alt={item.name}
+                      className="w-20 h-20 rounded-md border"
+                      imageClassName="object-cover"
+                       width={80} height={80}
+                      placeholderIconSize="w-8 h-8"
+                      data-ai-hint="saved item"
+                    />
+                    <div className="flex-grow text-center sm:text-left">
+                      <Link href={`/products/${item.productId}`} className="hover:underline">
+                          <h3 className="text-md font-semibold text-foreground">{item.name}</h3>
+                      </Link>
+                      <p className="text-sm text-muted-foreground">${item.price.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+                    </div>
+                    <div className="flex flex-col gap-2 items-stretch sm:items-end">
+                      <Button size="sm" onClick={() => handleMoveToCartFromSaved(item.productId)} disabled={(productDetails?.stock || 0) < item.quantity}>
+                        <ShoppingCartIcon className="mr-2 h-4 w-4"/>Add to Cart
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleRemoveFromSaved(item.productId)} className="text-xs text-destructive hover:bg-destructive/5">
+                        <Trash2 className="mr-1 h-3 w-3"/>Remove
+                      </Button>
+                    </div>
+                  </Card>
+                )
+            })}
           </div>
         </div>
       )}

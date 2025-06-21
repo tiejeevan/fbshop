@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, UserX, Edit, PlusCircle } from 'lucide-react';
-import { localStorageService } from '@/lib/localStorageService';
+import { MoreHorizontal, Trash2, UserX, Edit, PlusCircle, Loader2 } from 'lucide-react';
 import type { User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
-
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<User[]>([]);
@@ -31,21 +30,32 @@ export default function AdminCustomersPage() {
   const [customerToDelete, setCustomerToDelete] = useState<User | null>(null);
   const { toast } = useToast();
   const { currentUser: adminUserPerformingAction } = useAuth();
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
-  const fetchCustomers = useCallback(() => {
+  const fetchCustomers = useCallback(async () => {
+    if (isDataSourceLoading || !dataService) {
+      setIsLoading(true);
+      return;
+    }
     setIsLoading(true);
-    const allUsers = localStorageService.getUsers();
-    const fetchedCustomers = allUsers.filter(user => user.role === 'customer' || user.role === 'admin');
-    setCustomers(fetchedCustomers);
-    setIsLoading(false);
-  }, []);
+    try {
+      const allUsers = await dataService.getUsers();
+      const fetchedCustomers = allUsers.filter(user => user.role === 'customer' || user.role === 'admin');
+      setCustomers(fetchedCustomers);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      toast({ title: "Error", description: "Could not load user data.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
 
   const handleDeleteCustomer = async () => {
-    if (!customerToDelete || !adminUserPerformingAction) {
+    if (!customerToDelete || !adminUserPerformingAction || !dataService) {
       toast({ title: "Action Denied", description: "Cannot delete user without proper authorization or selection.", variant: "destructive" });
       setCustomerToDelete(null);
       return;
@@ -59,9 +69,9 @@ export default function AdminCustomersPage() {
     const userNameOrEmail = customerToDelete.name || customerToDelete.email; 
     const userId = customerToDelete.id;
 
-    const success = localStorageService.deleteUser(userId);
+    const success = await dataService.deleteUser(userId);
     if (success) {
-      await localStorageService.addAdminActionLog({
+      await dataService.addAdminActionLog({
           adminId: adminUserPerformingAction.id,
           adminEmail: adminUserPerformingAction.email,
           actionType: 'USER_DELETE',
@@ -71,15 +81,15 @@ export default function AdminCustomersPage() {
       });
       toast({ title: "User Deleted", description: `User "${userNameOrEmail}" has been successfully deleted.` });
       fetchCustomers();
-      localStorageService.clearCart(userId);
+      await dataService.clearCart(userId);
     } else {
       toast({ title: "Error Deleting User", description: "Could not delete the user. Please try again.", variant: "destructive" });
     }
     setCustomerToDelete(null);
   };
 
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-64">Loading customer data...</div>;
+  if (isLoading || isDataSourceLoading) {
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin mx-auto"/> Loading customer data...</div>;
   }
 
   return (
