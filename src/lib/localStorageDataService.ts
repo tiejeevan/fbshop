@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage, JobReview
+  Job, JobSettings, ChatMessage, JobReview, JobCategory
 } from '@/types';
 import {
     saveImage as saveImageToDB,
@@ -22,6 +22,7 @@ const KEYS = {
   USERS: 'localcommerce_users',
   PRODUCTS: 'localcommerce_products',
   CATEGORIES: 'localcommerce_categories',
+  JOB_CATEGORIES: 'localcommerce_job_categories',
   CARTS: 'localcommerce_carts',
   ORDERS: 'localcommerce_orders',
   LOGIN_ACTIVITY: 'localcommerce_login_activity',
@@ -87,6 +88,18 @@ const localStorageDataService: IDataService = {
         ];
         const categories = mockCategoryData.map(c => ({...c, id: simpleUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()}));
         setItem(KEYS.CATEGORIES, categories);
+    }
+
+    // Default Job Categories
+    if (!getItem(KEYS.JOB_CATEGORIES)) {
+        const mockJobCategoryData: Omit<JobCategory, 'id' | 'createdAt' | 'updatedAt'>[] = [
+            { name: 'Manual Labor', slug: 'manual-labor', description: 'Physical tasks like moving, cleaning, etc.' },
+            { name: 'Delivery', slug: 'delivery', description: 'Transporting items from one place to another.' },
+            { name: 'Tech Help', slug: 'tech-help', description: 'Assistance with computers, phones, or software.' },
+            { name: 'Tutoring', slug: 'tutoring', description: 'Educational help in various subjects.' },
+        ];
+        const jobCategories = mockJobCategoryData.map(c => ({...c, id: simpleUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()}));
+        setItem(KEYS.JOB_CATEGORIES, jobCategories);
     }
 
     // Other keys
@@ -285,6 +298,50 @@ const localStorageDataService: IDataService = {
   },
   async findCategoryById(categoryId): Promise<Category | undefined> { return !categoryId ? undefined : (await this.getCategories()).find(c => c.id === categoryId); },
   async getChildCategories(parentId): Promise<Category[]> { return (await this.getCategories()).filter(category => category.parentId === parentId); },
+  
+  // Job Category Methods
+  async getJobCategories(): Promise<JobCategory[]> { return getItem<JobCategory[]>(KEYS.JOB_CATEGORIES) || []; },
+  async addJobCategory(categoryData): Promise<JobCategory> {
+    const categories = await this.getJobCategories();
+    const now = new Date().toISOString();
+    const newCategory: JobCategory = { ...categoryData, id: simpleUUID(), createdAt: now, updatedAt: now };
+    categories.push(newCategory);
+    setItem(KEYS.JOB_CATEGORIES, categories);
+    return newCategory;
+  },
+  async updateJobCategory(updatedCategory): Promise<JobCategory | null> {
+    let categories = await this.getJobCategories();
+    const index = categories.findIndex(c => c.id === updatedCategory.id);
+    if (index !== -1) {
+      categories[index] = { ...categories[index], ...updatedCategory, updatedAt: new Date().toISOString() };
+      setItem(KEYS.JOB_CATEGORIES, categories);
+      return categories[index];
+    }
+    return null;
+  },
+  async deleteJobCategory(categoryId): Promise<boolean> {
+    let categories = await this.getJobCategories();
+    const initialLength = categories.length;
+    categories = categories.filter(c => c.id !== categoryId);
+    if (categories.length < initialLength) {
+      setItem(KEYS.JOB_CATEGORIES, categories);
+      const jobs = await this.getJobs();
+      for (const job of jobs) {
+        if (job.categoryId === categoryId) {
+          job.categoryId = undefined;
+          await this.updateJob(job);
+        }
+      }
+      return true;
+    }
+    return false;
+  },
+  async findJobCategoryById(categoryId): Promise<JobCategory | undefined> {
+    if (!categoryId) return undefined;
+    const categories = await this.getJobCategories();
+    return categories.find(c => c.id === categoryId);
+  },
+
   async getCart(userId): Promise<Cart | null> {
       const carts = getItem<Cart[]>(KEYS.CARTS) || [];
       let userCart = carts.find(cart => cart.userId === userId);
@@ -475,6 +532,7 @@ const localStorageDataService: IDataService = {
         creatorHasReviewed: false,
         acceptorHasReviewed: false,
         imageUrls: [],
+        categoryId: jobData.categoryId,
     };
 
     if (images && images.length > 0) {

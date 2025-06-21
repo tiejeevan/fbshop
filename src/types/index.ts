@@ -141,6 +141,15 @@ export interface AdminActionLog {
   description: string; // Human-readable log message
 }
 
+export interface JobCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Job {
   id: string;
   title: string;
@@ -156,6 +165,8 @@ export interface Job {
   creatorHasReviewed?: boolean; // Did the creator leave a review for the acceptor?
   acceptorHasReviewed?: boolean; // Did the acceptor leave a review for the creator?
   imageUrls?: string[];
+  categoryId?: string;
+  categoryName?: string; // For display
 }
 
 export interface ChatMessage {

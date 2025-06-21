@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage, JobReview
+  Job, JobSettings, ChatMessage, JobReview, JobCategory
 } from '@/types';
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
@@ -146,6 +146,28 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         });
         await batch.commit();
         console.log("Initial categories seeded to Firestore.");
+    }
+    
+    // Seed Job Categories
+    const jobCategoriesCol = collection(db, "jobCategories");
+    const jobCatSnapshot = await getDocs(query(jobCategoriesCol, limit(1)));
+    if (jobCatSnapshot.empty) {
+        console.log("No job categories found, seeding initial...");
+         const mockJobCategories: Omit<JobCategory, 'id' | 'createdAt' | 'updatedAt'>[] = [
+            { name: 'Manual Labor', slug: 'manual-labor', description: 'Physical tasks like moving, cleaning, etc.' },
+            { name: 'Delivery', slug: 'delivery', description: 'Transporting items from one place to another.' },
+        ];
+        const batch = writeBatch(db);
+        mockJobCategories.forEach(catData => {
+            const catDocRef = doc(jobCategoriesCol);
+            batch.set(catDocRef, {
+                ...catData,
+                id: catDocRef.id,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+        });
+        await batch.commit();
     }
   },
 
@@ -464,6 +486,56 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const q = query(categoriesCol, where("parentId", "==", parentId), orderBy("displayOrder"));
     const snapshot = await getDocs(q);
     return mapDocsToTypeArray<Category>(snapshot);
+  },
+  async getJobCategories(): Promise<JobCategory[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const jobCategoriesCol = collection(db, "jobCategories");
+    const q = query(jobCategoriesCol, orderBy("name"));
+    const snapshot = await getDocs(q);
+    return mapDocsToTypeArray<JobCategory>(snapshot);
+  },
+  async addJobCategory(categoryData): Promise<JobCategory> {
+    if (!db) throw new Error("Firestore not initialized");
+    const catRef = collection(db, "jobCategories");
+    const docRef = doc(catRef);
+    const now = serverTimestamp();
+    const newCategoryFSData = { ...categoryData, id: docRef.id, createdAt: now, updatedAt: now };
+    await setDoc(docRef, newCategoryFSData);
+    return { ...categoryData, id: docRef.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  },
+  async updateJobCategory(updatedCategory: JobCategory): Promise<JobCategory | null> {
+    if (!db) throw new Error("Firestore not initialized");
+    const catRef = doc(db, "jobCategories", updatedCategory.id);
+    const updatePayload: any = { ...updatedCategory };
+    delete updatePayload.id;
+    delete updatePayload.createdAt;
+    updatePayload.updatedAt = serverTimestamp();
+    await updateDoc(catRef, updatePayload);
+    const docSnap = await getDoc(catRef);
+    return mapDocToType<JobCategory>(docSnap);
+  },
+  async deleteJobCategory(categoryId: string): Promise<boolean> {
+    if (!db) throw new Error("Firestore not initialized");
+    try {
+      const batch = writeBatch(db);
+      const jobsQuery = query(collection(db, "jobs"), where("categoryId", "==", categoryId));
+      const jobsSnapshot = await getDocs(jobsQuery);
+      jobsSnapshot.forEach(jobDoc => {
+        batch.update(jobDoc.ref, { categoryId: null, updatedAt: serverTimestamp() });
+      });
+      batch.delete(doc(db, "jobCategories", categoryId));
+      await batch.commit();
+      return true;
+    } catch (e) {
+      console.error("Error deleting job category from Firestore:", e);
+      return false;
+    }
+  },
+  async findJobCategoryById(categoryId: string | null): Promise<JobCategory | undefined> {
+    if (!db || !categoryId) return undefined;
+    const docRef = doc(db, "jobCategories", categoryId);
+    const docSnap = await getDoc(docRef);
+    return mapDocToType<JobCategory>(docSnap);
   },
 
   async getCart(userId: string): Promise<Cart | null> {
@@ -875,9 +947,10 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       creatorHasReviewed: false,
       acceptorHasReviewed: false,
       imageUrls: imageUrls,
+      categoryId: jobData.categoryId || null,
     };
     await setDoc(docRef, newJobFSData);
-    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false, imageUrls: imageUrls };
+    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false, imageUrls: imageUrls, categoryId: jobData.categoryId };
   },
   async updateJob(updatedJob): Promise<Job | null> {
     if (!db) throw new Error("Firestore not initialized");

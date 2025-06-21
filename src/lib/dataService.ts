@@ -3,7 +3,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme,
-  Job, JobSettings, ChatMessage, JobReview
+  Job, JobSettings, ChatMessage, JobReview, JobCategory
 } from '@/types';
 
 export interface IDataService {
@@ -40,6 +40,13 @@ export interface IDataService {
   deleteCategory: (categoryId: string) => Promise<boolean>;
   findCategoryById: (categoryId: string | null) => Promise<Category | undefined>;
   getChildCategories: (parentId: string | null) => Promise<Category[]>;
+
+  // Job Category methods
+  getJobCategories: () => Promise<JobCategory[]>;
+  addJobCategory: (categoryData: Omit<JobCategory, 'id' | 'createdAt' | 'updatedAt'>) => Promise<JobCategory>;
+  updateJobCategory: (updatedCategory: JobCategory) => Promise<JobCategory | null>;
+  deleteJobCategory: (categoryId: string) => Promise<boolean>;
+  findJobCategoryById: (categoryId: string | null) => Promise<JobCategory | undefined>;
 
   // Cart methods
   getCart: (userId: string) => Promise<Cart | null>;
@@ -92,7 +99,7 @@ export interface IDataService {
 
   // Job methods
   getJobs: (options?: { userId?: string; status?: Job['status']; createdById?: string; acceptedById?: string; }) => Promise<Job[]>;
-  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed' | 'imageUrls'>, images?: File[]) => Promise<Job>;
+  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed' | 'imageUrls' | 'categoryName'>, images?: File[]) => Promise<Job>;
   updateJob: (updatedJob: Partial<Job> & { id: string }) => Promise<Job | null>;
   deleteJob: (jobId: string) => Promise<boolean>;
   findJobById: (jobId: string) => Promise<Job | undefined>;

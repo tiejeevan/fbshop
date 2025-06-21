@@ -1,11 +1,11 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Job } from '@/types';
+import type { Job, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
@@ -15,34 +15,55 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
+
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { currentUser } = useAuth();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const { toast } = useToast();
   const router = useRouter();
 
-  const fetchJobs = useCallback(async () => {
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  const fetchJobsAndCategories = useCallback(async () => {
     if (isDataSourceLoading || !dataService) return;
     setIsLoading(true);
     try {
-      const openJobs = await dataService.getJobs({ status: 'open' });
-      // Filter out jobs created by the current user
-      const availableJobs = currentUser ? openJobs.filter(job => job.createdById !== currentUser.id) : openJobs;
-      setJobs(availableJobs);
+      const [openJobs, fetchedCategories] = await Promise.all([
+        dataService.getJobs({ status: 'open' }),
+        dataService.getJobCategories()
+      ]);
+      const jobsWithCategoryNames = openJobs.map(job => ({
+          ...job,
+          categoryName: fetchedCategories.find(c => c.id === job.categoryId)?.name || 'Uncategorized',
+      }));
+      setJobs(jobsWithCategoryNames);
+      setJobCategories(fetchedCategories);
     } catch (error) {
-      console.error("Error fetching open jobs:", error);
-      toast({ title: "Error", description: "Could not load available jobs.", variant: "destructive" });
+      console.error("Error fetching jobs/categories:", error);
+      toast({ title: "Error", description: "Could not load available jobs or categories.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
-  }, [dataService, isDataSourceLoading, toast, currentUser]);
+  }, [dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
+    fetchJobsAndCategories();
+  }, [fetchJobsAndCategories]);
+
+  const filteredJobs = useMemo(() => {
+    return jobs
+      .filter(job => currentUser ? job.createdById !== currentUser.id : true) // Filter out user's own jobs
+      .filter(job => (selectedCategory && selectedCategory !== 'all') ? job.categoryId === selectedCategory : true)
+      .filter(job => job.title.toLowerCase().includes(searchTerm.toLowerCase()) || job.description.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [jobs, selectedCategory, searchTerm, currentUser]);
   
   const handleAcceptJob = async (jobId: string) => {
     if (!currentUser || !dataService) {
@@ -53,7 +74,7 @@ export default function JobsPage() {
         const updatedJob = await dataService.acceptJob(jobId, currentUser.id, currentUser.name || currentUser.email);
         if(updatedJob) {
             toast({ title: "Job Accepted!", description: "You can view this job in your profile." });
-            fetchJobs(); // Re-fetch to remove the accepted job from the list
+            fetchJobsAndCategories(); // Re-fetch to update list
             router.push('/profile/jobs');
         } else {
             toast({ title: "Failed to Accept", description: "This job may no longer be available.", variant: "destructive" });
@@ -78,18 +99,39 @@ export default function JobsPage() {
         <Button asChild><Link href="/jobs/new"><PlusCircle className="mr-2 h-4 w-4" /> Create a New Job</Link></Button>
       </header>
 
-      {jobs.length === 0 ? (
+      <div className="flex flex-col md:flex-row gap-4 mb-4 p-4 bg-card rounded-lg shadow items-center sticky top-20 z-10">
+        <div className="relative flex-grow w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input type="search" placeholder="Search jobs by title or description..." value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full" />
+        </div>
+        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <SelectTrigger className="w-full md:w-[200px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {jobCategories.map(category => (<SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filteredJobs.length === 0 ? (
         <Card className="text-center py-16">
             <CardHeader>
-                <CardTitle>No Jobs Available</CardTitle>
-                <CardDescription>There are currently no open jobs posted by other users. Why not create one?</CardDescription>
+                <CardTitle>No Jobs Found</CardTitle>
+                <CardDescription>
+                  {searchTerm || selectedCategory !== 'all' 
+                    ? "No jobs match your current filters."
+                    : "There are currently no open jobs. Why not create one?"
+                  }
+                </CardDescription>
             </CardHeader>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {jobs.map(job => (
+          {filteredJobs.map(job => (
             <Card key={job.id} className="flex flex-col">
               <CardHeader>
+                {job.categoryName && <Badge className="mb-2 w-fit">{job.categoryName}</Badge>}
                 <CardTitle className="font-headline text-xl">{job.title}</CardTitle>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
                     <Avatar className="h-6 w-6">
