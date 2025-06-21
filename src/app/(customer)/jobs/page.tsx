@@ -9,7 +9,7 @@ import type { Job, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, PlusCircle, UserCheck, ShieldCheck, Flame, Search, MapPin, Calendar, Clock } from 'lucide-react';
+import { Loader2, Briefcase, PlusCircle, UserCheck, ShieldCheck, Flame, Search, MapPin, Calendar, Clock, ArrowUpWideNarrow, ArrowDownWideNarrow, ArrowDownUp } from 'lucide-react';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,8 +17,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { SavedJobButton } from '@/components/jobs/SavedJobButton';
 
+
+type SortOption = 'newest' | 'expires-asc' | 'compensation-desc' | 'compensation-asc';
+type CompensationFilterOption = 'all' | 'paid' | 'volunteer';
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -29,8 +33,11 @@ export default function JobsPage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  // State for filtering and sorting
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortOption, setSortOption] = useState<SortOption>('newest');
+  const [compensationFilter, setCompensationFilter] = useState<CompensationFilterOption>('all');
 
   const fetchJobsAndCategories = useCallback(async () => {
     if (isDataSourceLoading || !dataService) return;
@@ -58,12 +65,30 @@ export default function JobsPage() {
     fetchJobsAndCategories();
   }, [fetchJobsAndCategories]);
 
-  const filteredJobs = useMemo(() => {
+  const filteredAndSortedJobs = useMemo(() => {
     return jobs
       .filter(job => currentUser ? job.createdById !== currentUser.id : true) // Filter out user's own jobs
       .filter(job => (selectedCategory && selectedCategory !== 'all') ? job.categoryId === selectedCategory : true)
-      .filter(job => job.title.toLowerCase().includes(searchTerm.toLowerCase()) || job.description.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [jobs, selectedCategory, searchTerm, currentUser]);
+      .filter(job => job.title.toLowerCase().includes(searchTerm.toLowerCase()) || job.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter(job => {
+          if (compensationFilter === 'paid') return job.compensationAmount && job.compensationAmount > 0;
+          if (compensationFilter === 'volunteer') return !job.compensationAmount || job.compensationAmount <= 0;
+          return true;
+      })
+      .sort((a, b) => {
+        switch (sortOption) {
+          case 'compensation-desc':
+            return (b.compensationAmount || 0) - (a.compensationAmount || 0);
+          case 'compensation-asc':
+            return (a.compensationAmount || 0) - (b.compensationAmount || 0);
+          case 'expires-asc':
+            return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+          case 'newest':
+          default:
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+      });
+  }, [jobs, selectedCategory, searchTerm, currentUser, sortOption, compensationFilter]);
   
   const handleAcceptJob = async (jobId: string) => {
     if (!currentUser || !dataService) {
@@ -98,23 +123,47 @@ export default function JobsPage() {
         </div>
         <Button asChild><Link href="/jobs/new"><PlusCircle className="mr-2 h-4 w-4" /> Create a New Job</Link></Button>
       </header>
-
-      <div className="flex flex-col md:flex-row gap-4 mb-4 p-4 bg-card rounded-lg shadow items-center sticky top-20 z-10">
-        <div className="relative flex-grow w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input type="search" placeholder="Search jobs by title or description..." value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full" />
+      
+      <Card className="p-4 mb-4 sticky top-[70px] z-20 shadow-md">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="sm:col-span-2">
+                <Label htmlFor="search-jobs" className="sr-only">Search</Label>
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input id="search-jobs" type="search" placeholder="Search by title or description..." value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full" />
+                </div>
+            </div>
+            <div>
+                <Label htmlFor="category-filter" className="sr-only">Category</Label>
+                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger id="category-filter" aria-label="Filter by category"><SelectValue placeholder="All Categories" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {jobCategories.map(category => (<SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div>
+                <Label htmlFor="sort-jobs" className="sr-only">Sort by</Label>
+                 <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+                    <SelectTrigger id="sort-jobs" aria-label="Sort jobs by">
+                        <ArrowDownUp className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Sort by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="newest">Newest</SelectItem>
+                        <SelectItem value="expires-asc">Expires Soon</SelectItem>
+                        <SelectItem value="compensation-desc">Compensation: High-Low</SelectItem>
+                        <SelectItem value="compensation-asc">Compensation: Low-High</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
         </div>
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-full md:w-[200px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {jobCategories.map(category => (<SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>))}
-          </SelectContent>
-        </Select>
-      </div>
+      </Card>
 
-      {filteredJobs.length === 0 ? (
+
+      {filteredAndSortedJobs.length === 0 ? (
         <Card className="text-center py-16">
             <CardHeader>
                 <CardTitle>No Jobs Found</CardTitle>
@@ -128,7 +177,7 @@ export default function JobsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredJobs.map(job => (
+          {filteredAndSortedJobs.map(job => (
             <Card key={job.id} className="flex flex-col relative group">
               <CardHeader>
                 <div className="flex justify-between items-start gap-2">
