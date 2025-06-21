@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification
+  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem
 } from '@/types';
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
@@ -952,9 +952,11 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       acceptorHasReviewed: false,
       imageUrls: imageUrls,
       categoryId: jobData.categoryId || null,
+      isUrgent: jobData.isUrgent || false,
+      isVerified: false,
     };
     await setDoc(docRef, newJobFSData);
-    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false, imageUrls: imageUrls, categoryId: jobData.categoryId };
+    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false, imageUrls: imageUrls, categoryId: jobData.categoryId, isUrgent: jobData.isUrgent || false, isVerified: false };
   },
   async updateJob(updatedJob): Promise<Job | null> {
     if (!db) throw new Error("Firestore not initialized");
@@ -1154,5 +1156,28 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const batch = writeBatch(db);
     snapshot.docs.forEach(d => batch.update(d.ref, { isRead: true }));
     await batch.commit();
+  },
+
+  async getSavedJobs(userId: string): Promise<JobSavedItem[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const savedJobsCol = collection(db, `users/${userId}/savedJobs`);
+    const snapshot = await getDocs(query(savedJobsCol, orderBy("addedAt", "desc")));
+    return mapDocsToTypeArray<JobSavedItem>(snapshot);
+  },
+  async addToSavedJobs(userId: string, jobId: string): Promise<void> {
+    if (!db) throw new Error("Firestore not initialized");
+    const savedJobRef = doc(db, `users/${userId}/savedJobs`, jobId);
+    await setDoc(savedJobRef, { userId, jobId, addedAt: serverTimestamp() });
+  },
+  async removeFromSavedJobs(userId: string, jobId: string): Promise<void> {
+    if (!db) throw new Error("Firestore not initialized");
+    const savedJobRef = doc(db, `users/${userId}/savedJobs`, jobId);
+    await deleteDoc(savedJobRef);
+  },
+  async isJobInSavedList(userId: string, jobId: string): Promise<boolean> {
+    if (!db) throw new Error("Firestore not initialized");
+    const savedJobRef = doc(db, `users/${userId}/savedJobs`, jobId);
+    const docSnap = await getDoc(savedJobRef);
+    return docSnap.exists();
   },
 };

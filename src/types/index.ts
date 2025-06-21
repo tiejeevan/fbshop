@@ -168,6 +168,8 @@ export interface Job {
   imageUrls?: string[];
   categoryId?: string;
   categoryName?: string; // For display
+  isUrgent?: boolean;
+  isVerified?: boolean;
 }
 
 export interface ChatMessage {
@@ -204,4 +206,10 @@ export interface Notification {
   isRead: boolean;
   createdAt: string; // ISO Date string
   type: 'job_accepted' | 'new_message' | 'job_completed' | 'job_expired' | 'generic';
+}
+
+export interface JobSavedItem {
+  userId: string;
+  jobId: string;
+  addedAt: string; // ISO Date string
 }

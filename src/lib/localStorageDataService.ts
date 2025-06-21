@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification
+  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem
 } from '@/types';
 import {
     saveImage as saveImageToDB,
@@ -36,6 +36,7 @@ const KEYS = {
   JOB_SETTINGS: 'localcommerce_job_settings',
   JOB_REVIEWS: 'localcommerce_job_reviews',
   NOTIFICATIONS: 'localcommerce_notifications',
+  SAVED_JOBS: 'localcommerce_saved_jobs',
 };
 
 function getItem<T>(key: string): T | null {
@@ -118,6 +119,7 @@ const localStorageDataService: IDataService = {
     if (!getItem(KEYS.JOB_SETTINGS)) setItem(KEYS.JOB_SETTINGS, { maxJobsPerUser: 5, maxTimerDurationDays: 10 });
     if (!getItem(KEYS.JOB_REVIEWS)) setItem(KEYS.JOB_REVIEWS, []);
     if (!getItem(KEYS.NOTIFICATIONS)) setItem(KEYS.NOTIFICATIONS, []);
+    if (!getItem(KEYS.SAVED_JOBS)) setItem(KEYS.SAVED_JOBS, []);
     
     isDataInitialized = true;
   },
@@ -536,6 +538,8 @@ const localStorageDataService: IDataService = {
         acceptorHasReviewed: false,
         imageUrls: [],
         categoryId: jobData.categoryId,
+        isUrgent: jobData.isUrgent || false,
+        isVerified: false,
     };
 
     if (images && images.length > 0) {
@@ -720,6 +724,22 @@ const localStorageDataService: IDataService = {
           }
       });
       setItem(KEYS.NOTIFICATIONS, notifications);
+  },
+  async getSavedJobs(userId): Promise<JobSavedItem[]> { return (getItem<JobSavedItem[]>(KEYS.SAVED_JOBS) || []).filter(item => item.userId === userId); },
+  async addToSavedJobs(userId, jobId): Promise<void> {
+    const savedJobs = getItem<JobSavedItem[]>(KEYS.SAVED_JOBS) || [];
+    if (!savedJobs.find(item => item.userId === userId && item.jobId === jobId)) {
+        savedJobs.push({ userId, jobId, addedAt: new Date().toISOString() });
+        setItem(KEYS.SAVED_JOBS, savedJobs);
+    }
+  },
+  async removeFromSavedJobs(userId, jobId): Promise<void> {
+    let savedJobs = getItem<JobSavedItem[]>(KEYS.SAVED_JOBS) || [];
+    savedJobs = savedJobs.filter(item => !(item.userId === userId && item.jobId === jobId));
+    setItem(KEYS.SAVED_JOBS, savedJobs);
+  },
+  async isJobInSavedList(userId, jobId): Promise<boolean> {
+    return (getItem<JobSavedItem[]>(KEYS.SAVED_JOBS) || []).some(item => item.userId === userId && item.jobId === jobId);
   },
 };
 

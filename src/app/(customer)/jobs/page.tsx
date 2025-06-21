@@ -9,7 +9,7 @@ import type { Job, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, PlusCircle, UserCheck } from 'lucide-react';
+import { Loader2, Briefcase, PlusCircle, UserCheck, ShieldCheck, Flame } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
+import { SavedJobButton } from '@/components/jobs/SavedJobButton';
 
 
 export default function JobsPage() {
@@ -129,7 +130,7 @@ export default function JobsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredJobs.map(job => (
-            <Card key={job.id} className="flex flex-col">
+            <Card key={job.id} className="flex flex-col relative group">
               <CardHeader>
                 <div className="flex justify-between items-start gap-2">
                     {job.categoryName && <Badge className="w-fit self-start">{job.categoryName}</Badge>}
@@ -146,6 +147,10 @@ export default function JobsPage() {
                         <AvatarFallback>{job.createdByName.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <span>{job.createdByName}</span>
+                </div>
+                 <div className="flex items-center gap-2 pt-2">
+                    {job.isUrgent && <Badge variant="destructive" className="bg-orange-500 hover:bg-orange-600"><Flame className="h-3 w-3 mr-1"/>Urgent</Badge>}
+                    {job.isVerified && <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-800/30 dark:text-blue-300 border-none"><ShieldCheck className="h-3 w-3 mr-1"/>Verified</Badge>}
                 </div>
               </CardHeader>
               <CardContent className="flex-grow">
@@ -177,6 +182,7 @@ export default function JobsPage() {
                 )}
                  {!currentUser && <Button className="w-full" disabled>Login to Accept</Button>}
               </CardFooter>
+              {currentUser && <SavedJobButton jobId={job.id} className="absolute top-2 right-2" />}
             </Card>
           ))}
         </div>

@@ -4,7 +4,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag, User, LogOut, Menu, ShoppingCart, Briefcase, Heart, History, LayoutDashboard, MapPin, Globe, Loader2 } from 'lucide-react';
+import { ShoppingBag, User, LogOut, Menu, ShoppingCart, Briefcase, Heart, History, LayoutDashboard, MapPin, Globe, Loader2, Bookmark } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -120,6 +120,9 @@ export function CustomerNavbar() {
           <Link href="/profile/orders"><History className="mr-2 h-4 w-4" /> {translations.orderHistory}</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/profile/saved-jobs"><Bookmark className="mr-2 h-4 w-4" /> Saved Jobs</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/profile/wishlist"><Heart className="mr-2 h-4 w-4" /> {translations.wishlist}</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -198,6 +201,7 @@ export function CustomerNavbar() {
                      <Link href="/profile/addresses" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/addresses") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><MapPin className="mr-2 h-5 w-5" /> {translations.myAddresses}</Link>
                      <Link href="/profile/jobs" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/jobs") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Briefcase className="mr-2 h-5 w-5" /> My Jobs</Link>
                      <Link href="/profile/orders" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/orders") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><History className="mr-2 h-5 w-5" /> {translations.orderHistory}</Link>
+                     <Link href="/profile/saved-jobs" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/saved-jobs") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Bookmark className="mr-2 h-5 w-5" /> Saved Jobs</Link>
                      <Link href="/profile/wishlist" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/wishlist") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Heart className="mr-2 h-5 w-5" /> {translations.wishlist}</Link>
                    </>
                  )}

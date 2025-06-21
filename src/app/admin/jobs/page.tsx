@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save, Image as ImageIcon } from 'lucide-react';
+import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save, Image as ImageIcon, ShieldCheck, Flame } from 'lucide-react';
 import type { Job, JobSettings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,8 @@ import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 
 const jobSettingsSchema = z.object({
   maxJobsPerUser: z.coerce.number().int().min(1, 'Must be at least 1').max(100, 'Cannot exceed 100'),
@@ -83,6 +85,27 @@ export default function AdminJobsPage() {
       toast({ title: "Error Deleting Job", variant: "destructive" });
     }
     setJobToDelete(null);
+  };
+
+  const handleToggleVerifyJob = async (job: Job) => {
+    if (!dataService || !currentUser) return;
+    try {
+      const newVerifiedState = !job.isVerified;
+      await dataService.updateJob({ id: job.id, isVerified: newVerifiedState });
+       await dataService.addAdminActionLog({
+        adminId: currentUser.id,
+        adminEmail: currentUser.email,
+        actionType: 'JOB_VERIFICATION',
+        entityType: 'Job',
+        entityId: job.id,
+        description: `${newVerifiedState ? 'Verified' : 'Un-verified'} job: "${job.title}".`
+      });
+      toast({ title: `Job ${newVerifiedState ? 'Verified' : 'Un-verified'}` });
+      fetchData();
+    } catch (error) {
+        console.error("Error updating job verification:", error);
+        toast({ title: "Error", description: "Could not update job.", variant: "destructive" });
+    }
   };
 
   const onSettingsSubmit: SubmitHandler<JobSettingsFormValues> = async (data) => {
@@ -171,33 +194,32 @@ export default function AdminJobsPage() {
                     <TableHead>Compensation</TableHead>
                     <TableHead>Created By</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Images</TableHead>
-                    <TableHead className="hidden md:table-cell">Expires/Expired</TableHead>
-                    <TableHead>Accepted By</TableHead>
+                    <TableHead>Verify</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {jobs.map((job) => (
                         <TableRow key={job.id}>
-                        <TableCell className="font-medium">{job.title}</TableCell>
+                        <TableCell>
+                            <div className="font-medium">{job.title}</div>
+                            <div className="flex items-center gap-2 mt-1">
+                               {job.isUrgent && <Badge variant="destructive" className="bg-orange-500 hover:bg-orange-600"><Flame className="h-3 w-3 mr-1"/>Urgent</Badge>}
+                               {job.isVerified && <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-800/30 dark:text-blue-300 dark:border-blue-700"><ShieldCheck className="h-3 w-3 mr-1"/>Verified</Badge>}
+                            </div>
+                        </TableCell>
                         <TableCell>
                           {job.compensationAmount && job.compensationAmount > 0 ? `$${job.compensationAmount.toFixed(2)}` : <Badge variant="secondary">Volunteer</Badge>}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{job.createdByName}</TableCell>
                         <TableCell><Badge variant={getStatusBadgeVariant(job.status)}>{job.status}</Badge></TableCell>
                         <TableCell>
-                          {job.imageUrls && job.imageUrls.length > 0 ? (
-                            <span className="flex items-center text-sm text-muted-foreground">
-                              <ImageIcon className="h-4 w-4 mr-1.5" />
-                              {job.imageUrls.length}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground/60">-</span>
-                          )}
+                            <Switch
+                                checked={job.isVerified}
+                                onCheckedChange={() => handleToggleVerifyJob(job)}
+                                aria-label="Toggle job verification"
+                             />
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{formatDistanceToNow(parseISO(job.expiresAt), { addSuffix: true })}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{job.acceptedByName || 'N/A'}</TableCell>
                         <TableCell className="text-right">
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Menu</span></Button></DropdownMenuTrigger>

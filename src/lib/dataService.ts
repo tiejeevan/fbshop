@@ -3,7 +3,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme,
-  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification
+  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem
 } from '@/types';
 
 export interface IDataService {
@@ -99,7 +99,7 @@ export interface IDataService {
 
   // Job methods
   getJobs: (options?: { userId?: string; status?: Job['status']; createdById?: string; acceptedById?: string; }) => Promise<Job[]>;
-  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed' | 'imageUrls' | 'categoryName'>, images?: File[]) => Promise<Job>;
+  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed' | 'imageUrls' | 'categoryName' | 'isVerified'>, images?: File[]) => Promise<Job>;
   updateJob: (updatedJob: Partial<Job> & { id: string }) => Promise<Job | null>;
   deleteJob: (jobId: string) => Promise<boolean>;
   findJobById: (jobId: string) => Promise<Job | undefined>;
@@ -123,4 +123,10 @@ export interface IDataService {
   getNotifications: (userId: string) => Promise<Notification[]>;
   markNotificationAsRead: (userId: string, notificationId: string) => Promise<boolean>;
   markAllNotificationsAsRead: (userId: string) => Promise<void>;
+
+  // Saved Jobs methods
+  getSavedJobs: (userId: string) => Promise<JobSavedItem[]>;
+  addToSavedJobs: (userId: string, jobId: string) => Promise<void>;
+  removeFromSavedJobs: (userId: string, jobId: string) => Promise<void>;
+  isJobInSavedList: (userId: string, jobId: string) => Promise<boolean>;
 }

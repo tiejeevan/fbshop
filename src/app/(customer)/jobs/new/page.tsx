@@ -15,11 +15,12 @@ import type { JobSettings, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign } from 'lucide-react';
+import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { add } from 'date-fns';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Switch } from '@/components/ui/switch';
 
 const MAX_JOB_IMAGES = 5;
 const MAX_FILE_SIZE_MB = 2;
@@ -31,6 +32,7 @@ const jobFormSchema = z.object({
   categoryId: z.string().min(1, 'Please select a category'),
   compensationAmount: z.coerce.number().min(0, "Compensation must be 0 or more").optional(),
   durationInHours: z.coerce.number().int().min(1, 'Duration must be at least 1 hour'),
+  isUrgent: z.boolean().optional(),
 });
 
 type JobFormValues = z.infer<typeof jobFormSchema>;
@@ -50,6 +52,9 @@ export default function NewJobPage() {
 
   const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting: isFormProcessing } } = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
+    defaultValues: {
+      isUrgent: false,
+    }
   });
   
   const fetchPrerequisites = useCallback(async () => {
@@ -131,6 +136,7 @@ export default function NewJobPage() {
         compensationAmount: data.compensationAmount,
         createdById: currentUser.id,
         expiresAt: expiresAt.toISOString(),
+        isUrgent: data.isUrgent || false,
       };
       await dataService.addJob(newJobData, imageFiles);
       toast({ title: "Job Created Successfully!", description: "Your job is now live." });
@@ -220,15 +226,25 @@ export default function NewJobPage() {
                                 )}
                              </div>
 
-                            <div className="space-y-1.5">
-                                <Label htmlFor="durationInHours">Job Duration (Timer)</Label>
-                                <Select onValueChange={(value) => setValue('durationInHours', Number(value))} defaultValue="24">
-                                    <SelectTrigger id="durationInHours"><SelectValue placeholder="Select how long the job is available" /></SelectTrigger>
-                                    <SelectContent>
-                                        {durationOptions.map(opt => <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                {errors.durationInHours && <p className="text-sm text-destructive">{errors.durationInHours.message}</p>}
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="durationInHours">Job Duration (Timer)</Label>
+                                    <Controller name="durationInHours" control={control} defaultValue={24} render={({ field }) => (
+                                        <Select onValueChange={(value) => field.onChange(Number(value))} value={String(field.value)}>
+                                            <SelectTrigger id="durationInHours"><SelectValue placeholder="Select how long the job is available" /></SelectTrigger>
+                                            <SelectContent>
+                                                {durationOptions.map(opt => <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    )}/>
+                                    {errors.durationInHours && <p className="text-sm text-destructive">{errors.durationInHours.message}</p>}
+                                </div>
+                                <div className="flex items-center space-x-2 pt-4">
+                                     <Controller name="isUrgent" control={control} render={({ field }) => (
+                                        <Switch id="isUrgent" checked={field.value} onCheckedChange={field.onChange}/>
+                                      )}/>
+                                    <Label htmlFor="isUrgent" className="flex items-center gap-1.5"><Flame className="h-4 w-4 text-orange-500"/>Mark as Urgent</Label>
+                                </div>
                             </div>
                         </>
                     ) : (
