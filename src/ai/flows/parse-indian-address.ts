@@ -15,6 +15,7 @@ export async function parseIndianAddress(input: IndianAddressInput): Promise<Ind
 
 const prompt = ai.definePrompt({
   name: 'parseIndianAddressPrompt',
+  model: 'googleai/gemini-2.0-flash',
   input: {schema: IndianAddressInputSchema},
   output: {schema: IndianAddressOutputSchema},
   prompt: `You are an expert at parsing unstructured Indian addresses. Analyze the following address text and extract the components into the specified JSON format.
