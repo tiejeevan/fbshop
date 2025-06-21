@@ -1,25 +1,27 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Edit, Trash2, Eye, Loader2, Search } from 'lucide-react';
 import type { Product, Category } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ProductImage } from '@/components/product/ProductImage';
 import { useDataSource } from '@/contexts/DataSourceContext';
+import { Input } from '@/components/ui/input';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
@@ -50,6 +52,13 @@ export default function AdminProductsPage() {
   useEffect(() => {
     fetchProductsAndCategories();
   }, [fetchProductsAndCategories]);
+  
+  const filteredProducts = useMemo(() => {
+    return products.filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [products, searchTerm]);
 
   const getCategoryName = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.name || 'Uncategorized';
@@ -105,11 +114,25 @@ export default function AdminProductsPage() {
         <Button asChild><Link href="/admin/products/new"><PlusCircle className="mr-2 h-4 w-4" /> Add Product</Link></Button>
       </div>
       <Card>
-        <CardHeader><CardTitle>All Products</CardTitle><CardDescription>List of products.</CardDescription></CardHeader>
+        <CardHeader>
+          <CardTitle>All Products</CardTitle>
+          <CardDescription>List of products.</CardDescription>
+          <div className="relative mt-2">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by name or description..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </CardHeader>
         <CardContent>
-          {products.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-muted-foreground mb-4">No products found.</p>
+              <p className="text-muted-foreground mb-4">
+                {products.length > 0 ? "No products match your search." : "No products found."}
+              </p>
               <Button asChild variant="secondary"><Link href="/admin/products/new"><PlusCircle className="mr-2 h-4 w-4" /> Add Product</Link></Button>
             </div>
           ) : (
@@ -125,7 +148,7 @@ export default function AdminProductsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product) => (
+                {filteredProducts.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell className="hidden sm:table-cell">
                         <ProductImage

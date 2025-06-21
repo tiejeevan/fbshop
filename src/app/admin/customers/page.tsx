@@ -1,13 +1,13 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, UserX, Edit, PlusCircle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Trash2, UserX, Edit, PlusCircle, Loader2, Search } from 'lucide-react';
 import type { User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,11 +23,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
 import { useDataSource } from '@/contexts/DataSourceContext';
+import { Input } from '@/components/ui/input';
 
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [customerToDelete, setCustomerToDelete] = useState<User | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const { currentUser: adminUserPerformingAction } = useAuth();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
@@ -53,6 +55,13 @@ export default function AdminCustomersPage() {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+  
+  const filteredCustomers = useMemo(() => {
+    return customers.filter(customer =>
+      (customer.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [customers, searchTerm]);
 
   const handleDeleteCustomer = async () => {
     if (!customerToDelete || !adminUserPerformingAction || !dataService) {
@@ -110,12 +119,23 @@ export default function AdminCustomersPage() {
         <CardHeader>
           <CardTitle>All Users</CardTitle>
           <CardDescription>A list of all registered users (customers and admins).</CardDescription>
+          <div className="relative mt-2">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by name or email..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
         </CardHeader>
         <CardContent>
-          {customers.length === 0 ? (
+          {filteredCustomers.length === 0 ? (
             <div className="text-center py-10">
               <UserX className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No users found.</p>
+              <p className="text-muted-foreground">
+                {customers.length > 0 ? "No users match your search." : "No users found."}
+              </p>
                  <Button asChild variant="secondary" className="mt-4">
                     <Link href="/admin/customers/new">
                         <PlusCircle className="mr-2 h-4 w-4" /> Add User
@@ -135,7 +155,7 @@ export default function AdminCustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers.map((customer) => (
+                {filteredCustomers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">{customer.name || 'N/A'}</TableCell>
                     <TableCell>{customer.email}</TableCell>

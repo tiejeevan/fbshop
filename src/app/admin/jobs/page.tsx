@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save, Image as ImageIcon, ShieldCheck, Flame } from 'lucide-react';
+import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save, Image as ImageIcon, ShieldCheck, Flame, Search } from 'lucide-react';
 import type { Job, JobSettings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -34,6 +34,7 @@ export default function AdminJobsPage() {
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [jobSettings, setJobSettings] = useState<JobSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
@@ -65,6 +66,14 @@ export default function AdminJobsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const filteredJobs = useMemo(() => {
+    return jobs.filter(job =>
+      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.createdByName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [jobs, searchTerm]);
 
   const handleDeleteJob = async () => {
     if (!jobToDelete || !currentUser || !dataService) return;
@@ -181,10 +190,26 @@ export default function AdminJobsPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>All Jobs</CardTitle><CardDescription>A list of all jobs on the platform.</CardDescription></CardHeader>
+        <CardHeader>
+          <CardTitle>All Jobs</CardTitle>
+          <CardDescription>A list of all jobs on the platform.</CardDescription>
+          <div className="relative mt-2">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by title, description, or user..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </CardHeader>
         <CardContent>
-          {jobs.length === 0 ? (
-            <div className="text-center py-10"><p className="text-muted-foreground mb-4">No jobs have been created yet.</p></div>
+          {filteredJobs.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-muted-foreground mb-4">
+                {jobs.length > 0 ? "No jobs match your search." : "No jobs have been created yet."}
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
                 <Table>
@@ -199,7 +224,7 @@ export default function AdminJobsPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {jobs.map((job) => (
+                    {filteredJobs.map((job) => (
                         <TableRow key={job.id}>
                         <TableCell>
                             <div className="font-medium">{job.title}</div>
