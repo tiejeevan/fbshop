@@ -30,10 +30,18 @@ export function LoginForm({ role, redirectPath, title, description, signupPath }
 
   // Dynamically create schema based on the role
   const loginSchema = z.object({
-    email: role === 'admin' 
-      ? z.string().min(1, { message: 'Admin username cannot be empty' })
-      : z.string().email({ message: 'Invalid email address' }),
-    password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+    email: z.string().min(1, { message: 'This field cannot be empty' }),
+    password: z.string().min(1, { message: 'Password cannot be empty' }),
+  }).superRefine((data, ctx) => {
+    if (role === 'customer') {
+      if (!z.string().email().safeParse(data.email).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Invalid email address',
+          path: ['email'],
+        });
+      }
+    }
   });
   
   type LoginFormInputs = z.infer<typeof loginSchema>;
@@ -92,11 +100,11 @@ export function LoginForm({ role, redirectPath, title, description, signupPath }
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{role === 'admin' ? 'Admin Username' : 'Email'}</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="you@example.com"
+                type={role === 'admin' ? 'text' : 'email'}
+                placeholder={role === 'admin' ? 'a' : 'you@example.com'}
                 {...register('email')}
                 aria-invalid={errors.email ? 'true' : 'false'}
                 className={errors.email ? 'border-destructive' : ''}

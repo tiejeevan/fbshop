@@ -34,7 +34,9 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
     customerDescription: "Access your account to continue shopping.",
     adminDescription: "Access the management dashboard.",
     emailLabel: "Email",
+    adminUsernameLabel: "Admin Username",
     emailPlaceholder: "you@example.com",
+    adminPlaceholder: "a",
     passwordLabel: "Password",
     loginButton: "Login",
     loginAsAdmin: "Login as Admin",
@@ -44,12 +46,20 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
   };
 
   const loginSchema = z.object({
-    email: currentLoginRole === 'admin'
-      ? z.string().min(1, { message: 'Admin username cannot be empty' })
-      : z.string().email({ message: 'Invalid email address' }),
-    password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+    email: z.string().min(1, { message: 'This field cannot be empty.' }),
+    password: z.string().min(1, { message: 'Password cannot be empty.' }),
+  }).superRefine((data, ctx) => {
+    if (currentLoginRole === 'customer') {
+      if (!z.string().email().safeParse(data.email).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Invalid email address',
+          path: ['email'],
+        });
+      }
+    }
   });
-  
+
   type LoginFormInputs = z.infer<typeof loginSchema>;
 
   const {
@@ -112,9 +122,11 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
       <CardContent className="px-6 pb-4">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
           <div className="space-y-1.5">
-            <Label htmlFor="email-universal">{translations.emailLabel}</Label>
+            <Label htmlFor="email-universal">{currentLoginRole === 'customer' ? translations.emailLabel : translations.adminUsernameLabel}</Label>
             <Input
-              id="email-universal" type="email" placeholder={translations.emailPlaceholder}
+              id="email-universal"
+              type={currentLoginRole === 'customer' ? 'email' : 'text'}
+              placeholder={currentLoginRole === 'customer' ? translations.emailPlaceholder : translations.adminPlaceholder}
               {...register('email')}
               aria-invalid={errors.email ? 'true' : 'false'}
               className={errors.email ? 'border-destructive' : ''}

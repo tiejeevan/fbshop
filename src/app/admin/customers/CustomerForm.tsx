@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -22,16 +21,16 @@ const customerFormSchemaBase = z.object({
 });
 
 const createCustomerSchema = customerFormSchemaBase.extend({
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-  confirmPassword: z.string().min(6, { message: 'Please confirm your password' }),
+  password: z.string().min(1, { message: 'Password must be at least 1 character' }),
+  confirmPassword: z.string().min(1, { message: 'Please confirm your password' }),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
 });
 
 const editCustomerSchema = customerFormSchemaBase.extend({
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }).optional().or(z.literal('')),
-  confirmPassword: z.string().min(6, { message: 'Please confirm your password' }).optional().or(z.literal('')),
+  password: z.string().min(1, { message: 'Password must be at least 1 character' }).optional().or(z.literal('')),
+  confirmPassword: z.string().min(1, { message: 'Please confirm your password' }).optional().or(z.literal('')),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match if new password is provided",
   path: ['confirmPassword'],
