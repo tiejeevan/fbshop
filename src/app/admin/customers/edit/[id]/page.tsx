@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { CustomerForm, type EditCustomerFormValues } from '../../CustomerForm';
 import type { User } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -33,7 +33,10 @@ const generateUserChangeDescription = (oldUser: User, newData: EditCustomerFormV
   return `Updated user "${newData.email}": ${changes.join(' ')}`;
 };
 
-export default function EditCustomerPage({ params }: { params: { id: string } }) {
+export default function EditCustomerPage() {
+  const params = useParams<{ id: string }>();
+  const customerId = params?.id;
+  
   const [customer, setCustomer] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
@@ -42,14 +45,14 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
 
-  const fetchCustomerData = useCallback(async (customerId: string) => {
+  const fetchCustomerData = useCallback(async (id: string) => {
     if (isDataSourceLoading || !dataService) {
         setIsLoading(true);
         return;
     }
     setIsLoading(true);
     try {
-        const fetchedCustomer = await dataService.findUserById(customerId);
+        const fetchedCustomer = await dataService.findUserById(id);
         if (fetchedCustomer) {
             setCustomer(fetchedCustomer);
         } else {
@@ -65,10 +68,10 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
   }, [dataService, isDataSourceLoading, router, toast]);
 
   useEffect(() => {
-    if (params?.id) {
-      fetchCustomerData(params.id);
+    if (customerId) {
+      fetchCustomerData(customerId);
     }
-  }, [params, fetchCustomerData]);
+  }, [customerId, fetchCustomerData]);
 
   const handleEditCustomer = async (data: EditCustomerFormValues, id?: string) => {
     if (!id || !customer || !adminUserPerformingAction || !dataService) {
@@ -120,7 +123,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
     }
   };
   
-  if (isLoading || isDataSourceLoading || !params?.id) {
+  if (isLoading || isDataSourceLoading || !customerId) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading user data...</div>;
   }
 
