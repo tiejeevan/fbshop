@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/googleai';
 import {z} from 'genkit';
 
 const EnhanceJobDescriptionInputSchema = z.object({
@@ -31,6 +32,7 @@ const prompt = ai.definePrompt({
   name: 'enhanceJobDescriptionPrompt',
   input: {schema: EnhanceJobDescriptionInputSchema},
   output: {schema: EnhanceJobDescriptionOutputSchema},
+  model: googleAI.model('gemini-1.5-flash-latest'),
   prompt: `You are an expert at writing clear, concise, and appealing job descriptions for a local community help platform.
 Your task is to take a user's raw job title and description and improve them.
 
