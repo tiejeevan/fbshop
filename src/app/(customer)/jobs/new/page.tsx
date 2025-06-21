@@ -15,14 +15,17 @@ import type { JobSettings, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame, Info, Wand2 } from 'lucide-react';
+import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame, Info, Wand2, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { add } from 'date-fns';
+import { add, format, setHours, setMinutes } from 'date-fns';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { enhanceJobDescription } from '@/ai/flows/enhance-job-description';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 const MAX_JOB_IMAGES = 5;
 const MAX_FILE_SIZE_MB = 2;
@@ -35,6 +38,10 @@ const jobFormSchema = z.object({
   compensationAmount: z.coerce.number().min(0, "Compensation must be 0 or more").optional(),
   durationInHours: z.coerce.number().int().min(1, 'Duration must be at least 1 hour'),
   isUrgent: z.boolean().optional(),
+  location: z.string().max(100, 'Location cannot exceed 100 characters').optional(),
+  preferredDate: z.date().optional(),
+  preferredTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:mm)").optional(),
+  estimatedDurationHours: z.coerce.number().min(0, "Duration must be positive").optional(),
 });
 
 type JobFormValues = z.infer<typeof jobFormSchema>;
@@ -65,6 +72,7 @@ export default function NewJobPage() {
 
   const watchedTitle = watch('title');
   const watchedDescription = watch('description');
+  const watchedDate = watch('preferredDate');
 
   useEffect(() => {
     if (isRelist) {
@@ -74,6 +82,14 @@ export default function NewJobPage() {
         const comp = searchParams.get('compensationAmount');
         if (comp) setValue('compensationAmount', parseFloat(comp));
         setValue('isUrgent', searchParams.get('isUrgent') === 'true');
+        setValue('location', searchParams.get('location') || '');
+        setValue('estimatedDurationHours', searchParams.get('estimatedDurationHours') ? Number(searchParams.get('estimatedDurationHours')) : undefined);
+        const dateStr = searchParams.get('preferredDate');
+        if (dateStr) {
+          const date = new Date(dateStr);
+          setValue('preferredDate', date);
+          setValue('preferredTime', format(date, 'HH:mm'));
+        }
     }
   }, [isRelist, searchParams, setValue]);
   
@@ -173,12 +189,27 @@ export default function NewJobPage() {
         return;
     }
     const expiresAt = add(new Date(), { hours: data.durationInHours });
+
+    let preferredDateISO: string | undefined = undefined;
+    if (data.preferredDate) {
+      let combinedDate = data.preferredDate;
+      if (data.preferredTime) {
+        const [hours, minutes] = data.preferredTime.split(':');
+        combinedDate = setHours(setMinutes(combinedDate, parseInt(minutes)), parseInt(hours));
+      }
+      preferredDateISO = combinedDate.toISOString();
+    }
+
+
     try {
       const newJobData = {
         title: data.title,
         description: data.description,
         categoryId: data.categoryId,
         compensationAmount: data.compensationAmount,
+        location: data.location,
+        preferredDate: preferredDateISO,
+        estimatedDurationHours: data.estimatedDurationHours,
         createdById: currentUser.id,
         expiresAt: expiresAt.toISOString(),
         isUrgent: data.isUrgent || false,
@@ -241,32 +272,70 @@ export default function NewJobPage() {
                                 {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Wand2 className="mr-2 h-4 w-4"/>}
                                 Improve with AI
                             </Button>
-
-                             <div className="space-y-1.5">
-                                <Label htmlFor="categoryId">Category</Label>
-                                <Controller name="categoryId" control={control} render={({ field }) => (
-                                    <Select onValueChange={field.onChange} value={field.value} defaultValue="">
-                                        <SelectTrigger id="categoryId"><SelectValue placeholder="Select a job category" /></SelectTrigger>
-                                        <SelectContent>
-                                            {jobCategories.length > 0 ? (
-                                                jobCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
-                                            ) : (
-                                                <SelectItem value="" disabled>No job categories available</SelectItem>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                )}/>
-                                {errors.categoryId && <p className="text-sm text-destructive">{errors.categoryId.message}</p>}
-                                {jobCategories.length === 0 && <p className="text-xs text-muted-foreground">Admins need to create job categories first.</p>}
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="compensationAmount" className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-muted-foreground"/>Compensation ($) (Optional)</Label>
-                                <Input id="compensationAmount" {...register('compensationAmount')} type="number" step="0.01" min="0" placeholder="e.g. 25.00" />
-                                {errors.compensationAmount && <p className="text-sm text-destructive">{errors.compensationAmount.message}</p>}
-                                <p className="text-xs text-muted-foreground">Leave blank or set to 0 for volunteer jobs.</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="categoryId">Category</Label>
+                                    <Controller name="categoryId" control={control} render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value} defaultValue="">
+                                            <SelectTrigger id="categoryId"><SelectValue placeholder="Select a job category" /></SelectTrigger>
+                                            <SelectContent>
+                                                {jobCategories.length > 0 ? (
+                                                    jobCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+                                                ) : (
+                                                    <SelectItem value="" disabled>No job categories available</SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    )}/>
+                                    {errors.categoryId && <p className="text-sm text-destructive">{errors.categoryId.message}</p>}
+                                    {jobCategories.length === 0 && <p className="text-xs text-muted-foreground">Admins need to create job categories first.</p>}
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="location" className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground"/>Location (Optional)</Label>
+                                    <Input id="location" {...register('location')} placeholder="e.g., Downtown" />
+                                    {errors.location && <p className="text-sm text-destructive">{errors.location.message}</p>}
+                                </div>
                             </div>
                             
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="compensationAmount" className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-muted-foreground"/>Compensation ($) (Optional)</Label>
+                                    <Input id="compensationAmount" {...register('compensationAmount')} type="number" step="0.01" min="0" placeholder="e.g. 25.00" />
+                                    {errors.compensationAmount && <p className="text-sm text-destructive">{errors.compensationAmount.message}</p>}
+                                    <p className="text-xs text-muted-foreground">Leave blank or set to 0 for volunteer jobs.</p>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="estimatedDurationHours" className="flex items-center gap-2"><Clock className="h-4 w-4 text-muted-foreground"/>Estimated Duration (Hours)</Label>
+                                    <Input id="estimatedDurationHours" {...register('estimatedDurationHours')} type="number" step="0.5" min="0" placeholder="e.g., 2.5" />
+                                    {errors.estimatedDurationHours && <p className="text-sm text-destructive">{errors.estimatedDurationHours.message}</p>}
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                                 <div className="space-y-1.5">
+                                    <Label>Preferred Date (Optional)</Label>
+                                    <Controller name="preferredDate" control={control} render={({ field }) => (
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent>
+                                        </Popover>
+                                    )} />
+                                    {errors.preferredDate && <p className="text-sm text-destructive">{errors.preferredDate.message}</p>}
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="preferredTime">Preferred Time (Optional)</Label>
+                                    <Input id="preferredTime" type="time" {...register('preferredTime')} disabled={!watchedDate}/>
+                                    {errors.preferredTime && <p className="text-sm text-destructive">{errors.preferredTime.message}</p>}
+                                </div>
+                            </div>
+
+
                              <div className="space-y-3 border p-4 rounded-md bg-muted/30">
                                 <Label className="font-medium flex items-center gap-2"><ImagePlus/>Add Images (Optional)</Label>
                                 <p className="text-xs text-muted-foreground">Visually describe the task. Max {MAX_JOB_IMAGES} images, {MAX_FILE_SIZE_MB}MB each.</p>
@@ -287,7 +356,7 @@ export default function NewJobPage() {
 
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="durationInHours">Job Duration (Timer)</Label>
+                                    <Label htmlFor="durationInHours">Job Post Expires In (Timer)</Label>
                                     <Controller name="durationInHours" control={control} defaultValue={24} render={({ field }) => (
                                         <Select onValueChange={(value) => field.onChange(Number(value))} value={String(field.value)}>
                                             <SelectTrigger id="durationInHours"><SelectValue placeholder="Select how long the job is available" /></SelectTrigger>

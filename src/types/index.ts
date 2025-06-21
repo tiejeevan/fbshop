@@ -162,6 +162,9 @@ export interface Job {
   description: string;
   status: 'open' | 'accepted' | 'completed' | 'expired';
   compensationAmount?: number;
+  location?: string;
+  preferredDate?: string; // ISO Date string
+  estimatedDurationHours?: number;
   createdById: string;
   createdByName: string;
   createdAt: string; // ISO Date string

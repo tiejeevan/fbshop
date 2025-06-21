@@ -1010,6 +1010,9 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       categoryId: jobData.categoryId || null,
       isUrgent: jobData.isUrgent || false,
       isVerified: false,
+      location: jobData.location || null,
+      preferredDate: jobData.preferredDate || null,
+      estimatedDurationHours: jobData.estimatedDurationHours || null,
     };
     await setDoc(docRef, newJobFSData);
     return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false, imageUrls: imageUrls, categoryId: jobData.categoryId, isUrgent: jobData.isUrgent || false, isVerified: false };

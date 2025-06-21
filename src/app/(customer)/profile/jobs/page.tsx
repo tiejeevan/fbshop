@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Briefcase, PlusCircle, MessageSquare, Star, RefreshCw } from 'lucide-react';
+import { Loader2, Briefcase, PlusCircle, MessageSquare, Star, RefreshCw, MapPin, Calendar, Clock } from 'lucide-react';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
@@ -79,14 +79,20 @@ export default function MyJobsPage() {
   };
 
   const handleRelistJob = (job: Job) => {
-    const query = new URLSearchParams({
+    const params = new URLSearchParams({
         title: job.title,
         description: job.description,
         categoryId: job.categoryId || '',
         compensationAmount: job.compensationAmount?.toString() || '',
         isUrgent: job.isUrgent?.toString() || 'false',
-    }).toString();
-    router.push(`/jobs/new?${query}`);
+        location: job.location || '',
+        estimatedDurationHours: job.estimatedDurationHours?.toString() || '',
+    });
+    if (job.preferredDate) {
+        params.append('preferredDate', job.preferredDate);
+    }
+
+    router.push(`/jobs/new?${params.toString()}`);
   };
 
 
@@ -106,8 +112,13 @@ export default function MyJobsPage() {
                     {job.status !== 'open' && (isCreator ? `Accepted by: ${job.acceptedByName || 'N/A'}` : `Created by: ${job.createdByName}`)}
                 </CardDescription>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground flex-grow">
+            <CardContent className="text-sm text-muted-foreground flex-grow space-y-3">
                 <p className="line-clamp-2">{job.description}</p>
+                 <div className="flex flex-wrap text-xs text-muted-foreground gap-x-4 gap-y-1 mt-3 pt-3 border-t">
+                  {job.location && <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /> {job.location}</div>}
+                  {job.preferredDate && <div className="flex items-center gap-1.5"><Calendar className="h-3 w-3" /> {format(parseISO(job.preferredDate), 'PP')}</div>}
+                  {job.estimatedDurationHours && <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> {job.estimatedDurationHours} hours</div>}
+                </div>
             </CardContent>
             <CardFooter className="flex flex-col items-start gap-2 border-t pt-3">
                 <div className="flex justify-between w-full">

@@ -9,15 +9,14 @@ import type { Job, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, PlusCircle, UserCheck, ShieldCheck, Flame } from 'lucide-react';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { Loader2, Briefcase, PlusCircle, UserCheck, ShieldCheck, Flame, Search, MapPin, Calendar, Clock } from 'lucide-react';
+import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
 import { SavedJobButton } from '@/components/jobs/SavedJobButton';
 
 
@@ -157,6 +156,11 @@ export default function JobsPage() {
               </CardHeader>
               <CardContent className="flex-grow">
                 <p className="text-muted-foreground line-clamp-3">{job.description}</p>
+                <div className="flex flex-wrap text-xs text-muted-foreground gap-x-4 gap-y-1 mt-3 pt-3 border-t">
+                  {job.location && <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /> {job.location}</div>}
+                  {job.preferredDate && <div className="flex items-center gap-1.5"><Calendar className="h-3 w-3" /> {format(parseISO(job.preferredDate), 'PP')}</div>}
+                  {job.estimatedDurationHours && <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> {job.estimatedDurationHours} hours</div>}
+                </div>
               </CardContent>
               <CardFooter className="flex flex-col items-start gap-3 border-t pt-4">
                 <div className="flex justify-between w-full text-xs text-muted-foreground">
