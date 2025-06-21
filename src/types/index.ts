@@ -155,6 +155,7 @@ export interface Job {
   acceptedAt?: string | null; // ISO Date string
   creatorHasReviewed?: boolean; // Did the creator leave a review for the acceptor?
   acceptorHasReviewed?: boolean; // Did the acceptor leave a review for the creator?
+  imageUrls?: string[];
 }
 
 export interface ChatMessage {

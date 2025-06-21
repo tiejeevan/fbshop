@@ -92,7 +92,7 @@ export interface IDataService {
 
   // Job methods
   getJobs: (options?: { userId?: string; status?: Job['status']; createdById?: string; acceptedById?: string; }) => Promise<Job[]>;
-  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed'>) => Promise<Job>;
+  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed' | 'imageUrls'>, images?: File[]) => Promise<Job>;
   updateJob: (updatedJob: Partial<Job> & { id: string }) => Promise<Job | null>;
   deleteJob: (jobId: string) => Promise<boolean>;
   findJobById: (jobId: string) => Promise<Job | undefined>;

@@ -461,7 +461,7 @@ const localStorageDataService: IDataService = {
     const jobs = await this.getJobs();
     return jobs.find(j => j.id === jobId);
   },
-  async addJob(jobData): Promise<Job> {
+  async addJob(jobData, images?): Promise<Job> {
     const jobs = getItem<Job[]>(KEYS.JOBS) || [];
     const creator = await this.findUserById(jobData.createdById);
     if (!creator) throw new Error("Job creator not found");
@@ -474,7 +474,18 @@ const localStorageDataService: IDataService = {
         createdByName: creator.name || creator.email,
         creatorHasReviewed: false,
         acceptorHasReviewed: false,
+        imageUrls: [],
     };
+
+    if (images && images.length > 0) {
+        const imageUrls: string[] = [];
+        for (let i = 0; i < images.length; i++) {
+            const imageUrl = await this.saveImage(`job_${newJob.id}`, `image_${i}`, images[i]);
+            imageUrls.push(imageUrl);
+        }
+        newJob.imageUrls = imageUrls;
+    }
+
     jobs.push(newJob);
     setItem(KEYS.JOBS, jobs);
     return newJob;
@@ -491,10 +502,16 @@ const localStorageDataService: IDataService = {
   },
   async deleteJob(jobId: string): Promise<boolean> {
     let jobs = getItem<Job[]>(KEYS.JOBS) || [];
+    const jobToDelete = jobs.find(j => j.id === jobId);
+    if (!jobToDelete) return false;
+
     const initialLength = jobs.length;
     jobs = jobs.filter(j => j.id !== jobId);
     if (jobs.length < initialLength) {
         setItem(KEYS.JOBS, jobs);
+        if (jobToDelete.imageUrls && jobToDelete.imageUrls.length > 0) {
+            await this.deleteImagesForEntity(jobToDelete.imageUrls);
+        }
         return true;
     }
     return false;

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save } from 'lucide-react';
+import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save, Image as ImageIcon } from 'lucide-react';
 import type { Job, JobSettings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -170,6 +170,7 @@ export default function AdminJobsPage() {
                     <TableHead>Title</TableHead>
                     <TableHead>Created By</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Images</TableHead>
                     <TableHead className="hidden md:table-cell">Expires/Expired</TableHead>
                     <TableHead>Accepted By</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -181,6 +182,16 @@ export default function AdminJobsPage() {
                         <TableCell className="font-medium">{job.title}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{job.createdByName}</TableCell>
                         <TableCell><Badge variant={getStatusBadgeVariant(job.status)}>{job.status}</Badge></TableCell>
+                        <TableCell>
+                          {job.imageUrls && job.imageUrls.length > 0 ? (
+                            <span className="flex items-center text-sm text-muted-foreground">
+                              <ImageIcon className="h-4 w-4 mr-1.5" />
+                              {job.imageUrls.length}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/60">-</span>
+                          )}
+                        </TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{formatDistanceToNow(parseISO(job.expiresAt), { addSuffix: true })}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{job.acceptedByName || 'N/A'}</TableCell>
                         <TableCell className="text-right">

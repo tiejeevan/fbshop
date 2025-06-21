@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, ChangeEvent } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,13 +11,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { JobSettings, Job } from '@/types';
+import type { JobSettings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase } from 'lucide-react';
+import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { add } from 'date-fns';
+import Image from 'next/image';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
+
+const MAX_JOB_IMAGES = 5;
+const MAX_FILE_SIZE_MB = 2;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 
 const jobFormSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(100, 'Title cannot exceed 100 characters'),
@@ -36,7 +44,11 @@ export default function NewJobPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<JobFormValues>({
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
+
+  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting: isFormProcessing } } = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
   });
   
@@ -66,6 +78,49 @@ export default function NewJobPage() {
     fetchPrerequisites();
   }, [fetchPrerequisites]);
 
+  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+        const files = Array.from(e.target.files);
+        const totalImages = imageFiles.length + files.length;
+
+        if (totalImages > MAX_JOB_IMAGES) {
+            toast({ title: "Image Limit Exceeded", description: `You can only upload a maximum of ${MAX_JOB_IMAGES} images.`, variant: "destructive" });
+            return;
+        }
+
+        const validFiles = files.filter(file => {
+            if (file.size > MAX_FILE_SIZE_BYTES) {
+                toast({ title: "File Too Large", description: `${file.name} is larger than ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
+                return false;
+            }
+            return true;
+        });
+
+        setImageFiles(prev => [...prev, ...validFiles]);
+        const newPreviews = validFiles.map(file => URL.createObjectURL(file));
+        setImagePreviews(prev => [...prev, ...newPreviews]);
+    }
+     // Reset file input to allow selecting the same file again
+    e.target.value = '';
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => {
+        const newPreviews = [...prev];
+        const [removedUrl] = newPreviews.splice(index, 1);
+        URL.revokeObjectURL(removedUrl);
+        return newPreviews;
+    });
+  };
+
+  useEffect(() => {
+    // Cleanup object URLs on component unmount
+    return () => {
+      imagePreviews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [imagePreviews]);
+
   const onSubmit: SubmitHandler<JobFormValues> = async (data) => {
     if (!currentUser || !dataService || !settings) return;
 
@@ -83,7 +138,8 @@ export default function NewJobPage() {
         createdById: currentUser.id,
         expiresAt: expiresAt.toISOString(),
       };
-      await dataService.addJob(newJobData);
+      // Pass the image files to the data service
+      await dataService.addJob(newJobData, imageFiles);
       toast({ title: "Job Created Successfully!", description: "Your job is now live." });
       router.push('/profile/jobs');
     } catch (error) {
@@ -132,6 +188,34 @@ export default function NewJobPage() {
                                 <Textarea id="description" {...register('description')} placeholder="Provide details about the job, location, and what's required." rows={6}/>
                                 {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
                             </div>
+                            
+                            {/* Image Upload Section */}
+                             <div className="space-y-3 border p-4 rounded-md bg-muted/30">
+                                <Label className="font-medium flex items-center gap-2"><ImagePlus/>Add Images (Optional)</Label>
+                                <p className="text-xs text-muted-foreground">Visually describe the task. Max {MAX_JOB_IMAGES} images, {MAX_FILE_SIZE_MB}MB each.</p>
+                                <Input
+                                    id="jobImageUpload"
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleImageChange}
+                                    disabled={imageFiles.length >= MAX_JOB_IMAGES}
+                                    className="text-sm file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                                />
+                                {imagePreviews.length > 0 && (
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mt-2">
+                                        {imagePreviews.map((preview, index) => (
+                                            <div key={index} className="relative group aspect-square">
+                                                <Image src={preview} alt={`Job preview ${index + 1}`} layout="fill" objectFit="cover" className="rounded-md border" data-ai-hint="job image preview" />
+                                                <Button type="button" variant="destructive" size="icon" onClick={() => removeImage(index)} className="absolute -top-2 -right-2 h-6 w-6 p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                    <Trash2 className="h-3 w-3"/>
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                             </div>
+
                             <div className="space-y-1.5">
                                 <Label htmlFor="durationInHours">Job Duration (Timer)</Label>
                                 <Select onValueChange={(value) => setValue('durationInHours', Number(value))} defaultValue="24">
@@ -156,8 +240,8 @@ export default function NewJobPage() {
                 </CardContent>
                 {canPostJob && (
                     <CardFooter>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        <Button type="submit" disabled={isFormProcessing}>
+                            {isFormProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                             Post Job
                         </Button>
                     </CardFooter>

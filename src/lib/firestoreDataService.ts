@@ -850,13 +850,22 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const docSnap = await getDoc(docRef);
     return mapDocToType<Job>(docSnap);
   },
-  async addJob(jobData): Promise<Job> {
+  async addJob(jobData, images?): Promise<Job> {
     if (!db) throw new Error("Firestore not initialized");
     const creator = await this.findUserById(jobData.createdById);
     if (!creator) throw new Error("Job creator not found");
 
     const jobsRef = collection(db, "jobs");
     const docRef = doc(jobsRef);
+
+    let imageUrls: string[] = [];
+    if (images && images.length > 0) {
+      const uploadPromises = images.map((file, index) => 
+        this.saveImage(`job_${docRef.id}`, `image_${index}`, file)
+      );
+      imageUrls = await Promise.all(uploadPromises);
+    }
+
     const newJobFSData = {
       ...jobData,
       id: docRef.id,
@@ -865,9 +874,10 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       createdByName: creator.name || creator.email,
       creatorHasReviewed: false,
       acceptorHasReviewed: false,
+      imageUrls: imageUrls,
     };
     await setDoc(docRef, newJobFSData);
-    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false };
+    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false, imageUrls: imageUrls };
   },
   async updateJob(updatedJob): Promise<Job | null> {
     if (!db) throw new Error("Firestore not initialized");
@@ -879,6 +889,10 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async deleteJob(jobId: string): Promise<boolean> {
     if (!db) throw new Error("Firestore not initialized");
     try {
+      const jobToDelete = await this.findJobById(jobId);
+      if (jobToDelete?.imageUrls && jobToDelete.imageUrls.length > 0) {
+          await this.deleteImagesForEntity(jobToDelete.imageUrls);
+      }
       await deleteDoc(doc(db, "jobs", jobId));
       return true;
     } catch (e) {
@@ -931,6 +945,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       timestamp: new Date().toISOString(),
     };
   },
+  
   async getJobSettings(): Promise<JobSettings> {
     if (!db) throw new Error("Firestore not initialized");
     const docRef = doc(db, "settings", "jobs");
@@ -976,17 +991,17 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() };
   },
   async getReviewsForJob(jobId: string): Promise<JobReview[]> {
-    if (!db) throw new Error("Firestore not initialized");
-    const reviewsCol = collection(db, `jobs/${jobId}/jobReviews`);
-    const q = query(reviewsCol, orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    return mapDocsToTypeArray<JobReview>(snapshot);
+      if (!db) throw new Error("Firestore not initialized");
+      const reviewsCol = collection(db, `jobs/${jobId}/jobReviews`);
+      const q = query(reviewsCol, orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(q);
+      return mapDocsToTypeArray<JobReview>(snapshot);
   },
   async getReviewsAboutUser(userId: string): Promise<JobReview[]> {
-    if (!db) throw new Error("Firestore not initialized");
-    const reviewsGroup = collectionGroup(db, 'jobReviews');
-    const q = query(reviewsGroup, where('revieweeId', '==', userId), orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-    return mapDocsToTypeArray<JobReview>(snapshot);
+      if (!db) throw new Error("Firestore not initialized");
+      const reviewsGroup = collectionGroup(db, 'jobReviews');
+      const q = query(reviewsGroup, where('revieweeId', '==', userId), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      return mapDocsToTypeArray<JobReview>(snapshot);
   },
 };
