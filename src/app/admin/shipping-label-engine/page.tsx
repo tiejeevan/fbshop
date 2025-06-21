@@ -74,14 +74,17 @@ export default function ShippingLabelEnginePage() {
     };
     
     const handleParseAddress = useCallback(async (addressToParse: string) => {
-        if (!addressToParse.trim() || addressToParse.trim().length < 15) { // Add a length check
+        if (!addressToParse.trim() || addressToParse.trim().length < 15) {
             return;
         }
         setIsParsing(true);
         try {
             const result: IndianAddressOutput = await parseIndianAddress(addressToParse);
              if (!result || !result.city || !result.line1) {
-                throw new Error("AI parsing returned an invalid or empty result.");
+                toast({ title: 'AI Parsing Failed', description: 'Could not parse the address. Please check the format or try rephrasing.', variant: 'destructive' });
+                setToAddress(initialToAddress);
+                setIsAddressParsed(false);
+                return;
             }
             setToAddress({
                 name: result.name || '',

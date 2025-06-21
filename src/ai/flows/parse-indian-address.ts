@@ -22,6 +22,7 @@ const prompt = ai.definePrompt({
   model: googleAI.model('gemini-1.5-flash-latest'),
   prompt: `You are an expert at parsing unstructured Indian addresses into a structured JSON format.
 Analyze the following address text. Be precise. If a field is not present, omit it from the output unless it has a default.
+You MUST return ONLY a valid JSON object matching the provided schema. Do not add any conversational text or markdown formatting like \`\`\`json.
 
 **Address to parse:**
 \`\`\`
@@ -29,7 +30,7 @@ Analyze the following address text. Be precise. If a field is not present, omit 
 \`\`\`
 
 **Instructions:**
-- **recipientName**: Identify the person's name.
+- **name**: Identify the person's name.
 - **line1**: Extract the primary address line. This usually includes the flat/house/door number, building name, and street name.
 - **line2**: Extract the secondary address line, which typically includes the locality, area, or a nearby landmark.
 - **city**: Identify the city name.
