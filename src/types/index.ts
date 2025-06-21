@@ -1,5 +1,4 @@
 
-
 export type UserRole = 'admin' | 'customer';
 export type Theme = 'light' | 'dark' | 'system';
 export type DataSourceType = 'local' | 'firebase';
