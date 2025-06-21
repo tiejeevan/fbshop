@@ -20,6 +20,7 @@ import {
   Printer,
   Briefcase, // Added icon
   ClipboardList, // Added icon
+  Eye, // Added icon
 } from 'lucide-react';
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -51,6 +52,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/products', label: 'View Storefront', icon: Eye },
   { href: '/admin/products', label: 'Products', icon: ShoppingBag },
   { href: '/admin/categories', label: 'Product Categories', icon: Tags },
   { href: '/admin/customers', label: 'Customers', icon: Users },
