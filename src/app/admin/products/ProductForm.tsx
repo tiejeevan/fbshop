@@ -19,6 +19,7 @@ import { suggestProductCategories, SuggestProductCategoriesInput } from '@/ai/fl
 import Link from 'next/link';
 import Image from 'next/image';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { getImage as getImageFromDB } from '@/lib/indexedDbService';
 import { ProductImage } from '@/components/product/ProductImage';
 
