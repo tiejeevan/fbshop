@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -22,28 +23,34 @@ interface LoginFormProps {
   signupPath?: string;
 }
 
+// Define the validation schema based on the role
+const getLoginSchema = (role: UserRole) => {
+  const baseSchema = {
+    password: z.string().min(1, { message: "Password cannot be empty" }),
+  };
+
+  if (role === 'admin') {
+    return z.object({
+      ...baseSchema,
+      email: z.string().min(1, { message: "Admin username cannot be empty" }), // No email format validation for admin
+    });
+  }
+
+  // Default to customer validation
+  return z.object({
+    ...baseSchema,
+    email: z.string().email({ message: "Invalid email address" }),
+  });
+};
+
+
 export function LoginForm({ role, redirectPath, title, description, signupPath }: LoginFormProps) {
   const { login } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Dynamically create schema based on the role
-  const loginSchema = z.object({
-    email: z.string().min(1, { message: 'This field cannot be empty' }),
-    password: z.string().min(1, { message: 'Password cannot be empty' }),
-  }).superRefine((data, ctx) => {
-    if (role === 'customer') {
-      if (!z.string().email().safeParse(data.email).success) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Invalid email address',
-          path: ['email'],
-        });
-      }
-    }
-  });
-  
+  const loginSchema = getLoginSchema(role);
   type LoginFormInputs = z.infer<typeof loginSchema>;
 
   const {
@@ -61,20 +68,18 @@ export function LoginForm({ role, redirectPath, title, description, signupPath }
       if (user) {
         if (user.role === role) {
           toast({ title: 'Login Successful', description: `Welcome back, ${user.name || user.email}!` });
-          router.replace(redirectPath); // Changed from router.push
+          router.replace(redirectPath);
         } else {
           toast({
             title: 'Login Failed',
             description: `Access denied. This login is for ${role} users.`,
             variant: 'destructive',
           });
-          // Log out if accidentally logged in with wrong role context
-          // await logout(); // This might be too aggressive, let user explicitly log out from other role.
         }
       } else {
         toast({
           title: 'Login Failed',
-          description: 'Invalid email or password.',
+          description: 'Invalid credentials.',
           variant: 'destructive',
         });
       }

@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -20,6 +21,22 @@ interface UniversalLoginFormProps {
   onSwitchToSignup?: () => void;
 }
 
+const getLoginSchema = (role: UserRole) => {
+  const baseSchema = {
+    password: z.string().min(1, { message: "Password cannot be empty." }),
+  };
+  if (role === 'admin') {
+    return z.object({
+      ...baseSchema,
+      email: z.string().min(1, { message: "Admin username cannot be empty." }),
+    });
+  }
+  return z.object({
+    ...baseSchema,
+    email: z.string().email({ message: "Invalid email address" }),
+  });
+};
+
 export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, onSwitchToSignup }: UniversalLoginFormProps) {
   const { login } = useAuth();
   const router = useRouter();
@@ -27,7 +44,6 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
   const [isLoading, setIsLoading] = useState(false);
   const [currentLoginRole, setCurrentLoginRole] = useState<UserRole>(initialRole);
 
-  // Hardcoded English strings
   const translations = {
     customerLoginTitle: "Customer Login",
     adminLoginTitle: "Admin Login",
@@ -45,21 +61,7 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
     signUpLink: "Sign up"
   };
 
-  const loginSchema = z.object({
-    email: z.string().min(1, { message: 'This field cannot be empty.' }),
-    password: z.string().min(1, { message: 'Password cannot be empty.' }),
-  }).superRefine((data, ctx) => {
-    if (currentLoginRole === 'customer') {
-      if (!z.string().email().safeParse(data.email).success) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Invalid email address',
-          path: ['email'],
-        });
-      }
-    }
-  });
-
+  const loginSchema = getLoginSchema(currentLoginRole);
   type LoginFormInputs = z.infer<typeof loginSchema>;
 
   const {
@@ -69,6 +71,10 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
     reset,
   } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+        email: '',
+        password: ''
+    }
   });
 
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
@@ -88,7 +94,7 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
       } else {
          toast({
           title: 'Login Failed',
-          description: 'Invalid email or password.',
+          description: 'Invalid credentials.',
           variant: 'destructive',
         });
       }
@@ -105,9 +111,14 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
   };
 
   const handleRoleToggle = () => {
-    setCurrentLoginRole(prevRole => prevRole === 'customer' ? 'admin' : 'customer');
-    reset(); 
+    setCurrentLoginRole(prevRole => (prevRole === 'customer' ? 'admin' : 'customer'));
+    reset();
   };
+  
+  // Effect to re-apply the resolver when the role (and thus schema) changes.
+  useEffect(() => {
+    reset();
+  }, [currentLoginRole, reset]);
 
   return (
     <>
