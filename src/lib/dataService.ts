@@ -2,7 +2,7 @@
 // src/lib/dataService.ts
 import type {
   User, Product, Category, Cart, Order, UserRole,
-  WishlistItem, Review, RecentlyViewedItem, Address, ActivityLog, Theme,
+  WishlistItem, Review, RecentlyViewedItem, Address, ActivityLog, Theme, CartItem, OrderItem,
   Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem
 } from '@/types';
 
@@ -79,7 +79,7 @@ export interface IDataService {
   getGlobalTheme: () => Promise<Theme>;
   setGlobalTheme: (theme: Theme) => Promise<void>;
   
-  // Activity Logs
+  // Activity Logs (Unified System)
   getActivityLogs: (options?: { actorId?: string }) => Promise<ActivityLog[]>;
   addActivityLog: (logData: Omit<ActivityLog, 'id' | 'timestamp'>) => Promise<void>;
 

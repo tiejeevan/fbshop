@@ -2,11 +2,11 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { AdminActionLog } from '@/types';
+import type { ActivityLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { FileText, Filter, ArrowLeft, Loader2, Search } from 'lucide-react';
+import { FileText, ArrowLeft, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,15 +18,15 @@ const ITEMS_PER_PAGE = 15;
 const ALL_FILTER_VALUE = "__ALL_LOG_FILTERS__";
 
 export default function AdminLogsPage() {
-  const [allLogs, setAllLogs] = useState<AdminActionLog[]>([]);
+  const [allLogs, setAllLogs] = useState<ActivityLog[]>([]);
   const [isComponentLoading, setIsComponentLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [filterAdminEmail, setFilterAdminEmail] = useState('');
+  const [filterUserEmail, setFilterUserEmail] = useState('');
   const [filterActionType, setFilterActionType] = useState('');
   const [filterEntityType, setFilterEntityType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+  const { dataService, isLoading: isDataSourceLoading, dataSourceType } = useDataSource();
   const { toast } = useToast();
 
   const fetchLogs = useCallback(async () => {
@@ -36,11 +36,11 @@ export default function AdminLogsPage() {
     }
     setIsComponentLoading(true);
     try {
-      const fetchedLogs = await dataService.getAdminActionLogs();
+      const fetchedLogs = await dataService.getActivityLogs();
       setAllLogs(fetchedLogs);
     } catch (error) {
-      console.error("Failed to fetch admin logs:", error);
-      toast({ title: "Error Fetching Logs", description: "Could not load admin activity logs.", variant: "destructive" });
+      console.error("Failed to fetch activity logs:", error);
+      toast({ title: "Error Fetching Logs", description: "Could not load activity logs.", variant: "destructive" });
       setAllLogs([]);
     }
     setIsComponentLoading(false);
@@ -50,19 +50,19 @@ export default function AdminLogsPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  const uniqueAdminEmails = useMemo(() => Array.from(new Set(allLogs.map(log => log.adminEmail))).sort(), [allLogs]);
+  const uniqueUserEmails = useMemo(() => Array.from(new Set(allLogs.map(log => log.actorEmail))).sort(), [allLogs]);
   const uniqueActionTypes = useMemo(() => Array.from(new Set(allLogs.map(log => log.actionType))).sort(), [allLogs]);
   const uniqueEntityTypes = useMemo(() => Array.from(new Set(allLogs.map(log => log.entityType).filter(Boolean) as string[])).sort(), [allLogs]);
 
   const filteredLogs = useMemo(() => allLogs.filter(log => {
     const searchTermLower = searchTerm.toLowerCase();
     return (
-      (filterAdminEmail === '' || log.adminEmail === filterAdminEmail) &&
+      (filterUserEmail === '' || log.actorEmail === filterUserEmail) &&
       (filterActionType === '' || log.actionType === filterActionType) &&
       (filterEntityType === '' || log.entityType === filterEntityType) &&
-      (searchTerm === '' || log.description.toLowerCase().includes(searchTermLower) || log.adminEmail.toLowerCase().includes(searchTermLower))
+      (searchTerm === '' || log.description.toLowerCase().includes(searchTermLower) || log.actorEmail.toLowerCase().includes(searchTermLower) || (log.entityId || '').toLowerCase().includes(searchTermLower))
     );
-  }), [allLogs, filterAdminEmail, filterActionType, filterEntityType, searchTerm]);
+  }), [allLogs, filterUserEmail, filterActionType, filterEntityType, searchTerm]);
 
   const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
   const paginatedLogs = useMemo(() => filteredLogs.slice(
@@ -72,7 +72,7 @@ export default function AdminLogsPage() {
   
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterAdminEmail, filterActionType, filterEntityType, searchTerm]);
+  }, [filterUserEmail, filterActionType, filterEntityType, searchTerm]);
 
 
   if (isDataSourceLoading || isComponentLoading) {
@@ -89,32 +89,32 @@ export default function AdminLogsPage() {
             </Link>
           </Button>
           <h1 className="font-headline text-3xl text-primary flex items-center">
-            <FileText className="mr-3 h-7 w-7" /> Admin Action Logs
+            <FileText className="mr-3 h-7 w-7" /> Activity Logs
           </h1>
         </div>
       </div>
       <Card>
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
-          <CardDescription>Review of actions performed by administrators. Using {dataService === null ? 'loading...' : (dataService as any)?.constructor?.name === 'localStorageDataService' ? 'Local Storage/IndexedDB' : 'Firebase Firestore'}.</CardDescription>
+          <CardDescription>Review of all actions performed by users. Using {dataSourceType === 'local' ? 'Local Storage' : 'Firebase Firestore'}.</CardDescription>
            <div className="mt-4 flex flex-col sm:flex-row gap-2 items-center border-t pt-4">
             <div className="relative flex-grow w-full">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search descriptions..."
+                placeholder="Search descriptions, emails, IDs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 w-full"
               />
             </div>
             <Select
-              value={filterAdminEmail === '' ? ALL_FILTER_VALUE : filterAdminEmail}
-              onValueChange={(value) => setFilterAdminEmail(value === ALL_FILTER_VALUE ? '' : value)}
+              value={filterUserEmail === '' ? ALL_FILTER_VALUE : filterUserEmail}
+              onValueChange={(value) => setFilterUserEmail(value === ALL_FILTER_VALUE ? '' : value)}
             >
-              <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Filter by Admin..." /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Filter by User..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL_FILTER_VALUE}>All Admins</SelectItem>
-                {uniqueAdminEmails.map(email => <SelectItem key={email} value={email}>{email}</SelectItem>)}
+                <SelectItem value={ALL_FILTER_VALUE}>All Users</SelectItem>
+                {uniqueUserEmails.map(email => <SelectItem key={email} value={email}>{email}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select
@@ -137,7 +137,7 @@ export default function AdminLogsPage() {
                 {uniqueEntityTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => { setSearchTerm(''); setFilterAdminEmail(''); setFilterActionType(''); setFilterEntityType('');}} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={() => { setSearchTerm(''); setFilterUserEmail(''); setFilterActionType(''); setFilterEntityType('');}} className="w-full sm:w-auto">
               Clear
             </Button>
           </div>
@@ -153,7 +153,7 @@ export default function AdminLogsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Timestamp</TableHead>
-                  <TableHead>Admin</TableHead>
+                  <TableHead>User</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Entity</TableHead>
                   <TableHead>Description</TableHead>
@@ -165,7 +165,7 @@ export default function AdminLogsPage() {
                     <TableCell className="text-xs whitespace-nowrap">
                       {format(new Date(log.timestamp), 'MMM d, yyyy HH:mm:ss')}
                     </TableCell>
-                    <TableCell className="text-xs">{log.adminEmail}</TableCell>
+                    <TableCell className="text-xs">{log.actorEmail}</TableCell>
                     <TableCell className="text-xs">
                       <span className="font-mono bg-muted px-1.5 py-0.5 rounded-sm text-muted-foreground">
                         {log.actionType.replace(/_/g, ' ')}

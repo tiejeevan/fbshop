@@ -3,8 +3,8 @@
 'use client';
 
 import type {
-  User, Product, Category, Cart, Order, LoginActivity, UserRole,
-  WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
+  User, Product, Category, Cart, Order, UserRole,
+  WishlistItem, Review, RecentlyViewedItem, Address, ActivityLog, Theme, CartItem, OrderItem,
   Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem
 } from '@/types';
 import type { IDataService } from './dataService';
@@ -23,7 +23,7 @@ import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, delet
 
 let db: Firestore | null = null;
 
-const MAX_FIRESTORE_ADMIN_LOGS = 500; 
+const MAX_ACTIVITY_LOGS = 500; 
 const BATCH_LIMIT = 490; 
 
 function convertTimestampsToISO(data: any): any {
@@ -660,33 +660,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     }
   },
 
-  async getLoginActivity(): Promise<LoginActivity[]> {
-    if (!db) throw new Error("Firestore not initialized");
-    const logsCol = collection(db, "loginActivities");
-    const q = query(logsCol, orderBy("timestamp", "desc"), limit(100));
-    const snapshot = await getDocs(q);
-    return mapDocsToTypeArray<LoginActivity>(snapshot);
-  },
-  async addLoginActivity(userId, userEmail, type): Promise<void> {
-    if (!db) throw new Error("Firestore not initialized");
-    const logsCol = collection(db, "loginActivities");
-    const logData = {
-      userId,
-      userEmail,
-      type,
-      timestamp: serverTimestamp(),
-    };
-    await addDoc(logsCol, logData);
-
-    if (type === 'login') {
-        const userRef = doc(db, "users", userId);
-        await updateDoc(userRef, {
-            lastLogin: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        }).catch(err => console.error("Error updating lastLogin:", err));
-    }
-  },
-
   setCurrentUser(user: User | null): void {
     localDBServiceFallback.setCurrentUser(user);
   },
@@ -848,31 +821,28 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return localDBServiceFallback.setGlobalTheme(theme); 
   },
 
-  async getAdminActionLogs(): Promise<AdminActionLog[]> {
-    if (!db) throw new Error("Firestore not initialized for admin logs");
-    const logsCollection = collection(db, 'adminActionLogs');
-    const q = query(logsCollection, orderBy('timestamp', 'desc'), limit(MAX_FIRESTORE_ADMIN_LOGS));
+  async getActivityLogs(options = {}): Promise<ActivityLog[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const logsCol = collection(db, "activityLogs");
+    const queryConstraints: any[] = [];
+    if (options.actorId) {
+        queryConstraints.push(where("actorId", "==", options.actorId));
+    }
+    queryConstraints.push(orderBy("timestamp", "desc"), limit(MAX_ACTIVITY_LOGS));
+    
+    const q = query(logsCol, ...queryConstraints);
     const snapshot = await getDocs(q);
-    return mapDocsToTypeArray<AdminActionLog>(snapshot);
+    return mapDocsToTypeArray<ActivityLog>(snapshot);
   },
-  async addAdminActionLog(logData: Omit<AdminActionLog, 'id' | 'timestamp'>): Promise<void> {
-    if (!db) throw new Error("Firestore not initialized for admin logs");
-    const logsCollection = collection(db, 'adminActionLogs');
-    const logDocRef = doc(logsCollection);
+  async addActivityLog(logData: Omit<ActivityLog, 'id' | 'timestamp'>): Promise<void> {
+    if (!db) throw new Error("Firestore not initialized");
+    const logsCol = collection(db, 'activityLogs');
+    const logDocRef = doc(logsCol);
     await setDoc(logDocRef, {
       ...logData,
       id: logDocRef.id,
       timestamp: serverTimestamp(),
     });
-    const snapshot = await getDocs(query(logsCollection, orderBy('timestamp', 'asc')));
-    if (snapshot.size > MAX_FIRESTORE_ADMIN_LOGS) {
-        const batch = writeBatch(db);
-        let numToDelete = snapshot.size - MAX_FIRESTORE_ADMIN_LOGS;
-        for (let i = 0; i < numToDelete && i < snapshot.docs.length && i < BATCH_LIMIT; i++) {
-            batch.delete(snapshot.docs[i].ref);
-        }
-        await batch.commit().catch(err => console.error("Error trimming admin logs:", err));
-    }
   },
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
