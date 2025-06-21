@@ -1,4 +1,5 @@
 
+
 export type UserRole = 'admin' | 'customer';
 export type Theme = 'light' | 'dark' | 'system';
 export type DataSourceType = 'local' | 'firebase';
@@ -152,6 +153,8 @@ export interface Job {
   acceptedById?: string | null;
   acceptedByName?: string | null;
   acceptedAt?: string | null; // ISO Date string
+  creatorHasReviewed?: boolean; // Did the creator leave a review for the acceptor?
+  acceptorHasReviewed?: boolean; // Did the acceptor leave a review for the creator?
 }
 
 export interface ChatMessage {
@@ -166,4 +169,16 @@ export interface ChatMessage {
 export interface JobSettings {
   maxJobsPerUser: number;
   maxTimerDurationDays: number;
+}
+
+export interface JobReview {
+  id: string;
+  jobId: string;
+  reviewerId: string; // The user who is writing the review
+  reviewerName: string;
+  revieweeId: string; // The user being reviewed
+  revieweeName: string;
+  rating: number; // 1-5 stars
+  comment: string;
+  createdAt: string; // ISO Date string
 }

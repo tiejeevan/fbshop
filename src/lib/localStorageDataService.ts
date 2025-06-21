@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage
+  Job, JobSettings, ChatMessage, JobReview
 } from '@/types';
 import {
     saveImage as saveImageToDB,
@@ -33,6 +33,7 @@ const KEYS = {
   JOBS: 'localcommerce_jobs',
   JOB_CHATS: 'localcommerce_job_chats',
   JOB_SETTINGS: 'localcommerce_job_settings',
+  JOB_REVIEWS: 'localcommerce_job_reviews',
 };
 
 function getItem<T>(key: string): T | null {
@@ -100,6 +101,7 @@ const localStorageDataService: IDataService = {
     if (!getItem(KEYS.JOBS)) setItem(KEYS.JOBS, []);
     if (!getItem(KEYS.JOB_CHATS)) setItem(KEYS.JOB_CHATS, []);
     if (!getItem(KEYS.JOB_SETTINGS)) setItem(KEYS.JOB_SETTINGS, { maxJobsPerUser: 5, maxTimerDurationDays: 10 });
+    if (!getItem(KEYS.JOB_REVIEWS)) setItem(KEYS.JOB_REVIEWS, []);
     
     isDataInitialized = true;
   },
@@ -470,6 +472,8 @@ const localStorageDataService: IDataService = {
         status: 'open',
         createdAt: new Date().toISOString(),
         createdByName: creator.name || creator.email,
+        creatorHasReviewed: false,
+        acceptorHasReviewed: false,
     };
     jobs.push(newJob);
     setItem(KEYS.JOBS, jobs);
@@ -540,6 +544,36 @@ const localStorageDataService: IDataService = {
   async updateJobSettings(settings: JobSettings): Promise<JobSettings> {
     setItem(KEYS.JOB_SETTINGS, settings);
     return settings;
+  },
+  async addJobReview(reviewData): Promise<JobReview> {
+    const reviews = getItem<JobReview[]>(KEYS.JOB_REVIEWS) || [];
+    const newReview: JobReview = {
+        ...reviewData,
+        id: simpleUUID(),
+        createdAt: new Date().toISOString(),
+    };
+    reviews.push(newReview);
+    setItem(KEYS.JOB_REVIEWS, reviews);
+    
+    const job = await this.findJobById(reviewData.jobId);
+    if (job) {
+        if (job.createdById === reviewData.reviewerId) {
+            job.creatorHasReviewed = true;
+        } else if (job.acceptedById === reviewData.reviewerId) {
+            job.acceptorHasReviewed = true;
+        }
+        await this.updateJob(job);
+    }
+    
+    return newReview;
+  },
+  async getReviewsForJob(jobId: string): Promise<JobReview[]> {
+      const reviews = getItem<JobReview[]>(KEYS.JOB_REVIEWS) || [];
+      return reviews.filter(r => r.jobId === jobId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+  async getReviewsAboutUser(userId: string): Promise<JobReview[]> {
+      const reviews = getItem<JobReview[]>(KEYS.JOB_REVIEWS) || [];
+      return reviews.filter(r => r.revieweeId === userId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 };
 

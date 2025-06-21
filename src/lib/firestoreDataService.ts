@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage
+  Job, JobSettings, ChatMessage, JobReview
 } from '@/types';
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
@@ -863,9 +863,11 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       status: 'open',
       createdAt: serverTimestamp(),
       createdByName: creator.name || creator.email,
+      creatorHasReviewed: false,
+      acceptorHasReviewed: false,
     };
     await setDoc(docRef, newJobFSData);
-    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email };
+    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email, creatorHasReviewed: false, acceptorHasReviewed: false };
   },
   async updateJob(updatedJob): Promise<Job | null> {
     if (!db) throw new Error("Firestore not initialized");
@@ -940,5 +942,51 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const docRef = doc(db, "settings", "jobs");
     await setDoc(docRef, settings, { merge: true });
     return settings;
+  },
+
+  async addJobReview(reviewData): Promise<JobReview> {
+    if (!db) throw new Error("Firestore not initialized");
+    const reviewsCol = collection(db, `jobs/${reviewData.jobId}/jobReviews`);
+    const reviewDocRef = doc(reviewsCol);
+
+    const newReviewFSData = {
+      ...reviewData,
+      id: reviewDocRef.id,
+      createdAt: serverTimestamp(),
+    };
+    
+    const jobRef = doc(db, "jobs", reviewData.jobId);
+    
+    await runTransaction(db, async (transaction) => {
+        transaction.set(reviewDocRef, newReviewFSData);
+
+        const jobDoc = await transaction.get(jobRef);
+        if (!jobDoc.exists()) throw new Error("Job not found for review update!");
+        
+        const updatePayload: { creatorHasReviewed?: boolean, acceptorHasReviewed?: boolean, updatedAt: any } = { updatedAt: serverTimestamp() };
+        if (jobDoc.data().createdById === reviewData.reviewerId) {
+            updatePayload.creatorHasReviewed = true;
+        } else if (jobDoc.data().acceptedById === reviewData.reviewerId) {
+            updatePayload.acceptorHasReviewed = true;
+        }
+        
+        transaction.update(jobRef, updatePayload);
+    });
+
+    return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() };
+  },
+  async getReviewsForJob(jobId: string): Promise<JobReview[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const reviewsCol = collection(db, `jobs/${jobId}/jobReviews`);
+    const q = query(reviewsCol, orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    return mapDocsToTypeArray<JobReview>(snapshot);
+  },
+  async getReviewsAboutUser(userId: string): Promise<JobReview[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const reviewsGroup = collectionGroup(db, 'jobReviews');
+    const q = query(reviewsGroup, where('revieweeId', '==', userId), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return mapDocsToTypeArray<JobReview>(snapshot);
   },
 };

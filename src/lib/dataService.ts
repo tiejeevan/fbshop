@@ -3,7 +3,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme,
-  Job, JobSettings, ChatMessage
+  Job, JobSettings, ChatMessage, JobReview
 } from '@/types';
 
 export interface IDataService {
@@ -92,7 +92,7 @@ export interface IDataService {
 
   // Job methods
   getJobs: (options?: { userId?: string; status?: Job['status']; createdById?: string; acceptedById?: string; }) => Promise<Job[]>;
-  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName'>) => Promise<Job>;
+  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed'>) => Promise<Job>;
   updateJob: (updatedJob: Partial<Job> & { id: string }) => Promise<Job | null>;
   deleteJob: (jobId: string) => Promise<boolean>;
   findJobById: (jobId: string) => Promise<Job | undefined>;
@@ -101,6 +101,11 @@ export interface IDataService {
   // Job Chat Methods
   getChatForJob: (jobId: string) => Promise<ChatMessage[]>;
   sendMessage: (jobId: string, messageData: Omit<ChatMessage, 'id' | 'timestamp' | 'jobId'>) => Promise<ChatMessage>;
+
+  // Job Review Methods
+  addJobReview: (reviewData: Omit<JobReview, 'id' | 'createdAt'>) => Promise<JobReview>;
+  getReviewsForJob: (jobId: string) => Promise<JobReview[]>;
+  getReviewsAboutUser: (userId: string) => Promise<JobReview[]>;
 
   // Job Settings methods
   getJobSettings: () => Promise<JobSettings>;
