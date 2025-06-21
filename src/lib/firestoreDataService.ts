@@ -278,7 +278,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         // Calculate dynamic stats
         const jobsCreatedQuery = query(collection(db, 'jobs'), where('createdById', '==', userId));
         const jobsCompletedQuery = query(collection(db, 'jobs'), where('acceptedById', '==', userId), where('status', '==', 'completed'));
-        const [createdSnap, completedSnap] = await Promise.all([getDocs(jobsCreatedQuery), getDocs(jobsCompletedQuery)]);
+        const [createdSnap, completedSnap] = await Promise.all([getDocs(jobsCreatedQuery), getDocs(completedSnap)]);
         user.jobsCreatedCount = createdSnap.size;
         user.jobsCompletedCount = completedSnap.size;
         
@@ -905,21 +905,37 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const jobsColRef = collection(db, "jobs");
     const queryConstraints: any[] = [];
     
+    // Firestore requires that if you have a filter with a range comparison (<, <=, >, >=), 
+    // your first ordering must be on the same field.
+    // The error indicates a composite index is needed for filtering on one field (e.g., createdById) and ordering by another (createdAt).
+    // To avoid this without creating an index, we can remove the ordering from the query and sort the results in the code.
+    let shouldSortInCode = false;
+
     if (options.status) {
         queryConstraints.push(where("status", "==", options.status));
     }
     if (options.createdById) {
         queryConstraints.push(where("createdById", "==", options.createdById));
+        shouldSortInCode = true; // This combination requires a composite index.
     }
     if (options.acceptedById) {
         queryConstraints.push(where("acceptedById", "==", options.acceptedById));
+        shouldSortInCode = true; // This combination also requires a composite index.
     }
 
-    queryConstraints.push(orderBy("createdAt", "desc"));
+    // Only apply the 'orderBy' clause if we don't have a filter that would cause an error.
+    if (!shouldSortInCode) {
+        queryConstraints.push(orderBy("createdAt", "desc"));
+    }
     
     const q = query(jobsColRef, ...queryConstraints);
     const snapshot = await getDocs(q);
     let jobs = mapDocsToTypeArray<Job>(snapshot);
+
+    // If we couldn't sort in the query, sort the results here.
+    if (shouldSortInCode) {
+        jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
 
     const now = new Date();
     const batch = writeBatch(db);
