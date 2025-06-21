@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings
+  Job, JobSettings, ChatMessage
 } from '@/types';
 import {
     saveImage as saveImageToDB,
@@ -31,6 +31,7 @@ const KEYS = {
   RECENTLY_VIEWED: 'localcommerce_recently_viewed',
   THEME: 'localcommerce_theme',
   JOBS: 'localcommerce_jobs',
+  JOB_CHATS: 'localcommerce_job_chats',
   JOB_SETTINGS: 'localcommerce_job_settings',
 };
 
@@ -97,6 +98,7 @@ const localStorageDataService: IDataService = {
     if (!getItem(KEYS.RECENTLY_VIEWED)) setItem(KEYS.RECENTLY_VIEWED, []);
     if (!getItem(KEYS.THEME)) setItem(KEYS.THEME, 'system');
     if (!getItem(KEYS.JOBS)) setItem(KEYS.JOBS, []);
+    if (!getItem(KEYS.JOB_CHATS)) setItem(KEYS.JOB_CHATS, []);
     if (!getItem(KEYS.JOB_SETTINGS)) setItem(KEYS.JOB_SETTINGS, { maxJobsPerUser: 5, maxTimerDurationDays: 10 });
     
     isDataInitialized = true;
@@ -504,6 +506,34 @@ const localStorageDataService: IDataService = {
     
     return this.updateJob(job);
   },
+
+  async getChatForJob(jobId: string): Promise<ChatMessage[]> {
+    const chats = getItem<{ jobId: string, messages: ChatMessage[] }[]>(KEYS.JOB_CHATS) || [];
+    const jobChat = chats.find(c => c.jobId === jobId);
+    return jobChat ? jobChat.messages.sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) : [];
+  },
+
+  async sendMessage(jobId: string, messageData: Omit<ChatMessage, 'id' | 'timestamp' | 'jobId'>): Promise<ChatMessage> {
+    const chats = getItem<{ jobId: string, messages: ChatMessage[] }[]>(KEYS.JOB_CHATS) || [];
+    let jobChat = chats.find(c => c.jobId === jobId);
+    
+    const newMessage: ChatMessage = {
+      ...messageData,
+      id: simpleUUID(),
+      jobId,
+      timestamp: new Date().toISOString(),
+    };
+    
+    if (jobChat) {
+      jobChat.messages.push(newMessage);
+    } else {
+      chats.push({ jobId, messages: [newMessage] });
+    }
+
+    setItem(KEYS.JOB_CHATS, chats);
+    return newMessage;
+  },
+  
   async getJobSettings(): Promise<JobSettings> {
     return getItem<JobSettings>(KEYS.JOB_SETTINGS) || { maxJobsPerUser: 5, maxTimerDurationDays: 10 };
   },

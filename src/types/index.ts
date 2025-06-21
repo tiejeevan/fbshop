@@ -154,6 +154,15 @@ export interface Job {
   acceptedAt?: string | null; // ISO Date string
 }
 
+export interface ChatMessage {
+  id: string;
+  jobId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: string; // ISO Date string
+}
+
 export interface JobSettings {
   maxJobsPerUser: number;
   maxTimerDurationDays: number;

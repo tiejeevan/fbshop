@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Briefcase, PlusCircle } from 'lucide-react';
+import { Loader2, Briefcase, PlusCircle, MessageSquare } from 'lucide-react';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
@@ -66,14 +66,15 @@ export default function MyJobsPage() {
   }
   
   const JobCard = ({ job, isCreator }: { job: Job; isCreator: boolean }) => (
-    <Card>
+    <Card className="flex flex-col">
         <CardHeader>
             <CardTitle>{job.title}</CardTitle>
             <CardDescription>
-                {isCreator ? `Accepted by: ${job.acceptedByName || 'N/A'}` : `Created by: ${job.createdByName}`}
+                {job.status === 'open' && 'Not yet accepted.'}
+                {job.status !== 'open' && (isCreator ? `Accepted by: ${job.acceptedByName || 'N/A'}` : `Created by: ${job.createdByName}`)}
             </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
+        <CardContent className="text-sm text-muted-foreground flex-grow">
             <p className="line-clamp-2">{job.description}</p>
         </CardContent>
         <CardFooter className="flex flex-col items-start gap-2 border-t pt-3">
@@ -83,9 +84,16 @@ export default function MyJobsPage() {
                     Expires: {formatDistanceToNow(parseISO(job.expiresAt), { addSuffix: true })}
                 </span>
              </div>
-             {isCreator && job.status === 'accepted' && (
-                <Button size="sm" className="w-full" onClick={() => handleMarkComplete(job.id)}>Mark as Complete</Button>
-             )}
+             <div className="w-full flex gap-2">
+                {(job.status === 'accepted' || job.status === 'completed') && (
+                    <Button size="sm" className="flex-1" variant="outline" asChild>
+                        <Link href={`/jobs/${job.id}/chat`}><MessageSquare className="mr-2 h-4 w-4" />Chat</Link>
+                    </Button>
+                )}
+                {isCreator && job.status === 'accepted' && (
+                    <Button size="sm" className="flex-1" onClick={() => handleMarkComplete(job.id)}>Mark as Complete</Button>
+                )}
+             </div>
         </CardFooter>
     </Card>
   );

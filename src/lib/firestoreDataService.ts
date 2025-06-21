@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings
+  Job, JobSettings, ChatMessage
 } from '@/types';
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
@@ -636,7 +636,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         
         const newReviewCount = oldReviewCount + 1;
         const newTotalRating = oldTotalRating + reviewData.rating;
-        const newAverageRating = newTotalRating / newReviewCount;
+        const newAverageRating = newReviewCount > 0 ? newTotalRating / newReviewCount : 0;
 
         transaction.update(productRef, {
             averageRating: newAverageRating,
@@ -821,27 +821,22 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async getJobs(options = {}): Promise<Job[]> {
     if (!db) throw new Error("Firestore not initialized");
     const jobsColRef = collection(db, "jobs");
-    const queryConstraints = [orderBy("createdAt", "desc")];
+    const queryConstraints: any[] = [orderBy("createdAt", "desc")];
     if (options.status) queryConstraints.unshift(where("status", "==", options.status));
     if (options.createdById) queryConstraints.unshift(where("createdById", "==", options.createdById));
     if (options.acceptedById) queryConstraints.unshift(where("acceptedById", "==", options.acceptedById));
     
-    // Note: Firestore does not support OR queries on different fields.
-    // If options.userId is provided, you might need two separate queries and merge the results.
-    // For simplicity, we'll assume it's not used or handle it client-side.
-
     const q = query(jobsColRef, ...queryConstraints);
     const snapshot = await getDocs(q);
     const jobs = mapDocsToTypeArray<Job>(snapshot);
 
-    // Update expired jobs
     const now = new Date();
     const batch = writeBatch(db);
     let hasUpdates = false;
     jobs.forEach(job => {
         if (job.status === 'open' && new Date(job.expiresAt) < now) {
             batch.update(doc(db!, "jobs", job.id), { status: 'expired' });
-            job.status = 'expired'; // Reflect change immediately
+            job.status = 'expired'; 
             hasUpdates = true;
         }
     });
@@ -875,7 +870,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async updateJob(updatedJob): Promise<Job | null> {
     if (!db) throw new Error("Firestore not initialized");
     const jobRef = doc(db, "jobs", updatedJob.id);
-    await updateDoc(jobRef, updatedJob);
+    await updateDoc(jobRef, { ...updatedJob, updatedAt: serverTimestamp() });
     const docSnap = await getDoc(jobRef);
     return mapDocToType<Job>(docSnap);
   },
@@ -905,11 +900,34 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
           acceptedAt: serverTimestamp(),
         });
       });
-      return this.findJobById(jobId);
+      const updatedJobDoc = await getDoc(jobRef);
+      return mapDocToType<Job>(updatedJobDoc);
     } catch (error) {
       console.error("Error accepting job:", error);
       return null;
     }
+  },
+  async getChatForJob(jobId: string): Promise<ChatMessage[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const chatCol = collection(db, `jobs/${jobId}/chatMessages`);
+    const q = query(chatCol, orderBy("timestamp", "asc"));
+    const snapshot = await getDocs(q);
+    return mapDocsToTypeArray<ChatMessage>(snapshot);
+  },
+  async sendMessage(jobId: string, messageData: Omit<ChatMessage, 'id' | 'timestamp' | 'jobId'>): Promise<ChatMessage> {
+    if (!db) throw new Error("Firestore not initialized");
+    const chatCol = collection(db, `jobs/${jobId}/chatMessages`);
+    const docRef = await addDoc(chatCol, {
+      ...messageData,
+      jobId,
+      timestamp: serverTimestamp(),
+    });
+    return {
+      ...messageData,
+      id: docRef.id,
+      jobId,
+      timestamp: new Date().toISOString(),
+    };
   },
   async getJobSettings(): Promise<JobSettings> {
     if (!db) throw new Error("Firestore not initialized");
