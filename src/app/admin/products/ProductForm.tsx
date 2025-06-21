@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Wand2, PlusCircle, Trash2, ImagePlus, AlertTriangle, UploadCloud } from 'lucide-react';
 import { suggestProductCategories, SuggestProductCategoriesInput } from '@/ai/flows/suggest-product-categories';
+import { generateProductDescription } from '@/ai/flows/generate-product-description';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -62,6 +63,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggestingCategories, setIsSuggestingCategories] = useState(false);
   const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
   const [primaryImageFile, setPrimaryImageFile] = useState<ImageFileState>({
     file: null,
@@ -148,6 +150,7 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
 
 
   const productDescription = watch('description');
+  const productName = watch('name');
 
   const handleFileChange = async (
     event: ChangeEvent<HTMLInputElement>,
@@ -236,6 +239,32 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     }
   };
 
+  const handleGenerateDescription = async () => {
+    const currentProductName = watch('name');
+    const categoryId = watch('categoryId');
+    if (!currentProductName) {
+      toast({ title: "Cannot Generate", description: "Please enter a product name first.", variant: "destructive" });
+      return;
+    }
+    const categoryName = categories.find(c => c.id === categoryId)?.name || 'General';
+
+    setIsGeneratingDescription(true);
+    try {
+      const result = await generateProductDescription({ productName: currentProductName, categoryName });
+      if (result.generatedDescription) {
+        setValue('description', result.generatedDescription, { shouldValidate: true });
+        toast({ title: "Description Generated!", description: "The product description has been filled in by AI." });
+      } else {
+        toast({ title: "AI Generation Failed", description: "Could not generate a description. Please try again.", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Error generating product description:", error);
+      toast({ title: "Error", description: "An unexpected error occurred while generating the description.", variant: "destructive" });
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  };
+
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsSubmitting(true);
 
@@ -297,7 +326,13 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">Description</Label>
+              <Button type="button" variant="outline" size="sm" onClick={handleGenerateDescription} disabled={isGeneratingDescription || !productName}>
+                {isGeneratingDescription ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Wand2 className="mr-2 h-4 w-4"/>}
+                Generate
+              </Button>
+            </div>
             <Textarea id="description" {...register('description')} placeholder="Detailed description..." rows={5} />
             {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
           </div>
