@@ -9,7 +9,7 @@ let modelName: string | undefined = undefined;
 // The Google AI SDK for JavaScript (used by the plugin) typically requires this.
 if (process.env.GOOGLE_API_KEY) {
   plugins.push(googleAI());
-  modelName = 'googleai/gemini-pro';
+  modelName = 'gemini-pro';
 } else {
   // Log a warning if the API key is not set.
   // This helps in diagnosing issues without causing a hard crash.
