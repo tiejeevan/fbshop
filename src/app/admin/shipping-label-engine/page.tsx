@@ -11,6 +11,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { Loader2, Printer, Mail, Truck, Info, CheckCircle } from 'lucide-react';
 import { GeoapifyGeocoderAutocomplete, GeoapifyContext } from '@geoapify/react-geocoder-autocomplete';
+import '@geoapify/geocoder-autocomplete/styles/minimal.css';
 
 type Address = {
     name: string;
@@ -124,14 +125,17 @@ export default function ShippingLabelEnginePage() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
-                                <Label htmlFor="recipientAddress">Recipient Address Search</Label>
+                                <Label htmlFor="recipientAddress">Recipient Address Search (India)</Label>
                                 <GeoapifyGeocoderAutocomplete
-                                    placeholder="Start typing an address..."
+                                    placeholder="Start typing an Indian address..."
                                     onPlaceSelect={onPlaceSelect}
                                     onUserInput={(input) => {
                                         if (input === '') setIsAddressSelected(false);
                                     }}
                                     disabled={!geoapifyApiKey}
+                                    lang="en"
+                                    filterByCountryCode={['in']}
+                                    biasByProximity={{ lat: 20.5937, lon: 78.9629 }}
                                 />
                             </div>
 
