@@ -11,13 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MapPin, History, Heart, Briefcase, Bookmark } from 'lucide-react';
+import { Loader2, MapPin, History, Heart, Briefcase, Bookmark, X, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { useDataSource } from '@/contexts/DataSourceContext'; // Added
+import { useDataSource } from '@/contexts/DataSourceContext';
+import { Badge } from '@/components/ui/badge';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
   email: z.string().email(),
+  skills: z.array(z.string()).optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -26,7 +28,10 @@ export default function ProfilePage() {
   const { currentUser, refreshUser, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // Added
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
+  
+  const [currentSkill, setCurrentSkill] = useState('');
+  const [skills, setSkills] = useState<string[]>([]);
 
   const {
     register,
@@ -41,22 +46,33 @@ export default function ProfilePage() {
     if (currentUser) {
       setValue('name', currentUser.name || '');
       setValue('email', currentUser.email);
+      setSkills(currentUser.skills || []);
     }
   }, [currentUser, setValue]);
 
+  const handleAddSkill = () => {
+    if (currentSkill.trim() && !skills.includes(currentSkill.trim())) {
+      setSkills([...skills, currentSkill.trim()]);
+      setCurrentSkill('');
+    }
+  };
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setSkills(skills.filter(skill => skill !== skillToRemove));
+  };
+
+
   const onSubmit: SubmitHandler<ProfileFormValues> = async (data) => {
-    if (!currentUser || !dataService) { // Check for dataService
+    if (!currentUser || !dataService) {
       toast({ title: "Error", description: "User or data service not available.", variant: "destructive"});
       return;
     }
     setIsSubmitting(true);
     try {
-      // Email cannot be changed directly here, only name.
-      // Password changes would need a separate, more secure form.
-      const updatedUserData = { ...currentUser, name: data.name };
-      await dataService.updateUser(updatedUserData); // Use dataService
+      const updatedUserData = { ...currentUser, name: data.name, skills };
+      await dataService.updateUser(updatedUserData);
       refreshUser(); 
-      toast({ title: 'Profile Updated', description: 'Your name has been successfully updated.' });
+      toast({ title: 'Profile Updated', description: 'Your profile has been successfully updated.' });
     } catch (error) {
       console.error("Error updating profile:", error);
       toast({ title: "Error Updating Profile", description: "Could not update your profile. Please try again.", variant: "destructive" });
@@ -65,7 +81,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (authLoading || isDataSourceLoading) { // Check both loading states
+  if (authLoading || isDataSourceLoading) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading profile...</div>;
   }
 
@@ -79,12 +95,12 @@ export default function ProfilePage() {
       
       <div className="grid md:grid-cols-2 gap-8">
         <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle>Account Details</CardTitle>
-            <CardDescription>Update your personal information.</CardDescription>
-          </CardHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
-            <CardContent className="space-y-4">
+             <CardHeader>
+                <CardTitle>Account Details</CardTitle>
+                <CardDescription>Update your personal information and skills.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <div className="space-y-1">
                 <Label htmlFor="name">Full Name</Label>
                 <Input id="name" {...register('name')} />
@@ -94,6 +110,32 @@ export default function ProfilePage() {
                 <Label htmlFor="email">Email Address</Label>
                 <Input id="email" {...register('email')} readOnly className="bg-muted/50 cursor-not-allowed" />
                 {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="skills">Your Skills</Label>
+                <div className="flex gap-2">
+                    <Input id="skills" value={currentSkill} onChange={e => setCurrentSkill(e.target.value)} placeholder="e.g. Painting, Plumbing" 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSkill();
+                        }
+                      }}
+                    />
+                    <Button type="button" onClick={handleAddSkill} variant="outline" size="icon">
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                </div>
+                 <div className="flex flex-wrap gap-2 pt-2">
+                    {skills.map(skill => (
+                        <Badge key={skill} variant="secondary" className="flex items-center gap-1">
+                            {skill}
+                            <button type="button" onClick={() => handleRemoveSkill(skill)} className="rounded-full hover:bg-destructive/20 p-0.5">
+                                <X className="h-3 w-3" />
+                            </button>
+                        </Badge>
+                    ))}
+                </div>
               </div>
             </CardContent>
             <CardFooter>

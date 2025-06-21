@@ -31,6 +31,10 @@ export interface User {
   addresses?: Address[];
   averageJobRating?: number;
   jobReviewCount?: number;
+  skills?: string[];
+  badges?: string[];
+  jobsCreatedCount?: number;
+  jobsCompletedCount?: number;
 }
 
 export interface Category {

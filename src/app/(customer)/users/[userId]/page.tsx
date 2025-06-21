@@ -9,11 +9,18 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, UserCircle, Star, Frown } from 'lucide-react';
+import { Loader2, ArrowLeft, UserCircle, Star, Frown, Award, Medal, Briefcase, PlusCircle, Wrench, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
 import { JobReviewList } from '@/components/jobs/JobReviewList';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+const badgeConfig: { [key: string]: { icon: React.ElementType, label: string, description: string } } = {
+  'first-job-done': { icon: Medal, label: "First Job Done", description: "Completed their first job." },
+  'community-star': { icon: Award, label: "Community Star", description: "Completed 5 or more jobs." },
+  'top-rated': { icon: Star, label: "Top Rated", description: "Maintains a 4.5+ average rating." },
+};
 
 export default function UserProfilePage() {
   const params = useParams<{ userId: string }>();
@@ -33,6 +40,7 @@ export default function UserProfilePage() {
     }
     setIsLoading(true);
     try {
+      // Data service findUserById now calculates badges and job stats
       const [fetchedUser, fetchedReviews] = await Promise.all([
         dataService.findUserById(userId),
         dataService.getReviewsAboutUser(userId)
@@ -92,24 +100,68 @@ export default function UserProfilePage() {
                 <div className="space-y-1">
                     <CardTitle className="font-headline text-4xl text-primary">{user.name || 'User'}</CardTitle>
                     <CardDescription>Member since {format(new Date(user.createdAt), 'MMMM yyyy')}</CardDescription>
+                     {user.badges && user.badges.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-center sm:justify-start pt-2">
+                             <TooltipProvider>
+                                {user.badges.map(badgeKey => {
+                                    const config = badgeConfig[badgeKey];
+                                    if (!config) return null;
+                                    return (
+                                        <Tooltip key={badgeKey}>
+                                            <TooltipTrigger asChild>
+                                                <Badge variant="secondary" className="cursor-default text-sm">
+                                                    <config.icon className="h-4 w-4 mr-1.5" />
+                                                    {config.label}
+                                                </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{config.description}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    );
+                                })}
+                            </TooltipProvider>
+                        </div>
+                    )}
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="border-t mt-4 pt-4 flex justify-around items-center bg-muted/50 p-4 rounded-lg">
+                 <div className="border-t mt-4 pt-4 flex flex-wrap justify-around items-center bg-muted/50 p-4 rounded-lg gap-4">
                     <div className="text-center">
-                        <p className="font-headline text-3xl text-primary">{user.jobReviewCount || 0}</p>
-                        <p className="text-sm text-muted-foreground">Jobs Reviewed</p>
+                        <p className="font-headline text-3xl text-primary">{user.jobsCreatedCount ?? 0}</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1.5"><PlusCircle className="h-4 w-4"/>Jobs Created</p>
+                    </div>
+                     <div className="text-center">
+                        <p className="font-headline text-3xl text-primary">{user.jobsCompletedCount ?? 0}</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1.5"><CheckCircle className="h-4 w-4"/>Jobs Completed</p>
                     </div>
                     <div className="text-center">
                         <div className="flex items-center justify-center gap-1">
                             <p className="font-headline text-3xl text-amber-500">{user.averageJobRating?.toFixed(1) || '0.0'}</p>
                             <Star className="h-6 w-6 text-amber-500 fill-amber-500" />
                         </div>
-                        <p className="text-sm text-muted-foreground">Average Rating</p>
+                        <p className="text-sm text-muted-foreground">Average Rating ({user.jobReviewCount || 0})</p>
                     </div>
                 </div>
             </CardContent>
         </Card>
+
+        {user.skills && user.skills.length > 0 && (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl text-primary flex items-center gap-2">
+                        <Wrench /> Skills
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                        {user.skills.map(skill => (
+                            <Badge key={skill} variant="outline" className="text-base">{skill}</Badge>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        )}
 
         <div>
             <h2 className="font-headline text-2xl text-primary mb-4">Reviews Received</h2>

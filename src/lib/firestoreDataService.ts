@@ -93,6 +93,10 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             addresses: [],
             averageJobRating: 0,
             jobReviewCount: 0,
+            skills: [],
+            badges: [],
+            jobsCreatedCount: 0,
+            jobsCompletedCount: 0,
         };
         try {
             const userDocRef = doc(usersCol); 
@@ -112,26 +116,16 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         let needsUpdate = false;
         const updatePayload: Partial<User> = {};
 
-        if (adminData.password !== 'a') {
-            updatePayload.password = 'a';
-            needsUpdate = true;
-        }
-        if (adminData.themePreference === undefined) {
-            updatePayload.themePreference = 'system';
-            needsUpdate = true;
-        }
-        if (adminData.addresses === undefined) {
-            updatePayload.addresses = [];
-            needsUpdate = true;
-        }
-        if (adminData.averageJobRating === undefined) {
-            updatePayload.averageJobRating = 0;
-            needsUpdate = true;
-        }
-        if (adminData.jobReviewCount === undefined) {
-            updatePayload.jobReviewCount = 0;
-            needsUpdate = true;
-        }
+        if (adminData.password !== 'a') { updatePayload.password = 'a'; needsUpdate = true; }
+        if (adminData.themePreference === undefined) { updatePayload.themePreference = 'system'; needsUpdate = true; }
+        if (adminData.addresses === undefined) { updatePayload.addresses = []; needsUpdate = true; }
+        if (adminData.averageJobRating === undefined) { updatePayload.averageJobRating = 0; needsUpdate = true; }
+        if (adminData.jobReviewCount === undefined) { updatePayload.jobReviewCount = 0; needsUpdate = true; }
+        if (adminData.skills === undefined) { updatePayload.skills = []; needsUpdate = true; }
+        if (adminData.badges === undefined) { updatePayload.badges = []; needsUpdate = true; }
+        if (adminData.jobsCreatedCount === undefined) { updatePayload.jobsCreatedCount = 0; needsUpdate = true; }
+        if (adminData.jobsCompletedCount === undefined) { updatePayload.jobsCompletedCount = 0; needsUpdate = true; }
+
         if(needsUpdate) {
             await updateDoc(adminDoc.ref, {...updatePayload, updatedAt: serverTimestamp() });
             console.log("Default admin user updated with missing or incorrect fields.")
@@ -207,6 +201,10 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       addresses: [],
       averageJobRating: 0,
       jobReviewCount: 0,
+      skills: [],
+      badges: [],
+      jobsCreatedCount: 0,
+      jobsCompletedCount: 0,
     };
     await setDoc(docRef, newUserFSData);
     const clientNewUser: User = {
@@ -219,6 +217,10 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         addresses: [],
         averageJobRating: 0,
         jobReviewCount: 0,
+        skills: [],
+        badges: [],
+        jobsCreatedCount: 0,
+        jobsCompletedCount: 0,
     };
     return clientNewUser;
   },
@@ -269,7 +271,25 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const docRef = doc(db, "users", userId);
     const docSnap = await getDoc(docRef);
-    return mapDocToType<User>(docSnap);
+    const user = mapDocToType<User>(docSnap);
+
+    if (user) {
+        // Calculate dynamic stats
+        const jobsCreatedQuery = query(collection(db, 'jobs'), where('createdById', '==', userId));
+        const jobsCompletedQuery = query(collection(db, 'jobs'), where('acceptedById', '==', userId), where('status', '==', 'completed'));
+        const [createdSnap, completedSnap] = await Promise.all([getDocs(jobsCreatedQuery), getDocs(jobsCompletedQuery)]);
+        user.jobsCreatedCount = createdSnap.size;
+        user.jobsCompletedCount = completedSnap.size;
+        
+        // Calculate badges
+        const badges: string[] = [];
+        if (user.jobsCompletedCount > 0) badges.push('first-job-done');
+        if (user.jobsCompletedCount >= 5) badges.push('community-star');
+        if ((user.averageJobRating || 0) >= 4.5 && (user.jobReviewCount || 0) >= 2) badges.push('top-rated');
+        user.badges = badges;
+    }
+    
+    return user;
   },
 
   async getUserAddresses(userId: string): Promise<Address[]> {
