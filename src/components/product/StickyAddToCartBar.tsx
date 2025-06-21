@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -5,7 +6,7 @@ import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Minus, Plus, ShoppingCart } from 'lucide-react';
-import { ProductImage } from './ProductImage'; // Using existing ProductImage
+import { ProductImage } from './ProductImage';
 import { cn } from '@/lib/utils';
 
 interface StickyAddToCartBarProps {
@@ -23,7 +24,7 @@ export function StickyAddToCartBar({
   onAddToCart,
   isVisible,
 }: StickyAddToCartBarProps) {
-  if (!product || !isVisible) {
+  if (!product) {
     return null;
   }
 
@@ -95,7 +96,6 @@ export function StickyAddToCartBar({
               </div>
               <Button
                 size="sm"
-                // md-size="default" // For potentially larger button on md+
                 onClick={onAddToCart}
                 className="shrink-0"
               >

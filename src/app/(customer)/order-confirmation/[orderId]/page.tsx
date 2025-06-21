@@ -1,8 +1,8 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, use } from 'react'; // Added use
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import type { Order } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -14,9 +14,8 @@ import { ProductImage } from '@/components/product/ProductImage';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
 
-// Modified props to expect paramsPromise
-export default function OrderConfirmationPage({ params: paramsPromise }: { params: Promise<{ orderId: string }> }) {
-  const params = use(paramsPromise); // Unwrap the promise here
+export default function OrderConfirmationPage() {
+  const params = useParams<{ orderId: string }>();
   const orderIdFromParams = params?.orderId;
 
 
@@ -66,9 +65,9 @@ export default function OrderConfirmationPage({ params: paramsPromise }: { param
     } else if (!orderIdFromParams && !isLoading && !isDataSourceLoading) {
       router.replace('/profile/orders');
     }
-  }, [currentUser, orderIdFromParams, fetchOrder, isLoading, isDataSourceLoading, router]); // Use unwrapped ID
+  }, [currentUser, orderIdFromParams, fetchOrder, isLoading, isDataSourceLoading, router]);
 
-  if (isLoading || isDataSourceLoading || !orderIdFromParams) { // Use unwrapped ID
+  if (isLoading || isDataSourceLoading || !orderIdFromParams) {
     return <div className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /> Loading...</div>;
   }
   

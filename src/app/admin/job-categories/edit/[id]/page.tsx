@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, use } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { JobCategoryForm, JobCategoryFormValues } from '../../JobCategoryForm';
 import type { JobCategory } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -21,8 +21,8 @@ const generateChangeDescription = (oldCategory: JobCategory, newData: JobCategor
   return `Updated job category "${newData.name}": ${changes.join(' ')}`;
 };
 
-export default function EditJobCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-  const params = use(paramsPromise);
+export default function EditJobCategoryPage() {
+  const params = useParams<{ id: string }>();
   const categoryId = params.id;
 
   const [category, setCategory] = useState<JobCategory | null>(null);

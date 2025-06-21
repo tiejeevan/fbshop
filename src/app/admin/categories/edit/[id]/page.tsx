@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, use } from 'react'; // Added use
+import React, { useEffect, useState, useCallback } from 'react';
 import { CategoryForm, CategoryFormValues } from '../../CategoryForm';
 import type { Category } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -31,7 +31,6 @@ const generateCategoryChangeDescription = async (
     changes.push('Description updated.');
   }
   if (oldCategory.parentId !== newData.parentId) {
-    // If names are not pre-fetched, fetch them now, or rely on passed names
     const oldP = oldParentName || (oldCategory.parentId ? (await dataService.findCategoryById(oldCategory.parentId))?.name || 'N/A' : 'None');
     const newP = newParentName || (newData.parentId ? (await dataService.findCategoryById(newData.parentId))?.name || 'N/A' : 'None');
     changes.push(`Parent category changed from "${oldP}" to "${newP}".`);
@@ -54,9 +53,8 @@ const generateCategoryChangeDescription = async (
   return `Updated category "${newData.name}": ${changes.join(' ')}`;
 };
 
-// Modified props to expect paramsPromise
-export default function EditCategoryPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-  const params = use(paramsPromise); // Unwrap the promise here
+export default function EditCategoryPage() {
+  const params = useParams<{ id: string }>();
   const categoryIdFromParams = params.id;
 
   const [category, setCategory] = useState<Category | null>(null);
@@ -95,10 +93,10 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
   }, [dataService, isDataSourceLoading, router, toast]);
 
   useEffect(() => {
-    if(categoryIdFromParams) { // Use the unwrapped id
+    if(categoryIdFromParams) {
       fetchCategoryData(categoryIdFromParams);
     }
-  }, [categoryIdFromParams, fetchCategoryData]); // Depend on the unwrapped id
+  }, [categoryIdFromParams, fetchCategoryData]);
 
   const handleEditCategory = async (data: CategoryFormValues, imageFile: File | null, id?: string) => {
     if (!id || !category || !currentUser || !dataService) {
@@ -110,7 +108,6 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
     let newImageId = category.imageId;
     let imageUpdatedInThisAction = false;
 
-    // Fetch parent names for logging if they exist
     const oldParentName = oldCategorySnapshot.parentId ? (await dataService.findCategoryById(oldCategorySnapshot.parentId))?.name : undefined;
     const newParentNameIfChanged = data.parentId ? (await dataService.findCategoryById(data.parentId))?.name : undefined;
 
@@ -155,7 +152,7 @@ export default function EditCategoryPage({ params: paramsPromise }: { params: Pr
     }
   };
 
-  if (isLoading || isDataSourceLoading || !categoryIdFromParams) { // Check unwrapped id
+  if (isLoading || isDataSourceLoading || !categoryIdFromParams) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading category data...</div>;
   }
 

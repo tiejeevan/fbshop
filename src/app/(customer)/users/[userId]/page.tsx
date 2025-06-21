@@ -1,8 +1,8 @@
 
 'use client';
 
-import React, { use, useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import type { User, JobReview } from '@/types';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
@@ -15,8 +15,8 @@ import { StarRatingDisplay } from '@/components/product/StarRatingDisplay';
 import { JobReviewList } from '@/components/jobs/JobReviewList';
 
 
-export default function UserProfilePage({ params: paramsPromise }: { params: Promise<{ userId: string }> }) {
-  const params = use(paramsPromise);
+export default function UserProfilePage() {
+  const params = useParams<{ userId: string }>();
   const userId = params?.userId;
 
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();

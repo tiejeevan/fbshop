@@ -1,13 +1,13 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, ChangeEvent, useMemo, useRef, use } from 'react'; // Added use
+import React, { useEffect, useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Product, Category, Review as ReviewType } from '@/types';
 import { ArrowLeft, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, ImageOff, Edit3, Trash2, Save, Ban, UploadCloud, AlertTriangle, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -22,11 +22,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { LoginModal } from '@/components/auth/LoginModal';
-import { useDataSource } from '@/contexts/DataSourceContext'; // Added
+import { useDataSource } from '@/contexts/DataSourceContext';
+import { StickyAddToCartBar } from '@/components/product/StickyAddToCartBar';
 
 const MAX_TOTAL_IMAGES = 10;
-const MAX_FILE_SIZE_MB = 0.5; // Example, adjust as needed
-// const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_FILE_SIZE_MB = 0.5;
 
 interface EditableImageData {
   id: string | null;
@@ -35,9 +35,8 @@ interface EditableImageData {
   toBeDeleted?: boolean;
 }
 
-// Modified props to expect paramsPromise
-export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id:string }> }) {
-  const params = use(paramsPromise); // Unwrap the promise here
+export default function ProductDetailPage() {
+  const params = useParams<{ id: string }>();
   const productIdFromParams = params.id;
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -45,12 +44,10 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [reviews, setReviews] = useState<ReviewType[]>([]);
-  // const [averageRating, setAverageRating] = useState(0); // averageRating is on product object
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
-
 
   const [isEditing, setIsEditing] = useState(false);
   const [editableProductData, setEditableProductData] = useState<Partial<Product>>({});
@@ -62,9 +59,33 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [allProductImageIdsState, setAllProductImageIdsState] = useState<string[]>([]);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [isStickyBarVisible, setIsStickyBarVisible] = useState(false);
 
   const mainAddToCartRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsStickyBarVisible(!entry.isIntersecting && entry.boundingClientRect.bottom < 0);
+      },
+      {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0,
+      }
+    );
+
+    const currentRef = mainAddToCartRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, []);
 
   const fetchProductData = useCallback(async (productId: string) => {
     if (!dataService || isDataSourceLoading) {
@@ -91,7 +112,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
             }
             const productReviews = await dataService.getReviewsForProduct(productId);
             setReviews(productReviews);
-            // averageRating is now part of product, no need to recalculate here unless reviews change live
             
             setEditableProductData({ name: fetchedProduct.name, description: fetchedProduct.description, price: fetchedProduct.price, stock: fetchedProduct.stock, categoryId: fetchedProduct.categoryId });
             setEditablePrimaryImage({ id: fetchedProduct.primaryImageId || null, file: null, previewUrl: null, toBeDeleted: false });
@@ -373,10 +393,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const handlePrimaryImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && editablePrimaryImage) {
-    //   if (file.size > MAX_FILE_SIZE_BYTES) {
-    //     toast({ title: "File Too Large", description: `Primary image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
-    //     e.target.value = ''; return;
-    //   }
       if (editablePrimaryImage.previewUrl && editablePrimaryImage.previewUrl.startsWith('blob:')) URL.revokeObjectURL(editablePrimaryImage.previewUrl);
       setEditablePrimaryImage({ ...editablePrimaryImage, file: file, previewUrl: URL.createObjectURL(file), toBeDeleted: false });
     }
@@ -393,10 +409,6 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   const handleAdditionalImageChange = async (e: ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (file) {
-    //    if (file.size > MAX_FILE_SIZE_BYTES) {
-    //     toast({ title: "File Too Large", description: `Additional image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
-    //     e.target.value = ''; return;
-    //   }
       setEditableAdditionalImages(prev => {
         const newImages = [...prev];
         if (newImages[index].previewUrl && newImages[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newImages[index].previewUrl!);
@@ -798,6 +810,14 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           <p className="text-muted-foreground">No reviews yet for this product.</p>
         )}
       </div>
+
+       <StickyAddToCartBar
+        product={product}
+        quantity={quantity}
+        onQuantityChange={handleQuantityChange}
+        onAddToCart={handleAddToCart}
+        isVisible={isStickyBarVisible}
+      />
     </div>
   );
 }
@@ -805,5 +825,3 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
 const LoginModalTrigger = () => {
     return <LoginModal />; 
 };
-
-    

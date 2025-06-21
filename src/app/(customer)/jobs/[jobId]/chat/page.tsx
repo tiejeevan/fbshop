@@ -1,24 +1,24 @@
 
 'use client';
 
-import React, { use, useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
-import type { Job, ChatMessage, User } from '@/types';
+import { useRouter, useParams } from 'next/navigation';
+import type { Job, ChatMessage } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Send, ArrowLeft, Frown } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
-export default function JobChatPage({ params: paramsPromise }: { params: Promise<{ jobId: string }> }) {
-  const params = use(paramsPromise);
+export default function JobChatPage() {
+  const params = useParams<{ jobId: string }>();
   const jobId = params?.jobId;
 
   const { currentUser } = useAuth();
