@@ -11,13 +11,13 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const EnhanceJobDescriptionInputSchema = z.object({
+const EnhanceJobDescriptionInputSchema = z.object({
   title: z.string().describe('The original title of the job post.'),
   description: z.string().describe('The original description of the job post.'),
 });
 export type EnhanceJobDescriptionInput = z.infer<typeof EnhanceJobDescriptionInputSchema>;
 
-export const EnhanceJobDescriptionOutputSchema = z.object({
+const EnhanceJobDescriptionOutputSchema = z.object({
   enhancedTitle: z.string().describe('A clear, professional, and appealing new title for the job.'),
   enhancedDescription: z.string().describe('A well-structured and detailed new description for the job, formatted for readability (e.g., with bullet points).'),
 });
