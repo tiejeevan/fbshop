@@ -91,6 +91,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             name: 'Administrator (Firestore)',
             themePreference: 'system',
             addresses: [],
+            averageJobRating: 0,
+            jobReviewCount: 0,
         };
         try {
             const userDocRef = doc(usersCol); 
@@ -107,12 +109,13 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     } else {
         const adminDoc = adminSnapshot.docs[0];
         const adminData = adminDoc.data() as User;
-        if (adminData.password !== 'a') {
-            await updateDoc(adminDoc.ref, { password: 'a', updatedAt: serverTimestamp() });
-            console.log("Updated existing admin password to 'a' for convenience.");
-        }
         let needsUpdate = false;
         const updatePayload: Partial<User> = {};
+
+        if (adminData.password !== 'a') {
+            updatePayload.password = 'a';
+            needsUpdate = true;
+        }
         if (adminData.themePreference === undefined) {
             updatePayload.themePreference = 'system';
             needsUpdate = true;
@@ -121,9 +124,17 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             updatePayload.addresses = [];
             needsUpdate = true;
         }
+        if (adminData.averageJobRating === undefined) {
+            updatePayload.averageJobRating = 0;
+            needsUpdate = true;
+        }
+        if (adminData.jobReviewCount === undefined) {
+            updatePayload.jobReviewCount = 0;
+            needsUpdate = true;
+        }
         if(needsUpdate) {
             await updateDoc(adminDoc.ref, {...updatePayload, updatedAt: serverTimestamp() });
-            console.log("Default admin user updated with missing fields (themePreference, addresses).")
+            console.log("Default admin user updated with missing or incorrect fields.")
         }
     }
 
@@ -193,7 +204,9 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       updatedAt: nowServerTimestamp,
       role: userData.role || 'customer',
       themePreference: userData.themePreference || 'system',
-      addresses: [], 
+      addresses: [],
+      averageJobRating: 0,
+      jobReviewCount: 0,
     };
     await setDoc(docRef, newUserFSData);
     const clientNewUser: User = {
@@ -204,6 +217,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         role: userData.role || 'customer',
         themePreference: userData.themePreference || 'system',
         addresses: [],
+        averageJobRating: 0,
+        jobReviewCount: 0,
     };
     return clientNewUser;
   },
@@ -1093,21 +1108,39 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     };
     
     const jobRef = doc(db, "jobs", reviewData.jobId);
+    const revieweeUserRef = doc(db, "users", reviewData.revieweeId);
     
     await runTransaction(db, async (transaction) => {
-        transaction.set(reviewDocRef, newReviewFSData);
-
         const jobDoc = await transaction.get(jobRef);
         if (!jobDoc.exists()) throw new Error("Job not found for review update!");
+
+        const revieweeDoc = await transaction.get(revieweeUserRef);
+        if (!revieweeDoc.exists()) throw new Error("Reviewee user not found!");
+
+        const revieweeData = revieweeDoc.data() as User;
+        const oldReviewCount = revieweeData.jobReviewCount || 0;
+        const oldTotalRating = (revieweeData.averageJobRating || 0) * oldReviewCount;
         
-        const updatePayload: { creatorHasReviewed?: boolean, acceptorHasReviewed?: boolean, updatedAt: any } = { updatedAt: serverTimestamp() };
+        const newReviewCount = oldReviewCount + 1;
+        const newTotalRating = oldTotalRating + reviewData.rating;
+        const newAverageRating = newReviewCount > 0 ? newTotalRating / newReviewCount : 0;
+        
+        transaction.set(reviewDocRef, newReviewFSData);
+        
+        const jobUpdatePayload: { creatorHasReviewed?: boolean, acceptorHasReviewed?: boolean, updatedAt: any } = { updatedAt: serverTimestamp() };
         if (jobDoc.data().createdById === reviewData.reviewerId) {
-            updatePayload.creatorHasReviewed = true;
+            jobUpdatePayload.creatorHasReviewed = true;
         } else if (jobDoc.data().acceptedById === reviewData.reviewerId) {
-            updatePayload.acceptorHasReviewed = true;
+            jobUpdatePayload.acceptorHasReviewed = true;
         }
         
-        transaction.update(jobRef, updatePayload);
+        transaction.update(jobRef, jobUpdatePayload);
+
+        transaction.update(revieweeUserRef, {
+            averageJobRating: newAverageRating,
+            jobReviewCount: newReviewCount,
+            updatedAt: serverTimestamp(),
+        });
     });
 
     return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() };

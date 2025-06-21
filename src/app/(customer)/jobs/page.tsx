@@ -146,7 +146,9 @@ export default function JobsPage() {
                         <AvatarImage src={`https://placehold.co/40x40.png?text=${job.createdByName.charAt(0)}`} alt={job.createdByName} data-ai-hint="user avatar" />
                         <AvatarFallback>{job.createdByName.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <span>{job.createdByName}</span>
+                     <Link href={`/users/${job.createdById}`} className="hover:underline hover:text-primary">
+                        <span>{job.createdByName}</span>
+                    </Link>
                 </div>
                  <div className="flex items-center gap-2 pt-2">
                     {job.isUrgent && <Badge variant="destructive" className="bg-orange-500 hover:bg-orange-600"><Flame className="h-3 w-3 mr-1"/>Urgent</Badge>}
@@ -190,3 +192,4 @@ export default function JobsPage() {
     </div>
   );
 }
+

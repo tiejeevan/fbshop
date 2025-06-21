@@ -29,6 +29,8 @@ export interface User {
   lastLogin?: string; // ISO Date string
   themePreference?: Theme;
   addresses?: Address[];
+  averageJobRating?: number;
+  jobReviewCount?: number;
 }
 
 export interface Category {

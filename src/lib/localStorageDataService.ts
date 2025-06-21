@@ -79,7 +79,7 @@ const localStorageDataService: IDataService = {
     let users = getItem<User[]>(KEYS.USERS) || [];
     if (!users.find(u => u.email === 'a' && u.role === 'admin')) {
         users = users.filter(u => u.email !== 'admin@localcommerce.com');
-        users.push({ id: simpleUUID(), email: 'a', password: 'a', role: 'admin', name: 'Administrator', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), themePreference: 'system', addresses: [], });
+        users.push({ id: simpleUUID(), email: 'a', password: 'a', role: 'admin', name: 'Administrator', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), themePreference: 'system', addresses: [], averageJobRating: 0, jobReviewCount: 0 });
         setItem(KEYS.USERS, users);
     }
     
@@ -136,6 +136,8 @@ const localStorageDataService: IDataService = {
       role: userData.role || 'customer',
       themePreference: userData.themePreference || 'system',
       addresses: [],
+      averageJobRating: 0,
+      jobReviewCount: 0,
     };
     users.push(newUser);
     setItem(KEYS.USERS, users);
@@ -680,6 +682,15 @@ const localStorageDataService: IDataService = {
             job.acceptorHasReviewed = true;
         }
         await this.updateJob(job);
+    }
+
+    const reviewee = await this.findUserById(reviewData.revieweeId);
+    if (reviewee) {
+        const allReviewsAboutUser = await this.getReviewsAboutUser(reviewData.revieweeId);
+        const totalRating = allReviewsAboutUser.reduce((sum, r) => sum + r.rating, 0);
+        reviewee.averageJobRating = allReviewsAboutUser.length > 0 ? totalRating / allReviewsAboutUser.length : 0;
+        reviewee.jobReviewCount = allReviewsAboutUser.length;
+        await this.updateUser(reviewee);
     }
     
     return newReview;
