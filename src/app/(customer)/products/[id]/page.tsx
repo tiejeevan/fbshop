@@ -37,7 +37,7 @@ interface EditableImageData {
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
-  const productIdFromParams = params.id;
+  const productIdFromParams = params?.id;
 
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
