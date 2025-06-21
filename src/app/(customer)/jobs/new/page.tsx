@@ -15,12 +15,13 @@ import type { JobSettings, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame, Info } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { add } from 'date-fns';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const MAX_JOB_IMAGES = 5;
 const MAX_FILE_SIZE_MB = 2;
@@ -46,9 +47,12 @@ export default function NewJobPage() {
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  
+  const isRelist = !!searchParams.get('title');
 
   const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting: isFormProcessing } } = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
@@ -56,6 +60,17 @@ export default function NewJobPage() {
       isUrgent: false,
     }
   });
+
+  useEffect(() => {
+    if (isRelist) {
+        setValue('title', searchParams.get('title') || '');
+        setValue('description', searchParams.get('description') || '');
+        setValue('categoryId', searchParams.get('categoryId') || '');
+        const comp = searchParams.get('compensationAmount');
+        if (comp) setValue('compensationAmount', parseFloat(comp));
+        setValue('isUrgent', searchParams.get('isUrgent') === 'true');
+    }
+  }, [isRelist, searchParams, setValue]);
   
   const fetchPrerequisites = useCallback(async () => {
     if (!currentUser || !dataService || isDataSourceLoading) {
@@ -123,7 +138,7 @@ export default function NewJobPage() {
 
   const onSubmit: SubmitHandler<JobFormValues> = async (data) => {
     if (!currentUser || !dataService || !settings) return;
-    if (userJobsCount >= settings.maxJobsPerUser) {
+    if (userJobsCount >= settings.maxJobsPerUser && !isRelist) {
         toast({ title: "Limit Reached", description: `You can only have ${settings.maxJobsPerUser} active jobs at a time.`, variant: "destructive" });
         return;
     }
@@ -155,7 +170,7 @@ export default function NewJobPage() {
     return <div className="text-center py-20 text-destructive">Could not load job settings. Please try again later.</div>
   }
 
-  const canPostJob = userJobsCount < settings.maxJobsPerUser;
+  const canPostJob = userJobsCount < settings.maxJobsPerUser || isRelist;
   const maxDurationInHours = settings.maxTimerDurationDays * 24;
   const durationOptions = [ { value: 1, label: '1 Hour' }, { value: 6, label: '6 Hours' }, { value: 12, label: '12 Hours' }, { value: 24, label: '1 Day' }, { value: 48, label: '2 Days' }, { value: 72, label: '3 Days' }, { value: 120, label: '5 Days' }, { value: 168, label: '7 Days' }, { value: 240, label: '10 Days' }, ].filter(opt => opt.value <= maxDurationInHours);
   
@@ -170,6 +185,15 @@ export default function NewJobPage() {
             </CardHeader>
             <form onSubmit={handleSubmit(onSubmit)}>
                 <CardContent className="space-y-6">
+                    {isRelist && (
+                        <Alert>
+                            <Info className="h-4 w-4" />
+                            <AlertTitle>Relisting Job</AlertTitle>
+                            <AlertDescription>
+                                Review the pre-filled details from your expired job and post when you're ready. A new duration must be selected.
+                            </AlertDescription>
+                        </Alert>
+                    )}
                     {canPostJob ? (
                         <>
                             <div className="space-y-1.5">

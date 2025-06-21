@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Briefcase, PlusCircle, MessageSquare, Star } from 'lucide-react';
+import { Loader2, Briefcase, PlusCircle, MessageSquare, Star, RefreshCw } from 'lucide-react';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
@@ -78,6 +78,17 @@ export default function MyJobsPage() {
     toast({ title: "Review Submitted Successfully!" });
   };
 
+  const handleRelistJob = (job: Job) => {
+    const query = new URLSearchParams({
+        title: job.title,
+        description: job.description,
+        categoryId: job.categoryId || '',
+        compensationAmount: job.compensationAmount?.toString() || '',
+        isUrgent: job.isUrgent?.toString() || 'false',
+    }).toString();
+    router.push(`/jobs/new?${query}`);
+  };
+
 
   if (isComponentLoading || authLoading || isDataSourceLoading) {
     return <div className="text-center py-20"><Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" /></div>;
@@ -113,6 +124,11 @@ export default function MyJobsPage() {
                     )}
                     {isCreator && job.status === 'accepted' && (
                         <Button size="sm" className="w-full" onClick={() => handleMarkComplete(job.id)}>Mark as Complete</Button>
+                    )}
+                     {isCreator && job.status === 'expired' && (
+                        <Button size="sm" className="w-full" onClick={() => handleRelistJob(job)}>
+                            <RefreshCw className="mr-2 h-4 w-4"/>Relist Job
+                        </Button>
                     )}
                     {job.status === 'completed' && !hasUserReviewed && (
                         <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-white" onClick={() => handleOpenReviewModal(job)}>
