@@ -40,7 +40,9 @@ const jobFormSchema = z.object({
   isUrgent: z.boolean().optional(),
   location: z.string().max(100, 'Location cannot exceed 100 characters').optional(),
   preferredDate: z.date().optional(),
-  preferredTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:mm)").optional(),
+  preferredTime: z.string().optional().refine((val) => !val || /^([01]\d|2[0-3]):([0-5]\d)$/.test(val), {
+    message: "Invalid time format (HH:mm)",
+  }),
   estimatedDurationHours: z.coerce.number().min(0, "Duration must be positive").optional(),
 });
 
