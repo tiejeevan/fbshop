@@ -1,6 +1,8 @@
 
 'use client';
 
+import { simpleUUID } from '@/lib/utils';
+
 const DB_NAME = 'LocalCommerceImagesDB'; // Re-using the same DB for simplicity
 const PRODUCT_IMAGES_STORE_NAME = 'productImages';
 const ADMIN_ACTION_LOGS_STORE_NAME = 'adminActionLogs'; // New store for admin logs
@@ -179,7 +181,7 @@ export async function addAdminActionLogToDB(logData: Omit<AdminActionLog, 'id' |
   const db = await openDB();
   const newLog: AdminActionLog = {
     ...logData,
-    id: crypto.randomUUID(),
+    id: simpleUUID(),
     timestamp: new Date().toISOString(),
   };
 

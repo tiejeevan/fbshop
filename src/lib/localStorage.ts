@@ -8,6 +8,7 @@ import {
     addAdminActionLogToDB,
     getAdminActionLogsFromDB
 } from './indexedDbService';
+import { simpleUUID } from '@/lib/utils';
 
 
 const KEYS = {
@@ -67,7 +68,7 @@ function initializeDataOnce() {
     if (adminUser.addresses === undefined) adminUser.addresses = []; 
   } else {
     adminUser = {
-      id: crypto.randomUUID(),
+      id: simpleUUID(),
       email: 'admin@localcommerce.com',
       password: 'password',
       role: 'admin',
@@ -93,7 +94,7 @@ function initializeDataOnce() {
     ];
     categories = mockCategoryData.map((cat, index) => ({
         ...cat,
-        id: `cat_${cat.slug}_${crypto.randomUUID().slice(0,4)}`,
+        id: `cat_${cat.slug}_${simpleUUID().slice(0,4)}`,
         slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
         description: cat.description || '',
         parentId: cat.parentId || null,
@@ -126,7 +127,7 @@ function initializeDataOnce() {
 
     const mockProducts: Omit<Product, 'primaryImageId' | 'additionalImageIds' | 'averageRating' | 'reviewCount'>[] = [
       {
-        id: crypto.randomUUID(),
+        id: simpleUUID(),
         name: 'Wireless Headphones X2000',
         description: 'Experience immersive sound with these noise-cancelling wireless headphones. Long battery life and comfortable design for all-day listening.',
         price: 149.99,
@@ -138,7 +139,7 @@ function initializeDataOnce() {
         purchases: 15,
       },
       {
-        id: crypto.randomUUID(),
+        id: simpleUUID(),
         name: 'Smartwatch ProConnect',
         description: 'Stay connected and track your fitness with this feature-packed smartwatch. GPS, heart rate monitor, and a vibrant display.',
         price: 249.50,
@@ -150,7 +151,7 @@ function initializeDataOnce() {
         purchases: 35,
       },
        {
-        id: crypto.randomUUID(),
+        id: simpleUUID(),
         name: 'The Enigmatic Cipher',
         description: 'A thrilling mystery novel that will keep you on the edge of your seat until the very last page. By acclaimed author A. N. Other.',
         price: 19.99,
@@ -188,7 +189,7 @@ const addUser = (user: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'role' | 'a
   const now = new Date().toISOString();
   const newUser: User = {
     ...user,
-    id: crypto.randomUUID(),
+    id: simpleUUID(),
     createdAt: now,
     updatedAt: now,
     role: user.role || 'customer',
@@ -244,7 +245,7 @@ const addAddressToUser = (userId: string, addressData: Omit<Address, 'id' | 'use
 
   const newAddress: Address = {
     ...addressData,
-    id: crypto.randomUUID(),
+    id: simpleUUID(),
     userId,
     isDefault: addressData.isDefault || false,
   };
@@ -324,7 +325,7 @@ const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'v
   const now = new Date().toISOString();
   const newProduct: Product = {
     ...product,
-    id: crypto.randomUUID(),
+    id: simpleUUID(),
     primaryImageId: product.primaryImageId || null,
     additionalImageIds: (product.additionalImageIds || []),
     createdAt: now,
@@ -387,7 +388,7 @@ const addCategory = (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedA
   const categories = getCategories();
   const now = new Date().toISOString();
   const newCategory: Category = {
-    id: `cat_${categoryData.slug}_${crypto.randomUUID().slice(0,4)}`,
+    id: `cat_${categoryData.slug}_${simpleUUID().slice(0,4)}`,
     name: categoryData.name,
     slug: categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
     description: categoryData.description || '',
@@ -605,7 +606,7 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
         ...orderData,
         items: orderItemsWithDetails,
         shippingAddress: orderData.shippingAddress, 
-        id: crypto.randomUUID(),
+        id: simpleUUID(),
         orderDate: new Date().toISOString(),
     };
     orders.push(newOrder);
@@ -627,7 +628,7 @@ const addLoginActivity = (userId: string, userEmail: string, type: 'login' | 'lo
     const activities = getLoginActivity();
     const now = new Date().toISOString();
     activities.push({
-        id: crypto.randomUUID(),
+        id: simpleUUID(),
         userId,
         userEmail,
         timestamp: now,
@@ -683,7 +684,7 @@ const addReview = (reviewData: Omit<Review, 'id' | 'createdAt'>): Review => {
   const reviews = getAllReviews();
   const newReview: Review = {
     ...reviewData,
-    id: crypto.randomUUID(),
+    id: simpleUUID(),
     createdAt: new Date().toISOString(),
   };
   reviews.push(newReview);

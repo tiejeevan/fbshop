@@ -15,6 +15,7 @@ import {
     getAdminActionLogsFromDB
 } from './indexedDbService';
 import type { IDataService } from './dataService';
+import { simpleUUID } from '@/lib/utils';
 
 const KEYS = {
   USERS: 'localcommerce_users',
@@ -79,7 +80,7 @@ const localStorageDataService: IDataService = {
       if (adminUser.themePreference === undefined) adminUser.themePreference = 'system';
     } else {
       adminUser = {
-        id: crypto.randomUUID(),
+        id: simpleUUID(),
         email: 'admin@localcommerce.com',
         password: 'password',
         role: 'admin',
@@ -108,7 +109,7 @@ const localStorageDataService: IDataService = {
       ];
       categories = mockCategoryData.map((cat, index) => ({
           ...cat,
-          id: `cat_${cat.slug}_${crypto.randomUUID().slice(0,4)}`,
+          id: `cat_${cat.slug}_${simpleUUID().slice(0,4)}`,
           slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
           description: cat.description || '',
           parentId: cat.parentId || null,
@@ -138,9 +139,9 @@ const localStorageDataService: IDataService = {
       const electronicsCat = categories.find(c => c.slug === 'electronics');
       const booksCat = categories.find(c => c.slug === 'books');
       const mockProducts: Omit<Product, 'primaryImageId' | 'additionalImageIds' | 'averageRating' | 'reviewCount'>[] = [
-        { id: crypto.randomUUID(), name: 'Wireless Headphones X2000', description: 'Experience immersive sound...', price: 149.99, stock: 50, categoryId: electronicsCat?.id || categories[0].id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), views: 120, purchases: 15, },
-        { id: crypto.randomUUID(), name: 'Smartwatch ProConnect', description: 'Stay connected and track your fitness...', price: 249.50, stock: 30, categoryId: electronicsCat?.id || categories[0].id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), views: 250, purchases: 35, },
-        { id: crypto.randomUUID(), name: 'The Enigmatic Cipher', description: 'A thrilling mystery novel...', price: 19.99, stock: 100, categoryId: booksCat?.id || categories[1].id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), views: 85, purchases: 22, },
+        { id: simpleUUID(), name: 'Wireless Headphones X2000', description: 'Experience immersive sound...', price: 149.99, stock: 50, categoryId: electronicsCat?.id || categories[0].id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), views: 120, purchases: 15, },
+        { id: simpleUUID(), name: 'Smartwatch ProConnect', description: 'Stay connected and track your fitness...', price: 249.50, stock: 30, categoryId: electronicsCat?.id || categories[0].id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), views: 250, purchases: 35, },
+        { id: simpleUUID(), name: 'The Enigmatic Cipher', description: 'A thrilling mystery novel...', price: 19.99, stock: 100, categoryId: booksCat?.id || categories[1].id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), views: 85, purchases: 22, },
       ];
       products = mockProducts.map(p => ({ ...p, primaryImageId: null, additionalImageIds: [], averageRating: 0, reviewCount: 0 }));
       setItem(KEYS.PRODUCTS, products);
@@ -163,7 +164,7 @@ const localStorageDataService: IDataService = {
     const now = new Date().toISOString();
     const newUser: User = {
       ...userData,
-      id: crypto.randomUUID(),
+      id: simpleUUID(),
       createdAt: now,
       updatedAt: now,
       role: userData.role || 'customer',
@@ -223,7 +224,7 @@ const localStorageDataService: IDataService = {
     if (!user) return null;
     const newAddress: Address = {
       ...addressData,
-      id: crypto.randomUUID(),
+      id: simpleUUID(),
       userId,
       isDefault: addressData.isDefault || false,
     };
@@ -286,7 +287,7 @@ const localStorageDataService: IDataService = {
     const now = new Date().toISOString();
     const newProduct: Product = {
       ...productData,
-      id: crypto.randomUUID(),
+      id: simpleUUID(),
       primaryImageId: productData.primaryImageId || null,
       additionalImageIds: (productData.additionalImageIds || []),
       createdAt: now,
@@ -348,7 +349,7 @@ const localStorageDataService: IDataService = {
     const categories = await this.getCategories();
     const now = new Date().toISOString();
     const newCategory: Category = {
-      id: `cat_${categoryData.slug}_${crypto.randomUUID().slice(0,4)}`,
+      id: `cat_${categoryData.slug}_${simpleUUID().slice(0,4)}`,
       name: categoryData.name,
       slug: categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
       description: categoryData.description || '',
@@ -539,7 +540,7 @@ const localStorageDataService: IDataService = {
           ...orderData,
           items: orderItemsWithDetails,
           shippingAddress: orderData.shippingAddress,
-          id: crypto.randomUUID(),
+          id: simpleUUID(),
           orderDate: new Date().toISOString(),
       };
       orders.push(newOrder);
@@ -560,7 +561,7 @@ const localStorageDataService: IDataService = {
       const activities = await this.getLoginActivity();
       const now = new Date().toISOString();
       activities.push({
-          id: crypto.randomUUID(),
+          id: simpleUUID(),
           userId,
           userEmail,
           timestamp: now,
@@ -615,7 +616,7 @@ const localStorageDataService: IDataService = {
     const reviews = getItem<Review[]>(KEYS.REVIEWS) || [];
     const newReview: Review = {
       ...reviewData,
-      id: crypto.randomUUID(),
+      id: simpleUUID(),
       createdAt: new Date().toISOString(),
     };
     reviews.push(newReview);

@@ -11,6 +11,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useDataSource } from '@/contexts/DataSourceContext';
+import { simpleUUID } from '@/lib/utils';
 // Removed: import { saveImage as saveImageToDB } from '@/lib/indexedDbService'; - Handled by dataService
 
 export default function NewProductPage() {
@@ -55,7 +56,7 @@ export default function NewProductPage() {
     try {
       let primaryImageId: string | null = null;
       const additionalImageIds: string[] = [];
-      const tempProductIdForImages = `temp_product_${crypto.randomUUID()}`; // Used as entityId for image saving
+      const tempProductIdForImages = `temp_product_${simpleUUID()}`; // Used as entityId for image saving
 
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {

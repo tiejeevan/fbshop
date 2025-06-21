@@ -17,6 +17,7 @@ import { ProductImage } from '@/components/product/ProductImage';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { AddressForm, AddressFormValues } from '@/components/customer/AddressForm';
+import { simpleUUID } from '@/lib/utils';
 
 export default function CheckoutPage() {
   const { currentUser, refreshUser } = useAuth();
@@ -134,7 +135,7 @@ export default function CheckoutPage() {
         totalAmount: totalAmount,
         status: 'Completed',
         shippingAddress: shippingAddress, 
-        paymentDetails: { method: 'MockCard', transactionId: `mock_txn_${crypto.randomUUID()}` }
+        paymentDetails: { method: 'MockCard', transactionId: `mock_txn_${simpleUUID()}` }
       });
       localStorageService.clearCart(currentUser.id);
       window.dispatchEvent(new CustomEvent('cartUpdated'));
