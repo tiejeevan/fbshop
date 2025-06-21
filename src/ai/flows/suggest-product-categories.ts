@@ -33,6 +33,7 @@ export async function suggestProductCategories(
 
 const prompt = ai.definePrompt({
   name: 'suggestProductCategoriesPrompt',
+  model: 'googleai/gemini-pro',
   input: {schema: SuggestProductCategoriesInputSchema},
   output: {schema: SuggestProductCategoriesOutputSchema},
   prompt: `You are a helpful AI assistant that suggests relevant product categories based on a product description.
