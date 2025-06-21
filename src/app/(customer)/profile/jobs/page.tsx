@@ -122,7 +122,7 @@ export default function MyJobsPage() {
             </CardContent>
             <CardFooter className="flex flex-col items-start gap-2 border-t pt-3">
                 <div className="flex justify-between w-full">
-                    <Badge variant={job.status === 'open' ? 'default' : 'secondary'}>{job.status}</Badge>
+                    <Badge variant={job.status === 'open' ? 'default' : job.status === 'expired' ? 'destructive' : 'secondary'}>{job.status}</Badge>
                     <span className="text-xs text-muted-foreground">
                         Expires: {formatDistanceToNow(parseISO(job.expiresAt), { addSuffix: true })}
                     </span>

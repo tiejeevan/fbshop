@@ -88,9 +88,15 @@ export default function NewJobPage() {
         setValue('estimatedDurationHours', searchParams.get('estimatedDurationHours') ? Number(searchParams.get('estimatedDurationHours')) : undefined);
         const dateStr = searchParams.get('preferredDate');
         if (dateStr) {
-          const date = new Date(dateStr);
-          setValue('preferredDate', date);
-          setValue('preferredTime', format(date, 'HH:mm'));
+          try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+              setValue('preferredDate', date);
+              setValue('preferredTime', format(date, 'HH:mm'));
+            }
+          } catch (e) {
+            console.error("Invalid date for relist:", e);
+          }
         }
     }
   }, [isRelist, searchParams, setValue]);
