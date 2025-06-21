@@ -11,11 +11,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Briefcase, PlusCircle, MessageSquare, Star, RefreshCw, MapPin, Calendar, Clock } from 'lucide-react';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { JobReviewForm } from '@/components/jobs/JobReviewForm';
+import { JobCountdown } from '@/components/jobs/JobCountdown';
 
 export default function MyJobsPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
@@ -123,9 +124,7 @@ export default function MyJobsPage() {
             <CardFooter className="flex flex-col items-start gap-2 border-t pt-3">
                 <div className="flex justify-between w-full">
                     <Badge variant={job.status === 'open' ? 'default' : job.status === 'expired' ? 'destructive' : 'secondary'}>{job.status}</Badge>
-                    <span className="text-xs text-muted-foreground">
-                        Expires: {formatDistanceToNow(parseISO(job.expiresAt), { addSuffix: true })}
-                    </span>
+                    <JobCountdown expiresAt={job.expiresAt} />
                 </div>
                 <div className="w-full flex flex-col gap-2">
                     {(job.status === 'accepted' || job.status === 'completed') && (

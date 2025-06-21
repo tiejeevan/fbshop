@@ -9,7 +9,7 @@ import type { Job, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, PlusCircle, UserCheck, ShieldCheck, Flame, Search, MapPin, Calendar, Clock, ArrowUpWideNarrow, ArrowDownWideNarrow, ArrowDownUp } from 'lucide-react';
+import { Loader2, Briefcase, PlusCircle, UserCheck, ShieldCheck, Flame, Search, MapPin, Calendar, Clock, ArrowDownUp } from 'lucide-react';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SavedJobButton } from '@/components/jobs/SavedJobButton';
+import { JobCountdown } from '@/components/jobs/JobCountdown';
 
 
 type SortOption = 'newest' | 'expires-asc' | 'compensation-desc' | 'compensation-asc';
@@ -159,6 +160,12 @@ export default function JobsPage() {
                     </SelectContent>
                 </Select>
             </div>
+             <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-2 border-t pt-4 mt-2">
+                <Label className="col-span-1 sm:col-span-3 text-sm text-muted-foreground">Compensation</Label>
+                <Button variant={compensationFilter === 'all' ? 'default' : 'outline'} onClick={() => setCompensationFilter('all')} size="sm">All</Button>
+                <Button variant={compensationFilter === 'paid' ? 'default' : 'outline'} onClick={() => setCompensationFilter('paid')} size="sm">Paid</Button>
+                <Button variant={compensationFilter === 'volunteer' ? 'default' : 'outline'} onClick={() => setCompensationFilter('volunteer')} size="sm">Volunteer</Button>
+             </div>
         </div>
       </Card>
 
@@ -211,7 +218,7 @@ export default function JobsPage() {
               </CardContent>
               <CardFooter className="flex flex-col items-start gap-3 border-t pt-4">
                 <div className="flex justify-between w-full text-xs text-muted-foreground">
-                    <span>Expires: {formatDistanceToNow(parseISO(job.expiresAt), { addSuffix: true })}</span>
+                    <JobCountdown expiresAt={job.expiresAt} />
                     <span>Posted: {formatDistanceToNow(parseISO(job.createdAt), { addSuffix: true })}</span>
                 </div>
                 {currentUser && (
