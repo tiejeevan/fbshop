@@ -1,30 +1,13 @@
-
 'use server';
 
 /**
  * @fileOverview An AI flow to parse unstructured Indian addresses into a structured format.
  * - parseIndianAddress - A function that takes a string and returns a structured address.
- * - IndianAddressInput - Input schema for the flow.
- * - IndianAddressOutput - Output schema for the flow.
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-
-export const IndianAddressInputSchema = z.string().describe('An unstructured address string from India.');
-export type IndianAddressInput = z.infer<typeof IndianAddressInputSchema>;
-
-export const IndianAddressOutputSchema = z.object({
-  name: z.string().optional().describe("The recipient's name, if present in the address."),
-  line1: z.string().describe('The primary address line, including flat/house number and street name.'),
-  line2: z.string().optional().describe('The secondary address line, including area or landmark.'),
-  city: z.string().describe('The city name.'),
-  state: z.string().describe('The state name.'),
-  postalCode: z.string().describe('The 6-digit postal code (PIN code).'),
-  country: z.string().default('India').describe('The country.'),
-  phoneNumber: z.string().optional().describe("The recipient's phone number, if present."),
-});
-export type IndianAddressOutput = z.infer<typeof IndianAddressOutputSchema>;
+import type { IndianAddressInput, IndianAddressOutput } from '@/ai/schemas/indian-address';
+import { IndianAddressInputSchema, IndianAddressOutputSchema } from '@/ai/schemas/indian-address';
 
 export async function parseIndianAddress(input: IndianAddressInput): Promise<IndianAddressOutput> {
   return parseIndianAddressFlow(input);

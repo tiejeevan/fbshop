@@ -10,7 +10,8 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { Loader2, Printer, Mail, Truck, Info, Wand2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { parseIndianAddress, IndianAddressOutput } from '@/ai/flows/parse-indian-address';
+import { parseIndianAddress } from '@/ai/flows/parse-indian-address';
+import type { IndianAddressOutput } from '@/ai/schemas/indian-address';
 import { useToast } from '@/hooks/use-toast';
 
 
