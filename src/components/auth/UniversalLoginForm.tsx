@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -14,13 +13,6 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import type { UserRole } from '@/types';
 import { Loader2 } from 'lucide-react';
-
-const loginSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-});
-
-type LoginFormInputs = z.infer<typeof loginSchema>;
 
 interface UniversalLoginFormProps {
   initialRole?: UserRole;
@@ -50,6 +42,15 @@ export function UniversalLoginForm({ initialRole = 'customer', onLoginSuccess, o
     dontHaveAccount: "Don't have an account?",
     signUpLink: "Sign up"
   };
+
+  const loginSchema = z.object({
+    email: currentLoginRole === 'admin'
+      ? z.string().min(1, { message: 'Admin username cannot be empty' })
+      : z.string().email({ message: 'Invalid email address' }),
+    password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  });
+  
+  type LoginFormInputs = z.infer<typeof loginSchema>;
 
   const {
     register,

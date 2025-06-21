@@ -14,13 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import type { UserRole } from '@/types';
 import { Loader2 } from 'lucide-react';
 
-const loginSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-});
-
-type LoginFormInputs = z.infer<typeof loginSchema>;
-
 interface LoginFormProps {
   role: UserRole;
   redirectPath: string;
@@ -34,6 +27,16 @@ export function LoginForm({ role, redirectPath, title, description, signupPath }
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Dynamically create schema based on the role
+  const loginSchema = z.object({
+    email: role === 'admin' 
+      ? z.string().min(1, { message: 'Admin username cannot be empty' })
+      : z.string().email({ message: 'Invalid email address' }),
+    password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  });
+  
+  type LoginFormInputs = z.infer<typeof loginSchema>;
 
   const {
     register,
