@@ -5,15 +5,13 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem
+  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem, ActivityLog
 } from '@/types';
 import {
     saveImage as saveImageToDB,
     getImage as getImageFromDB,
     deleteImage as deleteImageFromDB,
     deleteImagesForProduct as deleteImagesForEntityFromDB,
-    addAdminActionLogToDB,
-    getAdminActionLogsFromDB
 } from './indexedDbService';
 import type { IDataService } from './dataService';
 import { simpleUUID } from '@/lib/utils';
@@ -25,7 +23,7 @@ const KEYS = {
   JOB_CATEGORIES: 'localcommerce_job_categories',
   CARTS: 'localcommerce_carts',
   ORDERS: 'localcommerce_orders',
-  LOGIN_ACTIVITY: 'localcommerce_login_activity',
+  ACTIVITY_LOGS: 'localcommerce_activity_logs',
   CURRENT_USER: 'localcommerce_current_user',
   WISHLISTS: 'localcommerce_wishlists',
   REVIEWS: 'localcommerce_reviews',
@@ -109,7 +107,7 @@ const localStorageDataService: IDataService = {
     if (!getItem(KEYS.PRODUCTS)) setItem(KEYS.PRODUCTS, []);
     if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
     if (!getItem(KEYS.ORDERS)) setItem(KEYS.ORDERS, []);
-    if (!getItem(KEYS.LOGIN_ACTIVITY)) setItem(KEYS.LOGIN_ACTIVITY, []);
+    if (!getItem(KEYS.ACTIVITY_LOGS)) setItem(KEYS.ACTIVITY_LOGS, []);
     if (!getItem(KEYS.WISHLISTS)) setItem(KEYS.WISHLISTS, []);
     if (!getItem(KEYS.REVIEWS)) setItem(KEYS.REVIEWS, []);
     if (!getItem(KEYS.RECENTLY_VIEWED)) setItem(KEYS.RECENTLY_VIEWED, []);
@@ -423,15 +421,6 @@ const localStorageDataService: IDataService = {
       }
       return newOrder;
   },
-  async getLoginActivity(): Promise<LoginActivity[]> { return getItem<LoginActivity[]>(KEYS.LOGIN_ACTIVITY) || []; },
-  async addLoginActivity(userId, userEmail, type): Promise<void> {
-      const activities = await this.getLoginActivity();
-      const now = new Date().toISOString();
-      activities.push({ id: simpleUUID(), userId, userEmail, timestamp: now, type });
-      setItem(KEYS.LOGIN_ACTIVITY, activities.slice(-100));
-      const user = await this.findUserById(userId);
-      if (user && type === 'login') { user.lastLogin = now; user.updatedAt = now; await this.updateUser(user); }
-  },
   setCurrentUser(user: User | null): void { user ? setItem(KEYS.CURRENT_USER, { id: user.id, role: user.role, email: user.email, name: user.name, themePreference: user.themePreference, addresses: user.addresses || [] }) : removeItem(KEYS.CURRENT_USER); },
   getCurrentUser(): (User & { role: UserRole }) | null { return getItem<(User & { role: UserRole })>(KEYS.CURRENT_USER); },
   async getWishlist(userId): Promise<WishlistItem[]> { return (getItem<WishlistItem[]>(KEYS.WISHLISTS) || []).filter(item => item.userId === userId); },
@@ -455,6 +444,7 @@ const localStorageDataService: IDataService = {
       product.reviewCount = productReviews.length;
       await this.updateProduct(product);
     }
+    await this.addActivityLog({ actorId: reviewData.userId, actorEmail: (await this.findUserById(reviewData.userId))?.email || '', actorRole: 'customer', actionType: 'PRODUCT_REVIEW', entityType: 'Product', entityId: reviewData.productId, description: `Submitted a ${reviewData.rating}-star review for a product.`});
     return newReview;
   },
   async deleteReview(reviewId): Promise<void> {
@@ -488,8 +478,24 @@ const localStorageDataService: IDataService = {
   },
   async getGlobalTheme(): Promise<Theme> { return getItem<Theme>(KEYS.THEME) || 'system'; },
   async setGlobalTheme(theme): Promise<void> { setItem(KEYS.THEME, theme); },
-  async getAdminActionLogs(): Promise<AdminActionLog[]> { return getAdminActionLogsFromDB(); },
-  async addAdminActionLog(logData): Promise<void> { await addAdminActionLogToDB(logData); },
+  async getActivityLogs(options: { actorId?: string } = {}): Promise<ActivityLog[]> {
+    const logs = getItem<ActivityLog[]>(KEYS.ACTIVITY_LOGS) || [];
+    let filteredLogs = logs;
+    if (options.actorId) {
+      filteredLogs = logs.filter(log => log.actorId === options.actorId);
+    }
+    return filteredLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  },
+  async addActivityLog(logData): Promise<void> {
+    const logs = await this.getActivityLogs();
+    const newLog: ActivityLog = {
+      ...logData,
+      id: simpleUUID(),
+      timestamp: new Date().toISOString(),
+    };
+    logs.unshift(newLog); // Add to the beginning
+    setItem(KEYS.ACTIVITY_LOGS, logs.slice(0, 500)); // Keep only the latest 500 logs
+  },
   async saveImage(entityId, imageType, imageFile): Promise<string> { return saveImageToDB(entityId, imageType, imageFile); },
   async getImage(imageId): Promise<Blob | null> { return getImageFromDB(imageId); },
   async deleteImage(imageId): Promise<void> { return deleteImageFromDB(imageId); },

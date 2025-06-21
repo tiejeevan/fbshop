@@ -48,7 +48,7 @@ export function SavedJobButton({ jobId, className }: SavedJobButtonProps) {
   }, [checkSavedStatus]);
 
   const toggleSavedJob = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent link navigation if the button is on a card
+    e.preventDefault(); 
     if (!currentUser || !dataService || isLoading) return;
     setIsLoading(true);
     try {

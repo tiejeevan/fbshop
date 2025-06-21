@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user && user.password === password) {
       dataService.setCurrentUser(user);
       setCurrentUser(user as User & { role: UserRole });
-      await dataService.addLoginActivity(user.id, user.email, 'login');
+      await dataService.addActivityLog({ actorId: user.id, actorEmail: user.email, actorRole: user.role, actionType: 'AUTH_LOGIN', description: 'User logged in.' });
       setIsAuthLoading(false);
       return user;
     }
@@ -113,13 +113,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       role: 'customer',
       themePreference: 'system',
     });
+    await dataService.addActivityLog({ actorId: addedUser.id, actorEmail: addedUser.email, actorRole: 'customer', actionType: 'AUTH_SIGNUP', description: 'New user account created.' });
     setIsAuthLoading(false);
     return addedUser;
   };
 
   const logout = async () => {
     if (currentUser) {
-        await dataService.addLoginActivity(currentUser.id, currentUser.email, 'logout');
+        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'AUTH_LOGOUT', description: 'User logged out.' });
     }
     dataService.setCurrentUser(null);
     setCurrentUser(null);

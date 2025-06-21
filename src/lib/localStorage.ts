@@ -5,8 +5,6 @@ import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, Wis
 import {
     deleteImagesForProduct as deleteImagesFromDB,
     deleteImage as deleteSingleImageFromDB,
-    addAdminActionLogToDB,
-    getAdminActionLogsFromDB
 } from './indexedDbService';
 import { simpleUUID } from '@/lib/utils';
 
@@ -746,23 +744,6 @@ const setGlobalTheme = (theme: Theme): void => {
   setItem(KEYS.THEME, theme);
 };
 
-const getAdminActionLogs = async (): Promise<AdminActionLog[]> => {
-  try {
-    return await getAdminActionLogsFromDB();
-  } catch (error) {
-    console.error("Error fetching admin logs from IndexedDB via localStorageService:", error);
-    return [];
-  }
-};
-
-const addAdminActionLog = async (logData: Omit<AdminActionLog, 'id' | 'timestamp'>): Promise<void> => {
-  try {
-    await addAdminActionLogToDB(logData);
-  } catch (error) {
-    console.error("Error adding admin log to IndexedDB via localStorageService:", error);
-  }
-};
-
 
 const localStorageService = {
   KEYS,
@@ -816,8 +797,6 @@ const localStorageService = {
   addRecentlyViewed,
   getGlobalTheme,
   setGlobalTheme,
-  getAdminActionLogs,
-  addAdminActionLog,
 };
 
 export { localStorageService };

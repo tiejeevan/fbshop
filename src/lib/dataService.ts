@@ -1,8 +1,8 @@
 
 // src/lib/dataService.ts
 import type {
-  User, Product, Category, Cart, Order, LoginActivity, UserRole,
-  WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme,
+  User, Product, Category, Cart, Order, UserRole,
+  WishlistItem, Review, RecentlyViewedItem, Address, ActivityLog, Theme,
   Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification, JobSavedItem
 } from '@/types';
 
@@ -58,11 +58,7 @@ export interface IDataService {
 
   // Order methods
   getOrders: (userId?: string) => Promise<Order[]>;
-  addOrder: (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }) => Promise<Order>;
-
-  // Login Activity
-  getLoginActivity: () => Promise<LoginActivity[]>;
-  addLoginActivity: (userId: string, userEmail: string, type: 'login' | 'logout') => Promise<void>;
+  addOrder: (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }, actor: { id: string, email: string, role: UserRole }) => Promise<Order>;
 
   // Wishlist methods
   getWishlist: (userId: string) => Promise<WishlistItem[]>;
@@ -83,9 +79,9 @@ export interface IDataService {
   getGlobalTheme: () => Promise<Theme>;
   setGlobalTheme: (theme: Theme) => Promise<void>;
   
-  // Admin Action Logs
-  getAdminActionLogs: () => Promise<AdminActionLog[]>;
-  addAdminActionLog: (logData: Omit<AdminActionLog, 'id' | 'timestamp'>) => Promise<void>;
+  // Activity Logs
+  getActivityLogs: (options?: { actorId?: string }) => Promise<ActivityLog[]>;
+  addActivityLog: (logData: Omit<ActivityLog, 'id' | 'timestamp'>) => Promise<void>;
 
   // Current User (Session management specific)
   setCurrentUser: (user: User | null) => void;
@@ -99,7 +95,7 @@ export interface IDataService {
 
   // Job methods
   getJobs: (options?: { userId?: string; status?: Job['status']; createdById?: string; acceptedById?: string; }) => Promise<Job[]>;
-  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed' | 'imageUrls' | 'categoryName' | 'isVerified'>, images?: File[]) => Promise<Job>;
+  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'createdByName' | 'creatorHasReviewed' | 'acceptorHasReviewed'| 'imageUrls' | 'categoryName'>, images?: File[]) => Promise<Job>;
   updateJob: (updatedJob: Partial<Job> & { id: string }) => Promise<Job | null>;
   deleteJob: (jobId: string) => Promise<boolean>;
   findJobById: (jobId: string) => Promise<Job | undefined>;

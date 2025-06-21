@@ -66,28 +66,47 @@ export default function CartPage() {
     }
     if (updatedQuantity === 0 && productDetails.stock > 0) updatedQuantity = 1;
 
+    const originalItem = cart.items.find(item => item.productId === productId);
+    const originalQuantity = originalItem?.quantity || 0;
+
     const updatedItems = cart.items.map(item =>
       item.productId === productId ? { ...item, quantity: updatedQuantity } : item
     );
     const updatedCart = { ...cart, items: updatedItems };
     setCart(updatedCart);
     await dataService.updateCart(updatedCart);
+
+    if (updatedQuantity !== originalQuantity) {
+        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_QUANTITY_UPDATE', entityType: 'Product', entityId: productId, description: `Updated quantity of "${productDetails.name}" to ${updatedQuantity}.`});
+    }
+
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
   const handleRemoveItem = async (productId: string) => {
     if (!currentUser || !cart || !dataService) return;
+    const itemToRemove = cart.items.find(item => item.productId === productId);
+    if (!itemToRemove) return;
+
     const updatedItems = cart.items.filter(item => item.productId !== productId);
     const updatedCart = { ...cart, items: updatedItems };
     setCart(updatedCart);
     await dataService.updateCart(updatedCart);
+    
+    await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_REMOVE_ITEM', entityType: 'Product', entityId: productId, description: `Removed "${itemToRemove.name}" from cart.` });
+    
     toast({ title: "Item Removed" });
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
   const handleMoveToSavedForLater = async (productId: string) => {
     if (!currentUser || !dataService) return;
+    const itemToSave = allProducts.find(p => p.id === productId);
+
     await dataService.moveToSavedForLater(currentUser.id, productId);
+    if (itemToSave) {
+        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_SAVE_FOR_LATER', entityType: 'Product', entityId: productId, description: `Saved "${itemToSave.name}" for later.` });
+    }
     toast({ title: "Item Saved for Later" });
     loadCartAndProducts();
     window.dispatchEvent(new CustomEvent('cartUpdated'));
@@ -95,8 +114,12 @@ export default function CartPage() {
 
   const handleMoveToCartFromSaved = async (productId: string) => {
     if (!currentUser || !dataService) return;
+    const itemToMove = allProducts.find(p => p.id === productId);
     const success = await dataService.moveToCartFromSaved(currentUser.id, productId);
     if (success) {
+        if(itemToMove) {
+             await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_MOVE_FROM_SAVED', entityType: 'Product', entityId: productId, description: `Moved "${itemToMove.name}" from Saved to Cart.` });
+        }
         toast({ title: "Item Moved to Cart" });
     } else {
         toast({ title: "Could not move item", description: "Item may be out of stock.", variant: "destructive" });
@@ -107,7 +130,11 @@ export default function CartPage() {
 
   const handleRemoveFromSaved = async (productId: string) => {
     if (!currentUser || !dataService) return;
+    const itemToRemove = allProducts.find(p => p.id === productId);
     await dataService.removeFromSavedForLater(currentUser.id, productId);
+    if (itemToRemove) {
+        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_REMOVE_FROM_SAVED', entityType: 'Product', entityId: productId, description: `Removed "${itemToRemove.name}" from Saved for Later.` });
+    }
     toast({ title: "Removed from Saved" });
     loadCartAndProducts();
   };

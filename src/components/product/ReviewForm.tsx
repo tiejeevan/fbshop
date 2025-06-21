@@ -69,6 +69,7 @@ export function ReviewForm({ productId, userId, userName, onReviewSubmitted }: R
         rating: data.rating,
         comment: data.comment,
       });
+      // The log is handled inside the dataService.addReview method
       toast({ title: "Review Submitted", description: "Thank you for your feedback!" });
       reset(); 
       onReviewSubmitted(); 

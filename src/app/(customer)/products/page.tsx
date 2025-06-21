@@ -87,30 +87,36 @@ export default function ProductsPage() {
         }
 
         const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
+        let logDescription = '';
 
         if (existingItemIndex > -1) {
-        const newQuantityInCart = cart.items[existingItemIndex].quantity + quantity;
-        if (newQuantityInCart <= product.stock) {
-            cart.items[existingItemIndex].quantity = newQuantityInCart;
+            const newQuantityInCart = cart.items[existingItemIndex].quantity + quantity;
+            if (newQuantityInCart <= product.stock) {
+                cart.items[existingItemIndex].quantity = newQuantityInCart;
+                logDescription = `Increased quantity of "${product.name}" in cart to ${newQuantityInCart}.`;
+            } else {
+                toast({ title: "Stock Limit", variant: "destructive", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.` });
+                return;
+            }
         } else {
-            toast({ title: "Stock Limit", variant: "destructive", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.` });
-            return;
-        }
-        } else {
-        if (quantity <= product.stock) {
-            cart.items.push({
-            productId: product.id,
-            quantity,
-            price: product.price,
-            name: product.name,
-            primaryImageId: product.primaryImageId,
-            });
-        } else {
-            toast({ title: "Stock Limit", variant: "destructive", description: `Only ${product.stock} units available.` });
-            return;
-        }
+            if (quantity <= product.stock) {
+                cart.items.push({
+                productId: product.id,
+                quantity,
+                price: product.price,
+                name: product.name,
+                primaryImageId: product.primaryImageId,
+                });
+                logDescription = `Added ${quantity} x "${product.name}" to cart.`;
+            } else {
+                toast({ title: "Stock Limit", variant: "destructive", description: `Only ${product.stock} units available.` });
+                return;
+            }
         }
         await dataService.updateCart(cart);
+        if(logDescription) {
+            await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_UPDATE', entityType: 'Product', entityId: product.id, description: logDescription });
+        }
         toast({ title: "Added to Cart", description: `${quantity} x ${product.name} added.` });
         window.dispatchEvent(new CustomEvent('cartUpdated'));
     } catch (error) {
@@ -241,7 +247,7 @@ export default function ProductsPage() {
                       {product.categoryName && <Badge className="absolute top-2 left-2 bg-primary/80 text-primary-foreground">{product.categoryName}</Badge>}
                     </CardHeader>
                   </Link>
-                  {currentUser && <WishlistButton productId={product.id} userId={currentUser.id} className="absolute top-14 right-2 bg-transparent hover:bg-transparent p-1"/>}
+                  {currentUser && <WishlistButton productId={product.id} className="absolute top-14 right-2 bg-transparent hover:bg-transparent p-1"/>}
                    <Button
                       variant="outline"
                       size="sm"
@@ -282,7 +288,7 @@ export default function ProductsPage() {
           product={quickViewProduct}
           isOpen={isQuickViewModalOpen}
           onClose={closeQuickView}
-          onAddToCart={handleAddToCart} // Pass the async version
+          onAddToCart={handleAddToCart}
         />
       )}
     </div>

@@ -75,6 +75,7 @@ export function JobReviewForm({ job, currentUser, onReviewSubmitted, onCancel }:
       };
 
       await dataService.addJobReview(reviewData);
+      // Log is handled by the dataService
       reset(); 
       onReviewSubmitted(); 
     } catch (error) {

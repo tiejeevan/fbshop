@@ -102,14 +102,6 @@ export interface Order {
   paymentDetails?: any; // e.g., { method: 'Card', transactionId: '...' }
 }
 
-export interface LoginActivity {
-  id: string;
-  userId: string;
-  userEmail: string; // For easier display if user object is not fetched
-  timestamp: string; // ISO Date string
-  type: 'login' | 'logout';
-}
-
 export interface WishlistItem {
   userId: string;
   productId: string;
@@ -136,15 +128,17 @@ export interface UserRecentlyViewed {
   items: RecentlyViewedItem[];
 }
 
-export interface AdminActionLog {
+export interface ActivityLog {
   id: string;
-  adminId: string;
-  adminEmail: string;
-  actionType: string; // e.g., PRODUCT_CREATE, CATEGORY_DELETE
-  entityType?: string; // e.g., Product, Category, User
+  actorId: string;
+  actorEmail: string;
+  actorRole: UserRole;
+  actionType: string;
+  entityType?: string;
   entityId?: string;
+  description: string;
+  details?: Record<string, any>;
   timestamp: string; // ISO Date string
-  description: string; // Human-readable log message
 }
 
 export interface JobCategory {

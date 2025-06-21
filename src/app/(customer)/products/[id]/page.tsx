@@ -227,30 +227,36 @@ export default function ProductDetailPage() {
             cart = { userId: currentUser.id, items: [], savedForLaterItems: [], updatedAt: new Date().toISOString() };
         }
         const existingItemIndex = cart.items.findIndex(item => item.productId === product.id);
+        let logDescription = '';
 
         if (existingItemIndex > -1) {
-        const newQuantityInCart = cart.items[existingItemIndex].quantity + quantity;
-        if (newQuantityInCart <= product.stock) {
-            cart.items[existingItemIndex].quantity = newQuantityInCart;
+            const newQuantityInCart = cart.items[existingItemIndex].quantity + quantity;
+            if (newQuantityInCart <= product.stock) {
+                cart.items[existingItemIndex].quantity = newQuantityInCart;
+                logDescription = `Increased quantity of "${product.name}" in cart to ${newQuantityInCart}.`;
+            } else {
+                toast({ title: "Stock Limit", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.`, variant: "destructive" });
+                return;
+            }
         } else {
-            toast({ title: "Stock Limit", description: `Max stock: ${product.stock}. You have ${cart.items[existingItemIndex].quantity} in cart.`, variant: "destructive" });
-            return;
-        }
-        } else {
-        if (quantity <= product.stock) {
-            cart.items.push({
-                productId: product.id,
-                quantity,
-                price: product.price,
-                name: product.name,
-                primaryImageId: product.primaryImageId
-            });
-        } else {
-            toast({ title: "Stock Limit", description: `Max stock: ${product.stock}.`, variant: "destructive" });
-            return;
-        }
+            if (quantity <= product.stock) {
+                cart.items.push({
+                    productId: product.id,
+                    quantity,
+                    price: product.price,
+                    name: product.name,
+                    primaryImageId: product.primaryImageId
+                });
+                logDescription = `Added ${quantity} x "${product.name}" to cart.`;
+            } else {
+                toast({ title: "Stock Limit", description: `Max stock: ${product.stock}.`, variant: "destructive" });
+                return;
+            }
         }
         await dataService.updateCart(cart);
+        if (logDescription) {
+            await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_UPDATE', entityType: 'Product', entityId: product.id, description: logDescription });
+        }
         toast({ title: "Added to Cart", description: `${quantity} x ${product.name}` });
         window.dispatchEvent(new CustomEvent('cartUpdated'));
     } catch (error) {
@@ -316,7 +322,6 @@ export default function ProductDetailPage() {
     const oldProductSnapshot: Product = { ...product }; 
 
     try {
-        // Handle primary image
         if (editablePrimaryImage?.file) { 
             if (finalPrimaryImageId && editablePrimaryImage.id === finalPrimaryImageId) { 
                 await dataService.deleteImage(finalPrimaryImageId); 
@@ -329,7 +334,6 @@ export default function ProductDetailPage() {
             finalPrimaryImageId = null;
         }
 
-        // Handle additional images
         const imagesToKeepOrAddNew: string[] = [];
         for (const imgData of editableAdditionalImages) {
             if (imgData.file) { 
@@ -366,14 +370,7 @@ export default function ProductDetailPage() {
         }
         
         const logDescription = await generateProductChangeDescription(oldProductSnapshot, updatedProductData, imageChangeDescriptions);
-        await dataService.addAdminActionLog({
-            adminId: currentUser.id,
-            adminEmail: currentUser.email,
-            actionType: 'PRODUCT_UPDATE',
-            entityType: 'Product',
-            entityId: product.id,
-            description: logDescription,
-        });
+        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: 'admin', actionType: 'PRODUCT_UPDATE', entityType: 'Product', entityId: product.id, description: logDescription });
 
         toast({ title: "Product Updated Successfully" });
         setIsEditing(false);
@@ -381,7 +378,7 @@ export default function ProductDetailPage() {
     } catch (error) {
         console.error("Error saving product edits:", error);
         toast({ title: "Save Error", description: "Could not save product changes.", variant: "destructive" });
-        setIsLoading(false); // Ensure loading state is reset on error
+        setIsLoading(false);
     }
   };
 
@@ -481,14 +478,7 @@ export default function ProductDetailPage() {
     const productName = product.name;
     const productId = product.id;
     await dataService.deleteProduct(productId); 
-    await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
-        actionType: 'PRODUCT_DELETE',
-        entityType: 'Product',
-        entityId: productId,
-        description: `Deleted product "${productName}" (ID: ${productId.substring(0,8)}...).`
-    });
+    await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: 'admin', actionType: 'PRODUCT_DELETE', entityType: 'Product', entityId: productId, description: `Deleted product "${productName}" (ID: ${productId.substring(0,8)}...).` });
     toast({ title: "Product Deleted" });
     router.push('/admin/products');
   };

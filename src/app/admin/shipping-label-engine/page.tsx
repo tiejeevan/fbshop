@@ -12,7 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { parseIndianAddress } from '@/ai/flows/parse-indian-address';
 import type { IndianAddressOutput } from '@/ai/schemas/indian-address';
 import { useToast } from '@/hooks/use-toast';
-
+import { useDataSource } from '@/contexts/DataSourceContext';
+import { useAuth } from '@/hooks/useAuth';
 
 type Address = {
     name: string;
@@ -50,6 +51,8 @@ export default function ShippingLabelEnginePage() {
     const [isParsing, setIsParsing] = useState(false);
     
     const { toast } = useToast();
+    const { dataService } = useDataSource();
+    const { currentUser } = useAuth();
     const labelRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -77,13 +80,15 @@ export default function ShippingLabelEnginePage() {
         if (!addressToParse.trim() || addressToParse.trim().length < 15) {
             return;
         }
+        if (!currentUser || !dataService) return;
         setIsParsing(true);
         try {
             const result: IndianAddressOutput = await parseIndianAddress(addressToParse);
-             if (!result || !result.city || !result.line1) {
+            if (!result || !result.city || !result.line1) {
                 toast({ title: 'AI Parsing Failed', description: 'Could not parse the address. Please check the format or try rephrasing.', variant: 'destructive' });
                 setToAddress(initialToAddress);
                 setIsAddressParsed(false);
+                await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: 'admin', actionType: 'AI_ADDRESS_PARSE_FAIL', description: 'AI failed to parse Indian address.', details: { input: addressToParse } });
                 return;
             }
             setToAddress({
@@ -95,15 +100,19 @@ export default function ShippingLabelEnginePage() {
                 phone: result.phoneNumber || '',
             });
             setIsAddressParsed(true);
+            await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: 'admin', actionType: 'AI_ADDRESS_PARSE_SUCCESS', description: `AI successfully parsed Indian address for ${result.name || 'recipient'}.`, details: { input: addressToParse, output: result } });
         } catch (error) {
             console.error('Error parsing address:', error);
             toast({ title: 'AI Parsing Failed', description: 'Could not parse the address. Try rephrasing or check the format.', variant: 'destructive' });
             setToAddress(initialToAddress);
             setIsAddressParsed(false);
+             if (currentUser && dataService) {
+                await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: 'admin', actionType: 'AI_ADDRESS_PARSE_ERROR', description: 'An error occurred during AI address parsing.', details: { input: addressToParse, error: String(error) } });
+            }
         } finally {
             setIsParsing(false);
         }
-    }, [toast]);
+    }, [toast, currentUser, dataService]);
 
     useEffect(() => {
         if (!unstructuredAddress.trim()) {

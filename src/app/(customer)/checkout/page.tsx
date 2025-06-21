@@ -4,8 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { localStorageService } from '@/lib/localStorageService';
-import type { Cart, OrderItem, Address } from '@/types';
+import type { Cart, Address } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,7 +16,7 @@ import { ProductImage } from '@/components/product/ProductImage';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { AddressForm, AddressFormValues } from '@/components/customer/AddressForm';
-import { simpleUUID } from '@/lib/utils';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export default function CheckoutPage() {
   const { currentUser, refreshUser } = useAuth();
@@ -26,6 +25,7 @@ export default function CheckoutPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -39,28 +39,30 @@ export default function CheckoutPage() {
   const [isAddressFormSubmitting, setIsAddressFormSubmitting] = useState(false);
 
   useEffect(() => {
-    if (currentUser) {
-      const userCart = localStorageService.getCart(currentUser.id);
-      setCart(userCart);
-      if (!userCart || userCart.items.length === 0) {
-        toast({ title: "Empty Cart", variant: "destructive" });
-        router.replace('/products');
-      }
+    async function loadData() {
+        if (currentUser && dataService && !isDataSourceLoading) {
+            const userCart = await dataService.getCart(currentUser.id);
+            setCart(userCart);
+            if (!userCart || userCart.items.length === 0) {
+                toast({ title: "Empty Cart", variant: "destructive" });
+                router.replace('/products');
+            }
 
-      const userAddresses = localStorageService.getUserAddresses(currentUser.id);
-      setAddresses(userAddresses);
-      const defaultAddress = userAddresses.find(addr => addr.isDefault);
-      setSelectedAddressId(defaultAddress?.id || (userAddresses.length > 0 ? userAddresses[0].id : undefined));
-
-    } else {
-      router.replace('/login?redirect=/checkout');
+            const userAddresses = await dataService.getUserAddresses(currentUser.id);
+            setAddresses(userAddresses);
+            const defaultAddress = userAddresses.find(addr => addr.isDefault);
+            setSelectedAddressId(defaultAddress?.id || (userAddresses.length > 0 ? userAddresses[0].id : undefined));
+        } else if (!currentUser && !isDataSourceLoading) {
+            router.replace('/login?redirect=/checkout');
+        }
+        setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [currentUser, router, toast]);
+    loadData();
+  }, [currentUser, router, toast, dataService, isDataSourceLoading]);
 
-  const refreshUserAddresses = () => {
-    if (currentUser) {
-      const userAddresses = localStorageService.getUserAddresses(currentUser.id);
+  const refreshUserAddresses = async () => {
+    if (currentUser && dataService) {
+      const userAddresses = await dataService.getUserAddresses(currentUser.id);
       setAddresses(userAddresses);
       const currentSelected = userAddresses.find(a => a.id === selectedAddressId);
       if (!currentSelected) {
@@ -75,18 +77,18 @@ export default function CheckoutPage() {
   };
 
   const handleAddressFormSubmit = async (data: AddressFormValues, id?: string) => {
-    if (!currentUser) return;
+    if (!currentUser || !dataService) return;
     setIsAddressFormSubmitting(true);
     try {
       let newAddress;
       if (id) { 
-        newAddress = localStorageService.updateUserAddress(currentUser.id, { ...data, id, userId: currentUser.id });
+        newAddress = await dataService.updateUserAddress(currentUser.id, { ...data, id, userId: currentUser.id });
         toast({ title: "Address Updated" });
       } else { 
-        newAddress = localStorageService.addAddressToUser(currentUser.id, data);
+        newAddress = await dataService.addAddressToUser(currentUser.id, data);
         toast({ title: "Address Added" });
       }
-      refreshUserAddresses();
+      await refreshUserAddresses();
       if (newAddress && (newAddress.isDefault || addresses.length === 0)) { 
         setSelectedAddressId(newAddress.id);
       }
@@ -106,7 +108,7 @@ export default function CheckoutPage() {
 
   const handleMockPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !cart || cart.items.length === 0) return;
+    if (!currentUser || !cart || cart.items.length === 0 || !dataService) return;
     if (!selectedAddressId) {
         toast({ title: "Shipping Address Required", description: "Please select or add a shipping address.", variant: "destructive"});
         return;
@@ -120,34 +122,28 @@ export default function CheckoutPage() {
     setIsProcessingPayment(true);
     await new Promise(resolve => setTimeout(resolve, 2500));
 
-    const orderItems: OrderItem[] = cart.items.map(item => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      priceAtPurchase: item.price,
-      name: item.name,
-      primaryImageId: item.primaryImageId,
-    }));
-
     try {
-      const newOrder = localStorageService.addOrder({
+      const newOrder = await dataService.addOrder({
         userId: currentUser.id,
-        items: orderItems,
+        items: cart.items,
         totalAmount: totalAmount,
         status: 'Completed',
         shippingAddress: shippingAddress, 
-        paymentDetails: { method: 'MockCard', transactionId: `mock_txn_${simpleUUID()}` }
-      });
-      localStorageService.clearCart(currentUser.id);
+        paymentDetails: { method: 'MockCard' }
+      }, {id: currentUser.id, email: currentUser.email, role: currentUser.role });
+      
+      await dataService.clearCart(currentUser.id);
       window.dispatchEvent(new CustomEvent('cartUpdated'));
       toast({ title: "Payment Successful!"});
       router.push(`/order-confirmation/${newOrder.id}`);
     } catch (error) {
-      toast({ title: "Order Error", variant: "destructive"});
+      console.error("Order creation failed:", error);
+      toast({ title: "Order Error", description: (error as Error).message || "An unexpected error occurred", variant: "destructive"});
       setIsProcessingPayment(false);
     }
   };
 
-  if (isLoading || (!currentUser && !cart)) {
+  if (isLoading || isDataSourceLoading || (!currentUser && !cart)) {
     return <div className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Loading...</div>;
   }
   if (!cart || cart.items.length === 0) {
