@@ -9,18 +9,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save, Image as ImageIcon, ShieldCheck, Flame, Search } from 'lucide-react';
+import { MoreHorizontal, Trash2, Briefcase, Settings, Loader2, Save, Image as ImageIcon, ShieldCheck, Flame, Search, PlusCircle, Edit as EditIcon } from 'lucide-react';
 import type { Job, JobSettings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 const jobSettingsSchema = z.object({
   maxJobsPerUser: z.coerce.number().int().min(1, 'Must be at least 1').max(100, 'Cannot exceed 100'),
@@ -158,6 +158,7 @@ export default function AdminJobsPage() {
           <h1 className="font-headline text-3xl text-primary flex items-center gap-3"><Briefcase />Job Management</h1>
           <p className="text-muted-foreground">Oversee all jobs and configure system-wide settings.</p>
         </div>
+         <Button asChild><Link href="/admin/jobs/new"><PlusCircle className="mr-2 h-4 w-4" /> Create New Job</Link></Button>
       </div>
 
       <Card>
@@ -249,7 +250,11 @@ export default function AdminJobsPage() {
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button aria-haspopup="true" size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Menu</span></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/admin/jobs/edit/${job.id}`} className="cursor-pointer">
+                                    <EditIcon className="mr-2 h-4 w-4" /> Edit
+                                  </Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setJobToDelete(job)} className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                             </DropdownMenu>
