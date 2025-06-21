@@ -155,6 +155,7 @@ export interface Job {
   title: string;
   description: string;
   status: 'open' | 'accepted' | 'completed' | 'expired';
+  compensationAmount?: number;
   createdById: string;
   createdByName: string;
   createdAt: string; // ISO Date string

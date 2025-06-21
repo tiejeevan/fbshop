@@ -131,8 +131,15 @@ export default function JobsPage() {
           {filteredJobs.map(job => (
             <Card key={job.id} className="flex flex-col">
               <CardHeader>
-                {job.categoryName && <Badge className="mb-2 w-fit">{job.categoryName}</Badge>}
-                <CardTitle className="font-headline text-xl">{job.title}</CardTitle>
+                <div className="flex justify-between items-start gap-2">
+                    {job.categoryName && <Badge className="w-fit self-start">{job.categoryName}</Badge>}
+                    <div className="text-right">
+                        <p className="text-lg font-bold text-primary">
+                            {job.compensationAmount && job.compensationAmount > 0 ? `$${job.compensationAmount.toFixed(2)}` : 'Volunteer'}
+                        </p>
+                    </div>
+                </div>
+                <CardTitle className="font-headline text-xl pt-1">{job.title}</CardTitle>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
                     <Avatar className="h-6 w-6">
                         <AvatarImage src={`https://placehold.co/40x40.png?text=${job.createdByName.charAt(0)}`} alt={job.createdByName} data-ai-hint="user avatar" />

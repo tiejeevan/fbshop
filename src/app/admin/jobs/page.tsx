@@ -168,6 +168,7 @@ export default function AdminJobsPage() {
                 <TableHeader>
                     <TableRow>
                     <TableHead>Title</TableHead>
+                    <TableHead>Compensation</TableHead>
                     <TableHead>Created By</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Images</TableHead>
@@ -180,6 +181,9 @@ export default function AdminJobsPage() {
                     {jobs.map((job) => (
                         <TableRow key={job.id}>
                         <TableCell className="font-medium">{job.title}</TableCell>
+                        <TableCell>
+                          {job.compensationAmount && job.compensationAmount > 0 ? `$${job.compensationAmount.toFixed(2)}` : <Badge variant="secondary">Volunteer</Badge>}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{job.createdByName}</TableCell>
                         <TableCell><Badge variant={getStatusBadgeVariant(job.status)}>{job.status}</Badge></TableCell>
                         <TableCell>

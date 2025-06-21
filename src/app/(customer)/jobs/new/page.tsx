@@ -15,7 +15,7 @@ import type { JobSettings, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus } from 'lucide-react';
+import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { add } from 'date-fns';
 import Image from 'next/image';
@@ -29,6 +29,7 @@ const jobFormSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(100, 'Title cannot exceed 100 characters'),
   description: z.string().min(20, 'Description must be at least 20 characters').max(1000, 'Description cannot exceed 1000 characters'),
   categoryId: z.string().min(1, 'Please select a category'),
+  compensationAmount: z.coerce.number().min(0, "Compensation must be 0 or more").optional(),
   durationInHours: z.coerce.number().int().min(1, 'Duration must be at least 1 hour'),
 });
 
@@ -127,6 +128,7 @@ export default function NewJobPage() {
         title: data.title,
         description: data.description,
         categoryId: data.categoryId,
+        compensationAmount: data.compensationAmount,
         createdById: currentUser.id,
         expiresAt: expiresAt.toISOString(),
       };
@@ -191,6 +193,13 @@ export default function NewJobPage() {
                                 )}/>
                                 {errors.categoryId && <p className="text-sm text-destructive">{errors.categoryId.message}</p>}
                                 {jobCategories.length === 0 && <p className="text-xs text-muted-foreground">Admins need to create job categories first.</p>}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label htmlFor="compensationAmount" className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-muted-foreground"/>Compensation ($) (Optional)</Label>
+                                <Input id="compensationAmount" {...register('compensationAmount')} type="number" step="0.01" min="0" placeholder="e.g. 25.00" />
+                                {errors.compensationAmount && <p className="text-sm text-destructive">{errors.compensationAmount.message}</p>}
+                                <p className="text-xs text-muted-foreground">Leave blank or set to 0 for volunteer jobs.</p>
                             </div>
                             
                              <div className="space-y-3 border p-4 rounded-md bg-muted/30">
