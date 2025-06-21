@@ -101,9 +101,10 @@ export default function EditCustomerPage() {
       await dataService.updateUser(updatedCustomerData);
 
       const logDescription = generateUserChangeDescription(oldUserSnapshot, data);
-      await dataService.addAdminActionLog({
-          adminId: adminUserPerformingAction.id,
-          adminEmail: adminUserPerformingAction.email,
+      await dataService.addActivityLog({
+          actorId: adminUserPerformingAction.id,
+          actorEmail: adminUserPerformingAction.email,
+          actorRole: 'admin',
           actionType: 'USER_UPDATE',
           entityType: 'User',
           entityId: id,

@@ -11,7 +11,6 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useDataSource } from '@/contexts/DataSourceContext';
-// Removed: import { saveImage as saveImageToDB } from '@/lib/indexedDbService'; - Now handled by dataService
 
 export default function NewCategoryPage() {
   const router = useRouter();
@@ -68,9 +67,10 @@ export default function NewCategoryPage() {
       logDescription += ` Status: ${newCategory.isActive ? 'Active' : 'Inactive'}. Display Order: ${newCategory.displayOrder}.`;
 
 
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'CATEGORY_CREATE',
         entityType: 'Category',
         entityId: newCategory.id,

@@ -69,9 +69,10 @@ export default function AdminEditJobPage() {
 
       await dataService.updateJob(updatePayload);
 
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_UPDATE',
         entityType: 'Job',
         entityId: jobId,

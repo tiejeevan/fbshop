@@ -80,9 +80,10 @@ export default function AdminCustomersPage() {
 
     const success = await dataService.deleteUser(userId);
     if (success) {
-      await dataService.addAdminActionLog({
-          adminId: adminUserPerformingAction.id,
-          adminEmail: adminUserPerformingAction.email,
+      await dataService.addActivityLog({
+          actorId: adminUserPerformingAction.id,
+          actorEmail: adminUserPerformingAction.email,
+          actorRole: 'admin',
           actionType: 'USER_DELETE',
           entityType: 'User',
           entityId: userId,

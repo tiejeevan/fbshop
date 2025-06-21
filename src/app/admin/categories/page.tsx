@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, PlusCircle, Edit, Trash2, Search, Filter, ChevronDown, ChevronRight, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import type { Category, Product, AdminActionLog } from '@/types';
+import type { Category, Product } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -133,9 +133,10 @@ export default function AdminCategoriesPage() {
 
     const success = await dataService.deleteCategory(categoryId);
     if (success) {
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'CATEGORY_DELETE',
         entityType: 'Category',
         entityId: categoryId,
@@ -201,9 +202,10 @@ export default function AdminCategoriesPage() {
         } else if (action === 'setInactive') {
             logDescription = `Batch set ${successCount} categories to inactive: ${affectedCategoryNames.slice(0,3).join(', ')}${affectedCategoryNames.length > 3 ? '...' : ''}.`;
         }
-        await dataService.addAdminActionLog({
-            adminId: currentUser.id,
-            adminEmail: currentUser.email,
+        await dataService.addActivityLog({
+            actorId: currentUser.id,
+            actorEmail: currentUser.email,
+            actorRole: 'admin',
             actionType: `CATEGORY_BATCH_${action.toUpperCase()}`,
             entityType: 'Category',
             description: logDescription

@@ -24,9 +24,10 @@ export default function NewJobCategoryPage() {
     }
     try {
       const newCategory = await dataService.addJobCategory(data);
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_CATEGORY_CREATE',
         entityType: 'JobCategory',
         entityId: newCategory.id,

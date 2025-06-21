@@ -59,9 +59,10 @@ export default function AdminNewJobPage() {
 
       const newJob = await dataService.addJob(jobData);
       
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_CREATE',
         entityType: 'Job',
         entityId: newJob.id,

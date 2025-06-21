@@ -77,9 +77,10 @@ export default function AdminJobCategoriesPage() {
 
     const success = await dataService.deleteJobCategory(categoryId);
     if (success) {
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_CATEGORY_DELETE',
         entityType: 'JobCategory',
         entityId: categoryId,

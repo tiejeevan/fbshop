@@ -65,9 +65,10 @@ export default function EditJobCategoryPage() {
     try {
       await dataService.updateJobCategory({ ...data, id, createdAt: category.createdAt, updatedAt: '' });
       const logDescription = generateChangeDescription(category, data);
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_CATEGORY_UPDATE',
         entityType: 'JobCategory',
         entityId: id,

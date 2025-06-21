@@ -135,9 +135,10 @@ export default function EditCategoryPage() {
       await dataService.updateCategory(updatedCategoryData);
 
       const logDescription = await generateCategoryChangeDescription(oldCategorySnapshot, data, imageUpdatedInThisAction, dataService, oldParentName, newParentNameIfChanged);
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'CATEGORY_UPDATE',
         entityType: 'Category',
         entityId: id,

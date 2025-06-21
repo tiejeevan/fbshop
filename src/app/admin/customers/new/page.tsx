@@ -36,9 +36,10 @@ export default function NewCustomerPage() {
       });
 
       const logDescription = `Created user "${newUser.name || newUser.email}" (ID: ${newUser.id.substring(0,8)}) with role "${newUser.role}".`;
-      await dataService.addAdminActionLog({
-          adminId: adminUserPerformingAction.id,
-          adminEmail: adminUserPerformingAction.email,
+      await dataService.addActivityLog({
+          actorId: adminUserPerformingAction.id,
+          actorEmail: adminUserPerformingAction.email,
+          actorRole: 'admin',
           actionType: 'USER_CREATE',
           entityType: 'User',
           entityId: newUser.id,

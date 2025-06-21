@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { simpleUUID } from '@/lib/utils';
-// Removed: import { saveImage as saveImageToDB } from '@/lib/indexedDbService'; - Handled by dataService
 
 export default function NewProductPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -96,9 +95,10 @@ export default function NewProductPage() {
       if (additionalImageIds.length > 0) logDescription += ` ${additionalImageIds.length} additional image(s) added.`;
 
 
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'PRODUCT_CREATE',
         entityType: 'Product',
         entityId: newProduct.id,

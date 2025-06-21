@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useCallback, use } from 'react'; // Added use
 import { ProductForm, ProductFormValues } from '../../ProductForm';
 import type { Product, Category } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -46,9 +46,8 @@ const generateProductChangeDescription = async (
   return `Updated product "${newData.name}": ${changes.join(' ')}`;
 };
 
-// Modified props to expect paramsPromise
-export default function EditProductPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-  const params = use(paramsPromise); // Unwrap the promise here
+export default function EditProductPage() {
+  const params = useParams<{ id: string }>();
   const productIdFromParams = params.id;
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -87,10 +86,10 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
   }, [dataService, isDataSourceLoading, router, toast]);
 
   useEffect(() => {
-    if (productIdFromParams) { // Use the unwrapped id
+    if (productIdFromParams) { 
       fetchInitialData(productIdFromParams);
     }
-  }, [productIdFromParams, fetchInitialData]); // Depend on the unwrapped id
+  }, [productIdFromParams, fetchInitialData]);
 
   const handleEditProduct = async (
     data: ProductFormValues,
@@ -168,9 +167,10 @@ export default function EditProductPage({ params: paramsPromise }: { params: Pro
       await dataService.updateProduct(updatedProductData);
 
       const logDescription = await generateProductChangeDescription(oldProductSnapshot, data, imageChangeDescriptions, dataService);
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'PRODUCT_UPDATE',
         entityType: 'Product',
         entityId: id,

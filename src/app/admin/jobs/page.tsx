@@ -80,9 +80,10 @@ export default function AdminJobsPage() {
     const jobId = jobToDelete.id;
     const success = await dataService.deleteJob(jobId);
     if (success) {
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_DELETE',
         entityType: 'Job',
         entityId: jobId,
@@ -101,9 +102,10 @@ export default function AdminJobsPage() {
     try {
       const newVerifiedState = !job.isVerified;
       await dataService.updateJob({ id: job.id, isVerified: newVerifiedState });
-       await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+       await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_VERIFICATION',
         entityType: 'Job',
         entityId: job.id,
@@ -121,9 +123,10 @@ export default function AdminJobsPage() {
     if (!dataService || !currentUser) return;
     try {
       await dataService.updateJobSettings(data);
-      await dataService.addAdminActionLog({
-        adminId: currentUser.id,
-        adminEmail: currentUser.email,
+      await dataService.addActivityLog({
+        actorId: currentUser.id,
+        actorEmail: currentUser.email,
+        actorRole: 'admin',
         actionType: 'JOB_SETTINGS_UPDATE',
         entityType: 'Settings',
         description: `Updated job settings: Max jobs/user to ${data.maxJobsPerUser}, max duration to ${data.maxTimerDurationDays} days.`
