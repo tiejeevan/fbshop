@@ -133,11 +133,9 @@ export default function JobsPage() {
               <CardHeader>
                 <div className="flex justify-between items-start gap-2">
                     {job.categoryName && <Badge className="w-fit self-start">{job.categoryName}</Badge>}
-                    <div className="text-right">
-                        <p className="text-lg font-bold text-primary">
-                            {job.compensationAmount && job.compensationAmount > 0 ? `$${job.compensationAmount.toFixed(2)}` : 'Volunteer'}
-                        </p>
-                    </div>
+                    <p className="text-lg font-bold text-primary">
+                        {job.compensationAmount && job.compensationAmount > 0 ? `$${job.compensationAmount.toFixed(2)}` : 'Volunteer'}
+                    </p>
                 </div>
                 <CardTitle className="font-headline text-xl pt-1">{job.title}</CardTitle>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
@@ -196,4 +194,3 @@ export default function JobsPage() {
     </div>
   );
 }
-

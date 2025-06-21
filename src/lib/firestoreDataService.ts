@@ -933,34 +933,22 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const jobsColRef = collection(db, "jobs");
     const queryConstraints: any[] = [];
-    let hasFilter = false;
-
+    
     if (options.status) {
         queryConstraints.push(where("status", "==", options.status));
-        hasFilter = true;
     }
     if (options.createdById) {
         queryConstraints.push(where("createdById", "==", options.createdById));
-        hasFilter = true;
     }
     if (options.acceptedById) {
         queryConstraints.push(where("acceptedById", "==", options.acceptedById));
-        hasFilter = true;
-    }
-    
-    // Only apply orderBy if there are no other filters to avoid needing composite indexes.
-    if (!hasFilter) {
-        queryConstraints.push(orderBy("createdAt", "desc"));
     }
 
+    queryConstraints.push(orderBy("createdAt", "desc"));
+    
     const q = query(jobsColRef, ...queryConstraints);
     const snapshot = await getDocs(q);
     let jobs = mapDocsToTypeArray<Job>(snapshot);
-
-    // If we filtered, we need to sort manually since we couldn't do it in the query.
-    if (hasFilter) {
-        jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
 
     const now = new Date();
     const batch = writeBatch(db);
