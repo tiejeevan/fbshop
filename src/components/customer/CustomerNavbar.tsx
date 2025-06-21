@@ -22,6 +22,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { LoginModal } from '@/components/auth/LoginModal';
 import Link from 'next/link';
 import { useDataSource } from '@/contexts/DataSourceContext';
+import { NotificationBell } from './NotificationBell';
 
 export function CustomerNavbar() {
   const { currentUser, logout } = useAuth();
@@ -154,6 +155,7 @@ export function CustomerNavbar() {
             </Button>
           )}
           <ThemeToggle />
+          {currentUser && <NotificationBell />}
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />

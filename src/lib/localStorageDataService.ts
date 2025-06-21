@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage, JobReview, JobCategory
+  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification
 } from '@/types';
 import {
     saveImage as saveImageToDB,
@@ -35,6 +35,7 @@ const KEYS = {
   JOB_CHATS: 'localcommerce_job_chats',
   JOB_SETTINGS: 'localcommerce_job_settings',
   JOB_REVIEWS: 'localcommerce_job_reviews',
+  NOTIFICATIONS: 'localcommerce_notifications',
 };
 
 function getItem<T>(key: string): T | null {
@@ -115,6 +116,7 @@ const localStorageDataService: IDataService = {
     if (!getItem(KEYS.JOB_CHATS)) setItem(KEYS.JOB_CHATS, []);
     if (!getItem(KEYS.JOB_SETTINGS)) setItem(KEYS.JOB_SETTINGS, { maxJobsPerUser: 5, maxTimerDurationDays: 10 });
     if (!getItem(KEYS.JOB_REVIEWS)) setItem(KEYS.JOB_REVIEWS, []);
+    if (!getItem(KEYS.NOTIFICATIONS)) setItem(KEYS.NOTIFICATIONS, []);
     
     isDataInitialized = true;
   },
@@ -552,7 +554,19 @@ const localStorageDataService: IDataService = {
     let jobs = getItem<Job[]>(KEYS.JOBS) || [];
     const index = jobs.findIndex(j => j.id === updatedJob.id);
     if (index !== -1) {
-        jobs[index] = { ...jobs[index], ...updatedJob };
+        const oldJob = jobs[index];
+        const newJob = { ...oldJob, ...updatedJob };
+        
+        if (newJob.status === 'completed' && oldJob.status !== 'completed' && newJob.acceptedById) {
+            await this.addNotification({
+                userId: newJob.acceptedById,
+                message: `Your job "${newJob.title}" was marked as complete.`,
+                link: `/profile/jobs`,
+                type: 'job_completed',
+                isRead: false
+            });
+        }
+        jobs[index] = newJob;
         setItem(KEYS.JOBS, jobs);
         return jobs[index];
     }
@@ -583,7 +597,17 @@ const localStorageDataService: IDataService = {
     job.acceptedByName = acceptingUserName;
     job.acceptedAt = new Date().toISOString();
     
-    return this.updateJob(job);
+    const updatedJob = await this.updateJob(job);
+    if (updatedJob) {
+        await this.addNotification({
+            userId: job.createdById,
+            message: `${acceptingUserName} accepted your job: "${job.title}"`,
+            link: `/profile/jobs`,
+            type: 'job_accepted',
+            isRead: false
+        });
+    }
+    return updatedJob;
   },
 
   async getChatForJob(jobId: string): Promise<ChatMessage[]> {
@@ -608,8 +632,21 @@ const localStorageDataService: IDataService = {
     } else {
       chats.push({ jobId, messages: [newMessage] });
     }
-
     setItem(KEYS.JOB_CHATS, chats);
+    
+    const job = await this.findJobById(jobId);
+    if (job) {
+        const recipientId = messageData.senderId === job.createdById ? job.acceptedById : job.createdById;
+        if (recipientId) {
+            await this.addNotification({
+                userId: recipientId,
+                message: `New message from ${messageData.senderName} for job: "${job.title}"`,
+                link: `/jobs/${jobId}/chat`,
+                type: 'new_message',
+                isRead: false,
+            });
+        }
+    }
     return newMessage;
   },
   
@@ -649,6 +686,39 @@ const localStorageDataService: IDataService = {
   async getReviewsAboutUser(userId: string): Promise<JobReview[]> {
       const reviews = getItem<JobReview[]>(KEYS.JOB_REVIEWS) || [];
       return reviews.filter(r => r.revieweeId === userId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+  async getNotifications(userId): Promise<Notification[]> {
+      return (getItem<Notification[]>(KEYS.NOTIFICATIONS) || []).filter(n => n.userId === userId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+  async addNotification(notificationData): Promise<Notification> {
+      const notifications = getItem<Notification[]>(KEYS.NOTIFICATIONS) || [];
+      const newNotification: Notification = {
+          ...notificationData,
+          id: simpleUUID(),
+          createdAt: new Date().toISOString(),
+      };
+      notifications.push(newNotification);
+      setItem(KEYS.NOTIFICATIONS, notifications);
+      return newNotification;
+  },
+  async markNotificationAsRead(userId, notificationId): Promise<boolean> {
+      const notifications = getItem<Notification[]>(KEYS.NOTIFICATIONS) || [];
+      const index = notifications.findIndex(n => n.id === notificationId && n.userId === userId);
+      if (index !== -1) {
+          notifications[index].isRead = true;
+          setItem(KEYS.NOTIFICATIONS, notifications);
+          return true;
+      }
+      return false;
+  },
+  async markAllNotificationsAsRead(userId): Promise<void> {
+      const notifications = getItem<Notification[]>(KEYS.NOTIFICATIONS) || [];
+      notifications.forEach(n => {
+          if (n.userId === userId) {
+              n.isRead = true;
+          }
+      });
+      setItem(KEYS.NOTIFICATIONS, notifications);
   },
 };
 

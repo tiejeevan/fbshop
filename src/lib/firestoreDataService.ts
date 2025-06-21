@@ -5,7 +5,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
-  Job, JobSettings, ChatMessage, JobReview, JobCategory
+  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification
 } from '@/types';
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
@@ -955,7 +955,22 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async updateJob(updatedJob): Promise<Job | null> {
     if (!db) throw new Error("Firestore not initialized");
     const jobRef = doc(db, "jobs", updatedJob.id);
-    await updateDoc(jobRef, { ...updatedJob, updatedAt: serverTimestamp() });
+    const oldJobSnap = await getDoc(jobRef);
+    const oldJob = oldJobSnap.data() as Job | undefined;
+    
+    const updatePayload: any = { ...updatedJob, updatedAt: serverTimestamp() };
+    await updateDoc(jobRef, updatePayload);
+
+    if (oldJob && oldJob.status !== 'completed' && updatedJob.status === 'completed' && oldJob.acceptedById) {
+      await this.addNotification({
+        userId: oldJob.acceptedById,
+        message: `Your job "${oldJob.title}" was marked as complete.`,
+        link: `/profile/jobs`,
+        type: 'job_completed',
+        isRead: false
+      });
+    }
+
     const docSnap = await getDoc(jobRef);
     return mapDocToType<Job>(docSnap);
   },
@@ -977,11 +992,13 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const jobRef = doc(db, "jobs", jobId);
     try {
+      let jobCreatorId: string;
       await runTransaction(db, async (transaction) => {
         const jobDoc = await transaction.get(jobRef);
         if (!jobDoc.exists() || jobDoc.data().status !== 'open') {
           throw new Error("Job is not available to be accepted.");
         }
+        jobCreatorId = jobDoc.data().createdById;
         transaction.update(jobRef, {
           status: 'accepted',
           acceptedById: acceptingUserId,
@@ -990,7 +1007,18 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         });
       });
       const updatedJobDoc = await getDoc(jobRef);
-      return mapDocToType<Job>(updatedJobDoc);
+      const updatedJob = mapDocToType<Job>(updatedJobDoc);
+
+      if (updatedJob) {
+        await this.addNotification({
+            userId: updatedJob.createdById,
+            message: `${acceptingUserName} accepted your job: "${updatedJob.title}"`,
+            link: `/profile/jobs`,
+            type: 'job_accepted',
+            isRead: false
+        });
+      }
+      return updatedJob;
     } catch (error) {
       console.error("Error accepting job:", error);
       return null;
@@ -1005,12 +1033,27 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
   async sendMessage(jobId: string, messageData: Omit<ChatMessage, 'id' | 'timestamp' | 'jobId'>): Promise<ChatMessage> {
     if (!db) throw new Error("Firestore not initialized");
+    const job = await this.findJobById(jobId);
+    if (!job) throw new Error("Job not found");
+
     const chatCol = collection(db, `jobs/${jobId}/chatMessages`);
     const docRef = await addDoc(chatCol, {
       ...messageData,
       jobId,
       timestamp: serverTimestamp(),
     });
+
+    const recipientId = messageData.senderId === job.createdById ? job.acceptedById : job.createdById;
+    if (recipientId) {
+        await this.addNotification({
+            userId: recipientId,
+            message: `New message from ${messageData.senderName} for job: "${job.title}"`,
+            link: `/jobs/${jobId}/chat`,
+            type: 'new_message',
+            isRead: false,
+        });
+    }
+
     return {
       ...messageData,
       id: docRef.id,
@@ -1076,5 +1119,36 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       const q = query(reviewsGroup, where('revieweeId', '==', userId), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
       return mapDocsToTypeArray<JobReview>(snapshot);
+  },
+  async addNotification(notificationData): Promise<Notification> {
+    if (!db) throw new Error("Firestore not initialized");
+    const notificationsCol = collection(db, `users/${notificationData.userId}/notifications`);
+    const docRef = await addDoc(notificationsCol, {
+      ...notificationData,
+      createdAt: serverTimestamp(),
+    });
+    return { ...notificationData, id: docRef.id, createdAt: new Date().toISOString() };
+  },
+  async getNotifications(userId: string): Promise<Notification[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const notificationsCol = collection(db, `users/${userId}/notifications`);
+    const q = query(notificationsCol, orderBy("createdAt", "desc"), limit(20));
+    const snapshot = await getDocs(q);
+    return mapDocsToTypeArray<Notification>(snapshot);
+  },
+  async markNotificationAsRead(userId, notificationId): Promise<boolean> {
+    if (!db) throw new Error("Firestore not initialized");
+    const notificationRef = doc(db, `users/${userId}/notifications`, notificationId);
+    await updateDoc(notificationRef, { isRead: true });
+    return true;
+  },
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    if (!db) throw new Error("Firestore not initialized");
+    const notificationsCol = collection(db, `users/${userId}/notifications`);
+    const q = query(notificationsCol, where("isRead", "==", false));
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(d => batch.update(d.ref, { isRead: true }));
+    await batch.commit();
   },
 };

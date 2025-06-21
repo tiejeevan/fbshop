@@ -3,7 +3,7 @@
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
   WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme,
-  Job, JobSettings, ChatMessage, JobReview, JobCategory
+  Job, JobSettings, ChatMessage, JobReview, JobCategory, Notification
 } from '@/types';
 
 export interface IDataService {
@@ -117,4 +117,10 @@ export interface IDataService {
   // Job Settings methods
   getJobSettings: () => Promise<JobSettings>;
   updateJobSettings: (settings: JobSettings) => Promise<JobSettings>;
+  
+  // Notification methods
+  addNotification: (notification: Omit<Notification, 'id' | 'createdAt'>) => Promise<Notification>;
+  getNotifications: (userId: string) => Promise<Notification[]>;
+  markNotificationAsRead: (userId: string, notificationId: string) => Promise<boolean>;
+  markAllNotificationsAsRead: (userId: string) => Promise<void>;
 }

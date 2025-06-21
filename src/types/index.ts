@@ -195,3 +195,13 @@ export interface JobReview {
   comment: string;
   createdAt: string; // ISO Date string
 }
+
+export interface Notification {
+  id: string;
+  userId: string; // The user who this notification is for
+  message: string;
+  link: string; // URL to navigate to when clicked
+  isRead: boolean;
+  createdAt: string; // ISO Date string
+  type: 'job_accepted' | 'new_message' | 'job_completed' | 'job_expired' | 'generic';
+}
