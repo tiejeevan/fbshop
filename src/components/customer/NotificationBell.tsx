@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bell, CheckCheck, CircleDot } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useDataSource } from '@/hooks/useDataSource';
+import { useDataSource } from '@/contexts/DataSourceContext';
 import type { Notification } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
