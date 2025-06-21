@@ -139,3 +139,22 @@ export interface AdminActionLog {
   timestamp: string; // ISO Date string
   description: string; // Human-readable log message
 }
+
+export interface Job {
+  id: string;
+  title: string;
+  description: string;
+  status: 'open' | 'accepted' | 'completed' | 'expired';
+  createdById: string;
+  createdByName: string;
+  createdAt: string; // ISO Date string
+  expiresAt: string; // ISO Date string
+  acceptedById?: string | null;
+  acceptedByName?: string | null;
+  acceptedAt?: string | null; // ISO Date string
+}
+
+export interface JobSettings {
+  maxJobsPerUser: number;
+  maxTimerDurationDays: number;
+}

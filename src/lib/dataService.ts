@@ -2,7 +2,8 @@
 // src/lib/dataService.ts
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
-  WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme
+  WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme,
+  Job, JobSettings
 } from '@/types';
 
 export interface IDataService {
@@ -80,9 +81,6 @@ export interface IDataService {
   addAdminActionLog: (logData: Omit<AdminActionLog, 'id' | 'timestamp'>) => Promise<void>;
 
   // Current User (Session management specific)
-  // These are synchronous in localStorageService for immediate session access.
-  // Firestore would rely on Firebase Auth's own session management.
-  // The IDataService versions are kept synchronous for this specific purpose.
   setCurrentUser: (user: User | null) => void;
   getCurrentUser: () => (User & { role: UserRole }) | null;
 
@@ -91,4 +89,16 @@ export interface IDataService {
   getImage: (imageId: string) => Promise<Blob | null>;
   deleteImage: (imageId: string) => Promise<void>;
   deleteImagesForEntity: (imageIds: string[]) => Promise<void>;
+
+  // Job methods
+  getJobs: (options?: { userId?: string; status?: Job['status']; createdById?: string; acceptedById?: string; }) => Promise<Job[]>;
+  addJob: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'createdByName'>) => Promise<Job>;
+  updateJob: (updatedJob: Partial<Job> & { id: string }) => Promise<Job | null>;
+  deleteJob: (jobId: string) => Promise<boolean>;
+  findJobById: (jobId: string) => Promise<Job | undefined>;
+  acceptJob: (jobId: string, acceptingUserId: string, acceptingUserName: string) => Promise<Job | null>;
+
+  // Job Settings methods
+  getJobSettings: () => Promise<JobSettings>;
+  updateJobSettings: (settings: JobSettings) => Promise<JobSettings>;
 }

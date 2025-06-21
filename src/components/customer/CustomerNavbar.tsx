@@ -4,7 +4,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag, User, LogOut, Menu, ShoppingCart, PackageSearch, Heart, History, LayoutDashboard, MapPin, Globe, Loader2 } from 'lucide-react';
+import { ShoppingBag, User, LogOut, Menu, ShoppingCart, Briefcase, Heart, History, LayoutDashboard, MapPin, Globe, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -60,28 +60,31 @@ export function CustomerNavbar() {
 
 
   useEffect(() => {
-    // Initial call to update cart count when component mounts or dependencies change
     if (!isDataSourceLoading && dataService && currentUser) {
         updateCartCount();
     }
-
-    // Event listener for cart updates
     const handleCartUpdate = () => {
-        // updateCartCount already checks for dataService and currentUser
         updateCartCount();
     };
     window.addEventListener('cartUpdated', handleCartUpdate);
-
     return () => {
       window.removeEventListener('cartUpdated', handleCartUpdate);
     };
-  }, [updateCartCount, isDataSourceLoading, pathname, currentUser, dataService]); // Added currentUser and dataService to ensure effect runs if they change affecting initial call logic
+  }, [updateCartCount, isDataSourceLoading, pathname, currentUser, dataService]);
 
 
   const handleLogout = () => {
     logout();
     router.push('/');
   };
+
+  const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => (
+    <Link href={href} passHref>
+        <Button variant="ghost" className={cn("text-sm font-medium", pathname.startsWith(href) ? 'text-primary' : 'text-muted-foreground')}>
+            {children}
+        </Button>
+    </Link>
+  );
 
   const UserMenu = () => (
     <DropdownMenu>
@@ -110,6 +113,9 @@ export function CustomerNavbar() {
           <Link href="/profile/addresses"><MapPin className="mr-2 h-4 w-4" /> {translations.myAddresses}</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
+            <Link href="/profile/jobs"><Briefcase className="mr-2 h-4 w-4" /> My Jobs</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/profile/orders"><History className="mr-2 h-4 w-4" /> {translations.orderHistory}</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="cursor-pointer">
@@ -126,10 +132,17 @@ export function CustomerNavbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-        <Link href="/products" className="flex items-center gap-2" onClick={() => setIsSheetOpen(false)}>
-          <ShoppingBag className="h-7 w-7 text-primary" />
-          <span className="font-headline text-2xl font-semibold text-primary">{translations.storeName}</span>
-        </Link>
+        <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2" onClick={() => setIsSheetOpen(false)}>
+              <ShoppingBag className="h-7 w-7 text-primary" />
+              <span className="font-headline text-2xl font-semibold text-primary hidden sm:inline-block">{translations.storeName}</span>
+            </Link>
+             <nav className="hidden md:flex items-center gap-2">
+                <NavLink href="/products">Products</NavLink>
+                <NavLink href="/jobs">Jobs</NavLink>
+            </nav>
+        </div>
+
 
         <div className="flex items-center gap-1 sm:gap-2">
           {currentUser && currentUser.role === 'admin' && (
@@ -144,7 +157,7 @@ export function CustomerNavbar() {
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />
-              {isDataSourceLoading && !currentUser ? ( // Show loader if data source is loading AND no current user (initial app load)
+              {isDataSourceLoading && !currentUser ? (
                 <Loader2 className="absolute -top-1 -right-1 h-4 w-4 animate-spin text-primary" />
               ) : cartItemCount > 0 && (
                 <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full">
@@ -168,6 +181,9 @@ export function CustomerNavbar() {
             </SheetTrigger>
             <SheetContent side="left" className="w-[300px] sm:w-[400px]">
               <nav className="mt-8 flex flex-col gap-4">
+                <Link href="/products" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.includes("/products") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><ShoppingBag className="mr-2 h-5 w-5" /> Products</Link>
+                <Link href="/jobs" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.includes("/jobs") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Briefcase className="mr-2 h-5 w-5" /> Jobs</Link>
+                <DropdownMenuSeparator />
                 {currentUser && currentUser.role === 'admin' && (
                      <Link href="/admin/dashboard" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.includes("/admin") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}>
                         <LayoutDashboard className="mr-2 h-5 w-5" /> {translations.adminDashboard}
@@ -178,6 +194,7 @@ export function CustomerNavbar() {
                     <DropdownMenuSeparator />
                      <Link href="/profile" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><User className="mr-2 h-5 w-5" /> {translations.profile}</Link>
                      <Link href="/profile/addresses" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/addresses") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><MapPin className="mr-2 h-5 w-5" /> {translations.myAddresses}</Link>
+                     <Link href="/profile/jobs" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/jobs") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Briefcase className="mr-2 h-5 w-5" /> My Jobs</Link>
                      <Link href="/profile/orders" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/orders") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><History className="mr-2 h-5 w-5" /> {translations.orderHistory}</Link>
                      <Link href="/profile/wishlist" onClick={() => setIsSheetOpen(false)} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-lg font-medium transition-colors hover:bg-accent hover:text-accent-foreground", pathname.endsWith("/profile/wishlist") ? "bg-accent text-accent-foreground" : "text-muted-foreground")}><Heart className="mr-2 h-5 w-5" /> {translations.wishlist}</Link>
                    </>

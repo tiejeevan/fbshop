@@ -4,7 +4,8 @@
 
 import type {
   User, Product, Category, Cart, Order, LoginActivity, UserRole,
-  WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem
+  WishlistItem, Review, RecentlyViewedItem, Address, AdminActionLog, Theme, CartItem, OrderItem,
+  Job, JobSettings
 } from '@/types';
 import type { IDataService } from './dataService';
 import type { Firestore } from 'firebase/firestore';
@@ -67,6 +68,16 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     }
     console.log("Checking Firestore for initial data setup (seed)...");
 
+    const settingsRef = collection(db, "settings");
+    
+    // Seed Job Settings
+    const jobSettingsDocRef = doc(settingsRef, 'jobs');
+    const jobSettingsSnap = await getDoc(jobSettingsDocRef);
+    if (!jobSettingsSnap.exists()) {
+        console.log("Job settings not found in Firestore, creating default...");
+        await setDoc(jobSettingsDocRef, { maxJobsPerUser: 5, maxTimerDurationDays: 10 });
+    }
+
     // Seed Admin User
     const usersCol = collection(db, "users");
     const adminQuery = query(usersCol, where("email", "==", "admin@localcommerce.com"), limit(1));
@@ -112,7 +123,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         }
     }
 
-
     // Seed Categories
     const categoriesCol = collection(db, "categories");
     const catSnapshot = await getDocs(query(categoriesCol, limit(1)));
@@ -137,41 +147,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         await batch.commit();
         console.log("Initial categories seeded to Firestore.");
     }
-
-    // Seed Products
-    const productsCol = collection(db, "products");
-    const prodSnapshot = await getDocs(query(productsCol, limit(1)));
-    if (prodSnapshot.empty) {
-        console.log("No products found in Firestore, seeding initial products...");
-        const allCategories = mapDocsToTypeArray<Category>(await getDocs(categoriesCol));
-        const electronicsCat = allCategories.find(c => c.slug === 'electronics-fs');
-        const booksCat = allCategories.find(c => c.slug === 'books-fs');
-
-        const mockProducts: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'>[] = [
-          { name: 'FS Wireless Headphones X3000', description: 'Firestore-backed immersive sound with noise-cancelling.', price: 159.99, stock: 55, categoryId: electronicsCat?.id || allCategories[0]?.id || '', primaryImageId: null, additionalImageIds: [] },
-          { name: 'FS Smartwatch ConnectUltra', description: 'Track fitness and stay connected with this FS smartwatch.', price: 279.50, stock: 35, categoryId: electronicsCat?.id || allCategories[0]?.id || '', primaryImageId: null, additionalImageIds: [] },
-          { name: 'FS The Algorithmic Detective', description: 'A thrilling tech mystery novel, Firestore edition.', price: 22.99, stock: 110, categoryId: booksCat?.id || allCategories[1]?.id || '', primaryImageId: null, additionalImageIds: [] },
-        ];
-        const batch = writeBatch(db);
-        mockProducts.forEach(prodData => {
-            const prodDocRef = doc(productsCol);
-            batch.set(prodDocRef, {
-                ...prodData,
-                id: prodDocRef.id,
-                primaryImageId: prodData.primaryImageId || null,
-                additionalImageIds: prodData.additionalImageIds || [],
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                views: Math.floor(Math.random() * 100),
-                purchases: Math.floor(Math.random() * 20),
-                averageRating: 0,
-                reviewCount: 0,
-            });
-        });
-        await batch.commit();
-        console.log("Initial products seeded to Firestore.");
-    }
-    console.log("Firestore data initialization check complete.");
   },
 
   async getUsers(): Promise<User[]> {
@@ -808,9 +783,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async getImage(imageId: string): Promise<Blob | null> {
-    // This method is primarily for IndexedDB. For Firebase, imageId will be a URL.
-    // If it's a URL, it's handled by ProductImage component directly.
-    // If by some chance an IndexedDB key is passed here while in Firebase mode, fallback.
      if (imageId.startsWith('http')) {
         console.warn("firestoreDataService.getImage called with a URL, this should be handled by client. Returning null.");
         return null;
@@ -832,19 +804,123 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             console.warn(`Image not found in Firebase Storage for deletion: ${imageId}`);
           } else {
             console.error("Error deleting image from Firebase Storage:", error, imageId);
-            // Do not throw error to allow other deletions to proceed if part of batch
           }
         }
-    } else { // Assume it's an IndexedDB key
+    } else {
         await deleteImageFromLocalDB(imageId);
     }
   },
 
   async deleteImagesForEntity(imageIds: string[]): Promise<void> {
     for (const id of imageIds) {
-        if (id) { // Ensure ID is not null/undefined
-            await this.deleteImage(id); // deleteImage handles logic for Firebase URL vs Local Key
-        }
+        if (id) await this.deleteImage(id);
     }
+  },
+
+  // Job Methods
+  async getJobs(options = {}): Promise<Job[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    const jobsColRef = collection(db, "jobs");
+    const queryConstraints = [orderBy("createdAt", "desc")];
+    if (options.status) queryConstraints.unshift(where("status", "==", options.status));
+    if (options.createdById) queryConstraints.unshift(where("createdById", "==", options.createdById));
+    if (options.acceptedById) queryConstraints.unshift(where("acceptedById", "==", options.acceptedById));
+    
+    // Note: Firestore does not support OR queries on different fields.
+    // If options.userId is provided, you might need two separate queries and merge the results.
+    // For simplicity, we'll assume it's not used or handle it client-side.
+
+    const q = query(jobsColRef, ...queryConstraints);
+    const snapshot = await getDocs(q);
+    const jobs = mapDocsToTypeArray<Job>(snapshot);
+
+    // Update expired jobs
+    const now = new Date();
+    const batch = writeBatch(db);
+    let hasUpdates = false;
+    jobs.forEach(job => {
+        if (job.status === 'open' && new Date(job.expiresAt) < now) {
+            batch.update(doc(db!, "jobs", job.id), { status: 'expired' });
+            job.status = 'expired'; // Reflect change immediately
+            hasUpdates = true;
+        }
+    });
+    if (hasUpdates) await batch.commit();
+    
+    return jobs;
+  },
+  async findJobById(jobId: string): Promise<Job | undefined> {
+    if (!db) throw new Error("Firestore not initialized");
+    const docRef = doc(db, "jobs", jobId);
+    const docSnap = await getDoc(docRef);
+    return mapDocToType<Job>(docSnap);
+  },
+  async addJob(jobData): Promise<Job> {
+    if (!db) throw new Error("Firestore not initialized");
+    const creator = await this.findUserById(jobData.createdById);
+    if (!creator) throw new Error("Job creator not found");
+
+    const jobsRef = collection(db, "jobs");
+    const docRef = doc(jobsRef);
+    const newJobFSData = {
+      ...jobData,
+      id: docRef.id,
+      status: 'open',
+      createdAt: serverTimestamp(),
+      createdByName: creator.name || creator.email,
+    };
+    await setDoc(docRef, newJobFSData);
+    return { ...jobData, id: docRef.id, status: 'open', createdAt: new Date().toISOString(), createdByName: creator.name || creator.email };
+  },
+  async updateJob(updatedJob): Promise<Job | null> {
+    if (!db) throw new Error("Firestore not initialized");
+    const jobRef = doc(db, "jobs", updatedJob.id);
+    await updateDoc(jobRef, updatedJob);
+    const docSnap = await getDoc(jobRef);
+    return mapDocToType<Job>(docSnap);
+  },
+  async deleteJob(jobId: string): Promise<boolean> {
+    if (!db) throw new Error("Firestore not initialized");
+    try {
+      await deleteDoc(doc(db, "jobs", jobId));
+      return true;
+    } catch (e) {
+      console.error("Error deleting job from Firestore:", e);
+      return false;
+    }
+  },
+  async acceptJob(jobId, acceptingUserId, acceptingUserName): Promise<Job | null> {
+    if (!db) throw new Error("Firestore not initialized");
+    const jobRef = doc(db, "jobs", jobId);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const jobDoc = await transaction.get(jobRef);
+        if (!jobDoc.exists() || jobDoc.data().status !== 'open') {
+          throw new Error("Job is not available to be accepted.");
+        }
+        transaction.update(jobRef, {
+          status: 'accepted',
+          acceptedById: acceptingUserId,
+          acceptedByName: acceptingUserName,
+          acceptedAt: serverTimestamp(),
+        });
+      });
+      return this.findJobById(jobId);
+    } catch (error) {
+      console.error("Error accepting job:", error);
+      return null;
+    }
+  },
+  async getJobSettings(): Promise<JobSettings> {
+    if (!db) throw new Error("Firestore not initialized");
+    const docRef = doc(db, "settings", "jobs");
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? docSnap.data() as JobSettings : { maxJobsPerUser: 5, maxTimerDurationDays: 10 };
+  },
+  async updateJobSettings(settings: JobSettings): Promise<JobSettings> {
+    if (!db) throw new Error("Firestore not initialized");
+    const docRef = doc(db, "settings", "jobs");
+    await setDoc(docRef, settings, { merge: true });
+    return settings;
   },
 };

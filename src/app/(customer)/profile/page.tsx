@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MapPin, History, Heart } from 'lucide-react';
+import { Loader2, MapPin, History, Heart, Briefcase } from 'lucide-react';
 import Link from 'next/link';
 import { useDataSource } from '@/contexts/DataSourceContext'; // Added
 
@@ -116,6 +116,9 @@ export default function ProfilePage() {
                     </Button>
                     <Button variant="outline" className="w-full justify-start" asChild>
                         <Link href="/profile/orders"><History className="mr-3 h-5 w-5 text-primary"/> View Order History</Link>
+                    </Button>
+                     <Button variant="outline" className="w-full justify-start" asChild>
+                        <Link href="/profile/jobs"><Briefcase className="mr-3 h-5 w-5 text-primary"/> My Jobs</Link>
                     </Button>
                     <Button variant="outline" className="w-full justify-start" asChild>
                         <Link href="/profile/wishlist"><Heart className="mr-3 h-5 w-5 text-primary"/> My Wishlist</Link>

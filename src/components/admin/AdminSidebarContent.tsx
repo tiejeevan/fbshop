@@ -17,7 +17,8 @@ import {
   ChevronDown,
   type LucideIcon,
   FileText,
-  Printer, // Added icon
+  Printer,
+  Briefcase, // Added icon
 } from 'lucide-react';
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -52,6 +53,7 @@ const navItems: NavItem[] = [
   { href: '/admin/products', label: 'Products', icon: ShoppingBag },
   { href: '/admin/categories', label: 'Categories', icon: Tags },
   { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/jobs', label: 'Jobs', icon: Briefcase },
   { href: '/admin/shipping-label-engine', label: 'Shipping Labels', icon: Printer },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/logs', label: 'Action Logs', icon: FileText },
