@@ -6,23 +6,25 @@ import type { AdminActionLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { FileText, Filter, ArrowLeft, Loader2 } from 'lucide-react';
+import { FileText, Filter, ArrowLeft, Loader2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDataSource } from '@/contexts/DataSourceContext';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 
 const ITEMS_PER_PAGE = 15;
 const ALL_FILTER_VALUE = "__ALL_LOG_FILTERS__";
 
 export default function AdminLogsPage() {
   const [allLogs, setAllLogs] = useState<AdminActionLog[]>([]);
-  const [isComponentLoading, setIsComponentLoading] = useState(true); // Renamed to avoid conflict
+  const [isComponentLoading, setIsComponentLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterAdminEmail, setFilterAdminEmail] = useState('');
   const [filterActionType, setFilterActionType] = useState('');
   const [filterEntityType, setFilterEntityType] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const { toast } = useToast();
@@ -52,14 +54,15 @@ export default function AdminLogsPage() {
   const uniqueActionTypes = useMemo(() => Array.from(new Set(allLogs.map(log => log.actionType))).sort(), [allLogs]);
   const uniqueEntityTypes = useMemo(() => Array.from(new Set(allLogs.map(log => log.entityType).filter(Boolean) as string[])).sort(), [allLogs]);
 
-
   const filteredLogs = useMemo(() => allLogs.filter(log => {
+    const searchTermLower = searchTerm.toLowerCase();
     return (
       (filterAdminEmail === '' || log.adminEmail === filterAdminEmail) &&
       (filterActionType === '' || log.actionType === filterActionType) &&
-      (filterEntityType === '' || log.entityType === filterEntityType)
+      (filterEntityType === '' || log.entityType === filterEntityType) &&
+      (searchTerm === '' || log.description.toLowerCase().includes(searchTermLower) || log.adminEmail.toLowerCase().includes(searchTermLower))
     );
-  }), [allLogs, filterAdminEmail, filterActionType, filterEntityType]);
+  }), [allLogs, filterAdminEmail, filterActionType, filterEntityType, searchTerm]);
 
   const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
   const paginatedLogs = useMemo(() => filteredLogs.slice(
@@ -69,7 +72,7 @@ export default function AdminLogsPage() {
   
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterAdminEmail, filterActionType, filterEntityType]);
+  }, [filterAdminEmail, filterActionType, filterEntityType, searchTerm]);
 
 
   if (isDataSourceLoading || isComponentLoading) {
@@ -95,7 +98,15 @@ export default function AdminLogsPage() {
           <CardTitle>Activity Log</CardTitle>
           <CardDescription>Review of actions performed by administrators. Using {dataService === null ? 'loading...' : (dataService as any)?.constructor?.name === 'localStorageDataService' ? 'Local Storage/IndexedDB' : 'Firebase Firestore'}.</CardDescription>
            <div className="mt-4 flex flex-col sm:flex-row gap-2 items-center border-t pt-4">
-            <Filter className="h-5 w-5 text-muted-foreground mr-2 hidden sm:block" />
+            <div className="relative flex-grow w-full">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search descriptions..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 w-full"
+              />
+            </div>
             <Select
               value={filterAdminEmail === '' ? ALL_FILTER_VALUE : filterAdminEmail}
               onValueChange={(value) => setFilterAdminEmail(value === ALL_FILTER_VALUE ? '' : value)}
@@ -126,8 +137,8 @@ export default function AdminLogsPage() {
                 {uniqueEntityTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => { setFilterAdminEmail(''); setFilterActionType(''); setFilterEntityType('');}} className="w-full sm:w-auto">
-              Clear Filters
+            <Button variant="outline" onClick={() => { setSearchTerm(''); setFilterAdminEmail(''); setFilterActionType(''); setFilterEntityType('');}} className="w-full sm:w-auto">
+              Clear
             </Button>
           </div>
         </CardHeader>
