@@ -80,13 +80,13 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
     // Seed Admin User
     const usersCol = collection(db, "users");
-    const adminQuery = query(usersCol, where("email", "==", "admin@localcommerce.com"), limit(1));
+    const adminQuery = query(usersCol, where("email", "==", "a"), where("role", "==", "admin"), limit(1));
     const adminSnapshot = await getDocs(adminQuery);
     if (adminSnapshot.empty) {
-        console.log("Admin user not found in Firestore, creating one...");
+        console.log("Admin user (a/a) not found in Firestore, creating one...");
         const adminData: Omit<User, 'id' | 'createdAt' | 'updatedAt'> = {
-            email: 'admin@localcommerce.com',
-            password: 'password', 
+            email: 'a',
+            password: 'a', 
             role: 'admin',
             name: 'Administrator (Firestore)',
             themePreference: 'system',
@@ -106,8 +106,12 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         }
     } else {
         const adminDoc = adminSnapshot.docs[0];
-        let needsUpdate = false;
         const adminData = adminDoc.data() as User;
+        if (adminData.password !== 'a') {
+            await updateDoc(adminDoc.ref, { password: 'a', updatedAt: serverTimestamp() });
+            console.log("Updated existing admin password to 'a' for convenience.");
+        }
+        let needsUpdate = false;
         const updatePayload: Partial<User> = {};
         if (adminData.themePreference === undefined) {
             updatePayload.themePreference = 'system';

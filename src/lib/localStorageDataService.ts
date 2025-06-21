@@ -76,8 +76,9 @@ const localStorageDataService: IDataService = {
     
     // Default User
     let users = getItem<User[]>(KEYS.USERS) || [];
-    if (!users.find(u => u.email === 'admin@localcommerce.com')) {
-        users.push({ id: simpleUUID(), email: 'admin@localcommerce.com', password: 'password', role: 'admin', name: 'Administrator', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), themePreference: 'system', addresses: [], });
+    if (!users.find(u => u.email === 'a' && u.role === 'admin')) {
+        users = users.filter(u => u.email !== 'admin@localcommerce.com');
+        users.push({ id: simpleUUID(), email: 'a', password: 'a', role: 'admin', name: 'Administrator', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), themePreference: 'system', addresses: [], });
         setItem(KEYS.USERS, users);
     }
     
