@@ -21,16 +21,15 @@ export const DataSourceContext = createContext<DataSourceContextType | undefined
 const DATA_SOURCE_KEY = 'localcommerce_dataSourceType';
 
 export const DataSourceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [dataSourceType, setDataSourceState] = useState<DataSourceType>('local');
+  const [dataSourceType, setDataSourceState] = useState<DataSourceType>('firebase');
   const [isLoading, setIsLoading] = useState(true);
-  // Initialize with localDBService by default
-  const [currentDataService, setCurrentDataService] = useState<IDataService>(localDBService);
+  // Initialize with fsService by default to align with the state
+  const [currentDataService, setCurrentDataService] = useState<IDataService>(fsService);
 
   useEffect(() => {
     const storedSource = typeof window !== 'undefined' ? localStorage.getItem(DATA_SOURCE_KEY) as DataSourceType | null : null;
-    const initialSource = storedSource || 'local';
+    const initialSource = storedSource || 'firebase'; // Default to Firebase if nothing is stored
     setDataSourceState(initialSource);
-    // Initial loading false after setting source type. useEffect below will handle service switch.
   }, []);
 
   useEffect(() => {
@@ -43,7 +42,7 @@ export const DataSourceProvider: React.FC<{ children: ReactNode }> = ({ children
           fsService.initialize(firebaseDBInstance); // Ensure Firestore service is initialized
           await fsService.initializeData(); // Seed Firestore if needed
           if (isMounted) setCurrentDataService(fsService);
-          console.log("Data source switched to Firebase Firestore.");
+          console.log("Data source is Firebase Firestore.");
         } else {
           console.warn("Firebase DB not available during switch, falling back to local storage.");
           if (isMounted) {
@@ -54,7 +53,7 @@ export const DataSourceProvider: React.FC<{ children: ReactNode }> = ({ children
       } else {
         await localDBService.initializeData(); // Ensure local data is initialized/seeded
         if (isMounted) setCurrentDataService(localDBService);
-        console.log("Data source switched to Local Storage.");
+        console.log("Data source is Local Storage.");
       }
       if (isMounted) setIsLoading(false);
     };
