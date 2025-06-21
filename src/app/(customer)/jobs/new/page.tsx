@@ -36,7 +36,7 @@ export default function NewJobPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<JobFormValues>({
+  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
   });
   
