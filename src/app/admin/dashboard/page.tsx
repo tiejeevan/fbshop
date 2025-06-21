@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { BarChart3, DollarSign, ShoppingBag, Users, Tags, Eye, FileText, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
+import { BarChart3, DollarSign, ShoppingBag, Users, Tags, Eye, FileText, ToggleLeft, ToggleRight, Loader2, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useDataSource } from '@/contexts/DataSourceContext';
@@ -168,6 +168,12 @@ export default function AdminDashboardPage() {
              <button className="w-full p-4 border rounded-lg hover:bg-accent transition-colors text-center">
               <BarChart3 className="h-8 w-8 mx-auto mb-2 text-primary" />
               View Analytics
+            </button>
+          </Link>
+          <Link href="/admin/shipping-label-engine" passHref>
+             <button className="w-full p-4 border rounded-lg hover:bg-accent transition-colors text-center">
+              <Printer className="h-8 w-8 mx-auto mb-2 text-primary" />
+              Shipping Label Engine
             </button>
           </Link>
           <Link href="/products" passHref>

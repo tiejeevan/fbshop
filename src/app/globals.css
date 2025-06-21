@@ -113,6 +113,26 @@ h1, h2, h3, h4, h5, h6 {
   animation: pageEnter 0.4s ease-out forwards;
 }
 
+@layer utilities {
+  @media print {
+    .print-only {
+      display: block !important;
+    }
+    .no-print {
+      display: none !important;
+    }
+    body {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background-color: #fff !important;
+    }
+    html, body, #__next {
+        height: auto;
+        overflow: initial !important;
+    }
+  }
+}
+
 
 /* Pure CSS Icon Definitions */
 .css-icon-base {
@@ -705,4 +725,3 @@ h1, h2, h3, h4, h5, h6 {
     left: 2px;
      box-shadow: 0 5px 0 currentColor; /* Second line */
 }
-

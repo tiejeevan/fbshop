@@ -16,7 +16,8 @@ import {
   Settings,
   ChevronDown,
   type LucideIcon,
-  FileText, // Added icon for logs
+  FileText,
+  Printer, // Added icon
 } from 'lucide-react';
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -51,8 +52,9 @@ const navItems: NavItem[] = [
   { href: '/admin/products', label: 'Products', icon: ShoppingBag },
   { href: '/admin/categories', label: 'Categories', icon: Tags },
   { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/shipping-label-engine', label: 'Shipping Labels', icon: Printer },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/admin/logs', label: 'Action Logs', icon: FileText }, // New logs link
+  { href: '/admin/logs', label: 'Action Logs', icon: FileText },
 ];
 
 export function AdminSidebarContent() {
