@@ -1,14 +1,13 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Barcode from 'react-barcode';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { Loader2, Printer, Mail, Truck, Info, Wand2 } from 'lucide-react';
+import { Loader2, Printer, Mail, Truck, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { parseIndianAddress } from '@/ai/flows/parse-indian-address';
 import type { IndianAddressOutput } from '@/ai/schemas/indian-address';
@@ -74,15 +73,16 @@ export default function ShippingLabelEnginePage() {
         }
     };
     
-    const handleParseAddress = async () => {
-        if (!unstructuredAddress.trim()) {
-            toast({ title: 'Address Missing', description: 'Please enter an address to parse.', variant: 'destructive' });
+    const handleParseAddress = useCallback(async (addressToParse: string) => {
+        if (!addressToParse.trim() || addressToParse.trim().length < 15) { // Add a length check
             return;
         }
         setIsParsing(true);
-        setIsAddressParsed(false);
         try {
-            const result: IndianAddressOutput = await parseIndianAddress(unstructuredAddress);
+            const result: IndianAddressOutput = await parseIndianAddress(addressToParse);
+             if (!result || !result.city || !result.line1) {
+                throw new Error("AI parsing returned an invalid or empty result.");
+            }
             setToAddress({
                 name: result.name || '',
                 line1: result.line1 || '',
@@ -92,14 +92,31 @@ export default function ShippingLabelEnginePage() {
                 phone: result.phoneNumber || '',
             });
             setIsAddressParsed(true);
-            toast({ title: 'Address Parsed Successfully', description: 'Check the preview and print the label.' });
         } catch (error) {
             console.error('Error parsing address:', error);
-            toast({ title: 'Parsing Error', description: 'Could not parse the address. Please check the format or enter manually.', variant: 'destructive' });
+            toast({ title: 'AI Parsing Failed', description: 'Could not parse the address. Try rephrasing or check the format.', variant: 'destructive' });
+            setToAddress(initialToAddress);
+            setIsAddressParsed(false);
         } finally {
             setIsParsing(false);
         }
-    };
+    }, [toast]);
+
+    useEffect(() => {
+        if (!unstructuredAddress.trim()) {
+            setToAddress(initialToAddress);
+            setIsAddressParsed(false);
+            return;
+        }
+        setIsAddressParsed(false); // Reset parsed state on new input
+        const handler = setTimeout(() => {
+            handleParseAddress(unstructuredAddress);
+        }, 1500); // 1.5 second delay after user stops typing
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [unstructuredAddress, handleParseAddress]);
 
 
     return (
@@ -108,11 +125,10 @@ export default function ShippingLabelEnginePage() {
                 <h1 className="font-headline text-3xl text-primary flex items-center gap-3">
                     <Truck /> Shipping Label Engine
                 </h1>
-                <p className="text-muted-foreground mt-1">Generate and print shipping labels. Use the AI parser for Indian addresses.</p>
+                <p className="text-muted-foreground mt-1">Enter an Indian address below. The AI will parse it automatically.</p>
             </header>
 
             <div className="grid md:grid-cols-2 gap-8 items-start">
-                {/* --- INPUTS COLUMN --- */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Label Details</CardTitle>
@@ -120,32 +136,31 @@ export default function ShippingLabelEnginePage() {
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-2">
-                            <Label htmlFor="unstructuredAddress">Recipient Address (India)</Label>
+                           <div className="flex items-center justify-between">
+                                <Label htmlFor="unstructuredAddress">Recipient Address (India)</Label>
+                                {isParsing && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Parsing...</span>}
+                                {isAddressParsed && !isParsing && <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-4 w-4" />Parsed</span>}
+                            </div>
                             <Textarea
                                 id="unstructuredAddress"
                                 placeholder="Paste the full unstructured address here. e.g., 'Anil Kumar, Flat 201, Green View Apartments, 12th Main Road, Indiranagar, Bangalore, Karnataka, 560038, Ph: 9876543210'"
                                 value={unstructuredAddress}
-                                onChange={(e) => {
-                                    setUnstructuredAddress(e.target.value);
-                                    setIsAddressParsed(false);
-                                }}
+                                onChange={(e) => setUnstructuredAddress(e.target.value)}
                                 rows={5}
                             />
                         </div>
-
-                        <Button onClick={handleParseAddress} disabled={isParsing || !unstructuredAddress.trim()}>
-                            {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                            AI Parse Address
-                        </Button>
                         
                         <div className="flex gap-2 pt-4">
-                            <Button onClick={handlePrint} className="flex-1" disabled={!isAddressParsed}><Printer className="mr-2 h-4 w-4"/> Print Label</Button>
-                            <Button onClick={handleEmail} variant="outline" className="flex-1" disabled={!isAddressParsed}><Mail className="mr-2 h-4 w-4"/> Email Label</Button>
+                            <Button onClick={handlePrint} className="flex-1" disabled={!isAddressParsed}>
+                                <Printer className="mr-2 h-4 w-4"/> Print Label
+                            </Button>
+                            <Button onClick={handleEmail} variant="outline" className="flex-1" disabled={!isAddressParsed}>
+                                <Mail className="mr-2 h-4 w-4"/> Email Label
+                            </Button>
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* --- LABEL PREVIEW COLUMN --- */}
                 <div className="sticky top-20">
                     <h2 className="font-headline text-2xl text-center mb-4 no-print">Label Preview</h2>
                     <div
@@ -182,7 +197,9 @@ export default function ShippingLabelEnginePage() {
                                         {toAddress.phone && <p className="text-sm">Ph: {toAddress.phone}</p>}
                                     </>
                                 ) : (
-                                    <div className="text-muted-foreground text-sm italic">Parse an address to preview details here.</div>
+                                    <div className="text-muted-foreground text-sm italic py-4">
+                                        {isParsing ? 'Parsing...' : 'The parsed address will appear here automatically.'}
+                                    </div>
                                 )}
                            </div>
                        </div>
@@ -196,7 +213,6 @@ export default function ShippingLabelEnginePage() {
                 </div>
             </div>
 
-            {/* Print-only version */}
             <div className="print-only hidden">
                 <div
                     className="bg-white text-black p-6"
