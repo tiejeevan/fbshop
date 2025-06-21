@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -9,6 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/googleai';
 import {z} from 'genkit';
 
 const SuggestProductCategoriesInputSchema = z.object({
@@ -35,6 +37,7 @@ const prompt = ai.definePrompt({
   name: 'suggestProductCategoriesPrompt',
   input: {schema: SuggestProductCategoriesInputSchema},
   output: {schema: SuggestProductCategoriesOutputSchema},
+  model: googleAI.model('gemini-1.5-flash-latest'),
   prompt: `You are a helpful AI assistant that suggests relevant product categories based on a product description.
 
   Product Description: {{{productDescription}}}

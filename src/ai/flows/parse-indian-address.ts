@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -6,6 +7,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/googleai';
 import type { IndianAddressInput, IndianAddressOutput } from '@/ai/schemas/indian-address';
 import { IndianAddressInputSchema, IndianAddressOutputSchema } from '@/ai/schemas/indian-address';
 
@@ -17,6 +19,7 @@ const prompt = ai.definePrompt({
   name: 'parseIndianAddressPrompt',
   input: {schema: IndianAddressInputSchema},
   output: {schema: IndianAddressOutputSchema},
+  model: googleAI.model('gemini-1.5-flash-latest'),
   prompt: `You are an expert at parsing unstructured Indian addresses. Analyze the following address text and extract the components into the specified JSON format.
 
   Address to parse:
