@@ -12,7 +12,7 @@ import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup, documentId
 } from 'firebase/firestore';
 import { storage as firebaseStorage } from './firebase'; // Import Firebase Storage instance
-import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject, refFromURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 
 
 // Import the original localStorageDataService for fallbacks or specific local operations
@@ -825,7 +825,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
           return;
         }
         try {
-          const imageRef = refFromURL(firebaseStorage, imageId);
+          const imageRef = storageRef(firebaseStorage, imageId);
           await deleteObject(imageRef);
         } catch (error) {
           if ((error as any).code === 'storage/object-not-found') {
