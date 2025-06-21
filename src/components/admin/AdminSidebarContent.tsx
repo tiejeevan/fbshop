@@ -42,6 +42,7 @@ import {
   useSidebar, 
   SidebarTrigger, 
 } from '@/components/ui/sidebar';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 
 interface NavItem {
@@ -66,6 +67,7 @@ const navItems: NavItem[] = [
 export function AdminSidebarContent() {
   const pathname = usePathname();
   const { logout, currentUser } = useAuth();
+  const { dataSourceType } = useDataSource();
   const router = useRouter();
   const { state: sidebarState, isMobile } = useSidebar(); 
 
@@ -124,7 +126,9 @@ export function AdminSidebarContent() {
               </Avatar>
               {(sidebarState === 'expanded' || isMobile) && (
                 <div className="text-left flex-grow overflow-hidden">
-                  <p className="text-sm font-medium truncate">{currentUser?.name || 'Administrator'}</p>
+                  <p className="text-sm font-medium truncate">
+                    {currentUser?.name || 'Administrator'} ({dataSourceType === 'local' ? 'Local' : 'Firebase'})
+                  </p>
                   <p className="text-xs text-sidebar-foreground/70 truncate">{currentUser?.email}</p>
                 </div>
               )}
@@ -132,7 +136,9 @@ export function AdminSidebarContent() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-56 bg-popover border-border text-popover-foreground">
-            <DropdownMenuLabel className="text-foreground">{currentUser?.name || 'Admin Account'}</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-foreground">
+              {currentUser?.name || 'Admin Account'} ({dataSourceType === 'local' ? 'Local' : 'Firebase'})
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border"/>
             <DropdownMenuItem disabled className="cursor-not-allowed text-muted-foreground focus:text-muted-foreground">
               <Settings className="mr-2 h-4 w-4" />

@@ -88,7 +88,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
             email: 'a',
             password: 'a', 
             role: 'admin',
-            name: 'Administrator (Firestore)',
+            name: 'Administrator',
             themePreference: 'system',
             addresses: [],
             averageJobRating: 0,
@@ -125,6 +125,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         if (adminData.badges === undefined) { updatePayload.badges = []; needsUpdate = true; }
         if (adminData.jobsCreatedCount === undefined) { updatePayload.jobsCreatedCount = 0; needsUpdate = true; }
         if (adminData.jobsCompletedCount === undefined) { updatePayload.jobsCompletedCount = 0; needsUpdate = true; }
+        if (adminData.name?.includes('(Firestore)')) { updatePayload.name = 'Administrator'; needsUpdate = true; }
 
         if(needsUpdate) {
             await updateDoc(adminDoc.ref, {...updatePayload, updatedAt: serverTimestamp() });

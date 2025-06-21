@@ -25,9 +25,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Settings, LogOut as LogOutIcon, ChevronDown } from 'lucide-react';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { currentUser, isLoading, logout } = useAuth();
+  const { dataSourceType } = useDataSource();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -91,7 +93,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   />
                   <AvatarFallback>{currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'A'}</AvatarFallback>
                 </Avatar>
-                <span className="hidden sm:inline-block text-sm text-muted-foreground">{currentUser?.name || 'Administrator'}</span>
+                <span className="hidden sm:inline-block text-sm text-muted-foreground">
+                  {currentUser?.name || 'Administrator'} ({dataSourceType === 'local' ? 'Local' : 'Firebase'})
+                </span>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
