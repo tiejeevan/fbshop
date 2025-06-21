@@ -15,13 +15,14 @@ import type { JobSettings, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame, Info } from 'lucide-react';
+import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame, Info, Wand2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { add } from 'date-fns';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { enhanceJobDescription } from '@/ai/flows/enhance-job-description';
 
 const MAX_JOB_IMAGES = 5;
 const MAX_FILE_SIZE_MB = 2;
@@ -51,15 +52,19 @@ export default function NewJobPage() {
 
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   
   const isRelist = !!searchParams.get('title');
 
-  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting: isFormProcessing } } = useForm<JobFormValues>({
+  const { register, handleSubmit, control, setValue, getValues, watch, formState: { errors, isSubmitting: isFormProcessing } } = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
     defaultValues: {
       isUrgent: false,
     }
   });
+
+  const watchedTitle = watch('title');
+  const watchedDescription = watch('description');
 
   useEffect(() => {
     if (isRelist) {
@@ -130,6 +135,31 @@ export default function NewJobPage() {
         URL.revokeObjectURL(removedUrl);
         return newPreviews;
     });
+  };
+
+  const handleEnhanceDescription = async () => {
+    const title = getValues('title');
+    const description = getValues('description');
+    if (!title || !description) {
+      toast({ title: 'Cannot Enhance', description: 'Please provide a title and description first.', variant: 'destructive' });
+      return;
+    }
+    setIsSuggesting(true);
+    try {
+      const result = await enhanceJobDescription({ title, description });
+      if (result.enhancedTitle && result.enhancedDescription) {
+        setValue('title', result.enhancedTitle, { shouldValidate: true });
+        setValue('description', result.enhancedDescription, { shouldValidate: true });
+        toast({ title: 'Job Post Enhanced!', description: 'The title and description have been updated by AI.' });
+      } else {
+        toast({ title: 'AI Enhancement Failed', description: 'Could not get suggestions. Please try again.', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error("Error enhancing job description:", error);
+      toast({ title: 'Error', description: 'An unexpected error occurred while enhancing the description.', variant: 'destructive' });
+    } finally {
+      setIsSuggesting(false);
+    }
   };
 
   useEffect(() => {
@@ -206,6 +236,11 @@ export default function NewJobPage() {
                                 <Textarea id="description" {...register('description')} placeholder="Provide details about the job, location, and what's required." rows={6}/>
                                 {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
                             </div>
+
+                            <Button type="button" variant="outline" size="sm" onClick={handleEnhanceDescription} disabled={isSuggesting || !watchedTitle || !watchedDescription}>
+                                {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Wand2 className="mr-2 h-4 w-4"/>}
+                                Improve with AI
+                            </Button>
 
                              <div className="space-y-1.5">
                                 <Label htmlFor="categoryId">Category</Label>
