@@ -52,8 +52,14 @@ export default function JobsPage() {
           ...job,
           categoryName: fetchedCategories.find(c => c.id === job.categoryId)?.name || 'Uncategorized',
       }));
+      
+      const uniqueJobCategories = fetchedCategories.filter(
+        (category, index, self) =>
+          index === self.findIndex((c) => c.name === category.name)
+      );
+
       setJobs(jobsWithCategoryNames);
-      setJobCategories(fetchedCategories);
+      setJobCategories(uniqueJobCategories);
     } catch (error) {
       console.error("Error fetching jobs/categories:", error);
       toast({ title: "Error", description: "Could not load available jobs or categories.", variant: "destructive" });
