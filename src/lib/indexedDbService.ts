@@ -1,8 +1,9 @@
+
 'use client';
 
 const DB_NAME = 'LocalCommerceImagesDB';
 const PRODUCT_IMAGES_STORE_NAME = 'productImages';
-const DB_VERSION = 1; // Version can be 1 if only productImages store exists
+const DB_VERSION = 2; // Incremented from 1 to 2 to match existing DB version
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
