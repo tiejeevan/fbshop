@@ -18,7 +18,6 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 
 // Import the original localStorageDataService for fallbacks or specific local operations
 import { localStorageDataService as localDBServiceFallback } from './localStorageDataService'; // For fallbacks
-import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, deleteImage as deleteImageFromLocalDB, deleteImagesForEntity as deleteImagesForEntityFromLocalDB } from './indexedDbService';
 
 
 let db: Firestore | null = null;
@@ -421,11 +420,9 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       if (product) {
         const imageIdsToDelete = [product.primaryImageId, ...(product.additionalImageIds || [])].filter(id => !!id) as string[];
         for (const imageUrl of imageIdsToDelete) {
-            if (imageUrl.startsWith('https://firebasestorage.googleapis.com')) {
-                await this.deleteImage(imageUrl);
-            } else {
-                await deleteImageFromLocalDB(imageUrl); // Fallback to local if it's an old ID
-            }
+          if (imageUrl.startsWith('https://firebasestorage.googleapis.com')) {
+              await this.deleteImage(imageUrl);
+          }
         }
       }
       return true;
@@ -499,12 +496,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         batch.update(childDoc.ref, { parentId: null, updatedAt: serverTimestamp() });
       });
 
-      if(categoryToDelete.imageId){
-          if (categoryToDelete.imageId.startsWith('https://firebasestorage.googleapis.com')) {
-            await this.deleteImage(categoryToDelete.imageId);
-          } else {
-            await deleteImageFromLocalDB(categoryToDelete.imageId); // Fallback
-          }
+      if(categoryToDelete.imageId && categoryToDelete.imageId.startsWith('https://firebasestorage.googleapis.com')){
+          await this.deleteImage(categoryToDelete.imageId);
       }
       batch.delete(doc(db, "categories", categoryId));
       await batch.commit();
@@ -849,14 +842,14 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
     if (!firebaseStorage) {
       console.warn("Firebase Storage not available, falling back to LocalDB for image save.");
-      return saveImageToLocalDB(entityId, imageType, imageFile);
+      return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
     }
     const filePath = `images/${entityId}/${imageType}/${Date.now()}_${imageFile.name}`;
     const fileRef = storageRef(firebaseStorage, filePath);
     
     try {
-      const uploadResult = await uploadBytes(fileRef, imageFile);
-      const downloadURL = await getDownloadURL(uploadResult.ref);
+      await uploadBytes(fileRef, imageFile);
+      const downloadURL = await getDownloadURL(fileRef);
       return downloadURL;
     } catch (error) {
       console.error("Error uploading image to Firebase Storage:", error);
@@ -869,27 +862,29 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         console.warn("firestoreDataService.getImage called with a URL, this should be handled by client. Returning null.");
         return null;
     }
-    return getImageFromLocalDB(imageId);
+    return localDBServiceFallback.getImage(imageId);
   },
 
   async deleteImage(imageId: string): Promise<void> {
-    if (imageId.startsWith('http')) { // Assume it's a Firebase Storage URL
-        if (!firebaseStorage) {
-          console.warn("Firebase Storage not available for image deletion. Image URL:", imageId);
-          return;
-        }
-        try {
-          const imageRef = storageRef(firebaseStorage, imageId);
-          await deleteObject(imageRef);
-        } catch (error) {
-          if ((error as any).code === 'storage/object-not-found') {
-            console.warn(`Image not found in Firebase Storage for deletion: ${imageId}`);
-          } else {
-            console.error("Error deleting image from Firebase Storage:", error, imageId);
-          }
-        }
-    } else {
-        await deleteImageFromLocalDB(imageId);
+    if (!imageId.startsWith('https://firebasestorage.googleapis.com')) {
+      console.warn(`Attempted to delete non-Firebase URL via firestoreDataService: ${imageId}`);
+      return;
+    }
+
+    if (!firebaseStorage) {
+      console.warn("Firebase Storage not available for image deletion. Image URL:", imageId);
+      return;
+    }
+    
+    try {
+      const imageRef = storageRef(firebaseStorage, imageId);
+      await deleteObject(imageRef);
+    } catch (error) {
+      if ((error as any).code === 'storage/object-not-found') {
+        console.warn(`Image not found in Firebase Storage for deletion: ${imageId}`);
+      } else {
+        console.error("Error deleting image from Firebase Storage:", error, imageId);
+      }
     }
   },
 
@@ -905,10 +900,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const jobsColRef = collection(db, "jobs");
     const queryConstraints: any[] = [];
     
-    // Firestore requires that if you have a filter with a range comparison (<, <=, >, >=), 
-    // your first ordering must be on the same field.
-    // The error indicates a composite index is needed for filtering on one field (e.g., createdById) and ordering by another (createdAt).
-    // To avoid this without creating an index, we can remove the ordering from the query and sort the results in the code.
     let shouldSortInCode = false;
 
     if (options.status) {
@@ -916,14 +907,13 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     }
     if (options.createdById) {
         queryConstraints.push(where("createdById", "==", options.createdById));
-        shouldSortInCode = true; // This combination requires a composite index.
+        shouldSortInCode = true;
     }
     if (options.acceptedById) {
         queryConstraints.push(where("acceptedById", "==", options.acceptedById));
-        shouldSortInCode = true; // This combination also requires a composite index.
+        shouldSortInCode = true;
     }
 
-    // Only apply the 'orderBy' clause if we don't have a filter that would cause an error.
     if (!shouldSortInCode) {
         queryConstraints.push(orderBy("createdAt", "desc"));
     }
@@ -932,7 +922,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const snapshot = await getDocs(q);
     let jobs = mapDocsToTypeArray<Job>(snapshot);
 
-    // If we couldn't sort in the query, sort the results here.
     if (shouldSortInCode) {
         jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
