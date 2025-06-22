@@ -1,3 +1,4 @@
+
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -42,8 +43,8 @@ if (missingEssentialKeys.length > 0) {
   if (app) {
       try {
         db = getFirestore(app);
-        // Explicitly pass the bucket URL to getStorage.
-        storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
+        // Explicitly pass the user-specified bucket URL to getStorage.
+        storage = getStorage(app, "gs://local-commerce-f5t0u.firebasestorage.app");
       } catch (error) {
           console.error("Error getting Firestore/Storage from Firebase app:", error);
           db = null;
