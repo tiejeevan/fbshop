@@ -1,4 +1,3 @@
-
 // src/lib/firestoreDataService.ts
 'use client';
 
@@ -838,11 +837,36 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
-    // Due to CORS configuration constraints in the development environment,
-    // we are falling back to local IndexedDB storage for images even in Firebase mode.
-    // For a production deployment, the CORS issue on the Firebase Storage bucket must be resolved.
-    console.warn("Firebase Storage upload is disabled due to CORS constraints. Falling back to browser's IndexedDB.");
-    return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
+    // Construct the destination path for Firebase Storage.
+    // The server API route will use this path.
+    const sanitizedFileName = imageFile.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+    const destinationPath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
+
+    // Use FormData to send the file to our Next.js API route.
+    const formData = new FormData();
+    formData.append('file', imageFile);
+    formData.append('path', destinationPath);
+
+    try {
+        // The fetch request is sent to our own server, so no CORS issue.
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.json();
+            console.error('Upload API responded with an error:', errorBody);
+            throw new Error(errorBody.error || 'Failed to upload file.');
+        }
+
+        const result = await response.json();
+        return result.downloadURL; // The API route returns the public URL.
+
+    } catch (error: any) {
+        console.error("Failed to upload image via proxy API:", error);
+        throw new Error(`Image upload failed: ${error.message}`);
+    }
   },
 
   async getImage(imageId: string): Promise<Blob | null> {
@@ -851,13 +875,26 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async deleteImage(imageId: string): Promise<void> {
-    // Fallback to local DB as images are stored there.
-    return localDBServiceFallback.deleteImage(imageId);
+    if (!firebaseStorage || !imageId) return;
+    try {
+      // imageId is expected to be a full download URL. We need to extract the path.
+      const url = new URL(imageId);
+      const path = decodeURIComponent(url.pathname).split('/o/')[1].split('?')[0];
+      const imageRef = storageRef(firebaseStorage, path);
+      await deleteObject(imageRef);
+    } catch (error: any) {
+      if (error.code === 'storage/object-not-found') {
+        console.warn(`Image to delete not found in Firebase Storage: ${imageId}`);
+      } else {
+        console.error(`Error deleting image from Firebase Storage: ${imageId}`, error);
+      }
+    }
   },
 
   async deleteImagesForEntity(imageIds: string[]): Promise<void> {
-    // Fallback to local DB as images are stored there.
-    return localDBServiceFallback.deleteImagesForEntity(imageIds);
+    for (const imageId of imageIds) {
+      await this.deleteImage(imageId);
+    }
   },
 
   // Job Methods
