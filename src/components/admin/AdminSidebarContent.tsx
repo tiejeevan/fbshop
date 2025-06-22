@@ -21,6 +21,7 @@ import {
   Briefcase, // Added icon
   ClipboardList, // Added icon
   Eye, // Added icon
+  FlaskConical,
 } from 'lucide-react';
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -62,6 +63,7 @@ const navItems: NavItem[] = [
   { href: '/admin/shipping-label-engine', label: 'Shipping Labels', icon: Printer },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/logs', label: 'Action Logs', icon: FileText },
+  { href: '/admin/mock-data-generator', label: 'Mock Data AI', icon: FlaskConical },
 ];
 
 export function AdminSidebarContent() {
