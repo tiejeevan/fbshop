@@ -812,7 +812,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return localDBServiceFallback.setGlobalTheme(theme); 
   },
 
-  async getActivityLogs(options = {}): Promise<ActivityLog[]> {
+  async getActivityLogs(options: { actorId?: string } = {}): Promise<ActivityLog[]> {
     if (!db) throw new Error("Firestore not initialized");
     const logsCol = collection(db, "activityLogs");
     const queryConstraints: any[] = [];
@@ -837,18 +837,14 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
-    // Construct the destination path for Firebase Storage.
-    // The server API route will use this path.
     const sanitizedFileName = imageFile.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
     const destinationPath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
 
-    // Use FormData to send the file to our Next.js API route.
     const formData = new FormData();
     formData.append('file', imageFile);
     formData.append('path', destinationPath);
 
     try {
-        // The fetch request is sent to our own server, so no CORS issue.
         const response = await fetch('/api/upload', {
             method: 'POST',
             body: formData,
@@ -861,7 +857,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         }
 
         const result = await response.json();
-        return result.downloadURL; // The API route returns the public URL.
+        return result.downloadURL;
 
     } catch (error: any) {
         console.error("Failed to upload image via proxy API:", error);
@@ -870,23 +866,32 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async getImage(imageId: string): Promise<Blob | null> {
-    // Fallback to local DB as images are stored there.
     return localDBServiceFallback.getImage(imageId);
   },
 
   async deleteImage(imageId: string): Promise<void> {
     if (!firebaseStorage || !imageId) return;
     try {
-      // imageId is expected to be a full download URL. We need to extract the path.
-      const url = new URL(imageId);
-      const path = decodeURIComponent(url.pathname).split('/o/')[1].split('?')[0];
-      const imageRef = storageRef(firebaseStorage, path);
+      // Defensively check if imageId is a valid URL before trying to use it.
+      // This prevents crashes if old, invalid data (like a path instead of a URL) exists in the database.
+      if (!imageId.startsWith('http')) {
+        console.warn(`Attempted to delete an image with an invalid ID (not a URL): "${imageId}". Skipping deletion.`);
+        return;
+      }
+
+      // The Firebase SDK's ref() function can create a reference directly from an HTTPS download URL.
+      // This is more robust than manually parsing the path.
+      const imageRef = storageRef(firebaseStorage, imageId);
       await deleteObject(imageRef);
     } catch (error: any) {
+      // Handle specific Firebase errors gracefully.
       if (error.code === 'storage/object-not-found') {
-        console.warn(`Image to delete not found in Firebase Storage: ${imageId}`);
+        console.warn(`Image to delete was not found in Firebase Storage: ${imageId}`);
+      } else if (error.code === 'storage/invalid-url') {
+          console.warn(`The imageId "${imageId}" is not a valid Firebase Storage URL. Skipping deletion.`);
       } else {
-        console.error(`Error deleting image from Firebase Storage: ${imageId}`, error);
+        // Log other unexpected errors.
+        console.error(`An unexpected error occurred while deleting image from Firebase Storage: ${imageId}`, error);
       }
     }
   },
