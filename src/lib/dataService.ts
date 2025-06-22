@@ -108,6 +108,7 @@ export interface IDataService {
   // Job Review Methods
   addJobReview: (reviewData: Omit<JobReview, 'id' | 'createdAt'>) => Promise<JobReview>;
   getReviewsForJob: (jobId: string) => Promise<JobReview[]>;
+  getReviewsForJobs: (jobIds: string[]) => Promise<JobReview[]>;
   getReviewsAboutUser: (userId: string) => Promise<JobReview[]>;
 
   // Job Settings methods

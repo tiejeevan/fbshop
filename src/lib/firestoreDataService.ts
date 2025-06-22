@@ -1167,6 +1167,24 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       const snapshot = await getDocs(q);
       return mapDocsToTypeArray<JobReview>(snapshot);
   },
+  async getReviewsForJobs(jobIds: string[]): Promise<JobReview[]> {
+    if (!db) throw new Error("Firestore not initialized");
+    if (!jobIds || jobIds.length === 0) return [];
+
+    const allReviews: JobReview[] = [];
+    
+    // Firestore 'in' queries support up to 30 equality clauses.
+    for (let i = 0; i < jobIds.length; i += 30) {
+        const chunk = jobIds.slice(i, i + 30);
+        if (chunk.length > 0) {
+            const q = query(collectionGroup(db, 'jobReviews'), where('jobId', 'in', chunk));
+            const snapshot = await getDocs(q);
+            allReviews.push(...mapDocsToTypeArray<JobReview>(snapshot));
+        }
+    }
+    
+    return allReviews;
+  },
   async getReviewsAboutUser(userId: string): Promise<JobReview[]> {
       if (!db) throw new Error("Firestore not initialized");
       const reviewsGroup = collectionGroup(db, 'jobReviews');

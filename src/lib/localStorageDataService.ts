@@ -705,6 +705,11 @@ const localStorageDataService: IDataService = {
       const reviews = getItem<JobReview[]>(KEYS.JOB_REVIEWS) || [];
       return reviews.filter(r => r.jobId === jobId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
+  async getReviewsForJobs(jobIds: string[]): Promise<JobReview[]> {
+    const allReviews = getItem<JobReview[]>(KEYS.JOB_REVIEWS) || [];
+    const jobIdsSet = new Set(jobIds);
+    return allReviews.filter(review => jobIdsSet.has(review.jobId));
+  },
   async getReviewsAboutUser(userId: string): Promise<JobReview[]> {
       const reviews = getItem<JobReview[]>(KEYS.JOB_REVIEWS) || [];
       return reviews.filter(r => r.revieweeId === userId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
