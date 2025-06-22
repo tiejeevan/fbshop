@@ -145,9 +145,13 @@ export default function EditCategoryPage() {
 
       toast({ title: "Category Updated", description: `"${data.name}" has been successfully updated.` });
       router.push('/admin/categories');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating category:", error);
-      toast({ title: "Error Updating Category", variant: "destructive" });
+      toast({ 
+          title: "Error Updating Category", 
+          description: error.message || "An unexpected error occurred.",
+          variant: "destructive" 
+      });
     }
   };
 

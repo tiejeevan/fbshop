@@ -45,4 +45,15 @@ Follow these steps precisely to resolve the issue. You will need to use the Goog
 
 After a minute or two for the settings to apply, go back to your web application and try uploading an image again. The CORS error should now be resolved.
 
+---
+
+### Troubleshooting
+
+If you still see a CORS error after following these steps:
+
+1.  **Double-check the bucket name:** Make sure the command in Step 3 uses your exact bucket name: `gs://local-commerce-f5t0u.appspot.com`. Any typo will cause it to fail.
+2.  **Verify `cors.json`:** Run `cat cors.json` in the Cloud Shell to ensure the content is exactly as shown above, with no extra characters or missing brackets.
+3.  **Wait a Few Minutes:** Sometimes it can take 2-5 minutes for the new CORS settings to be applied across all of Google's servers.
+4.  **Hard Refresh:** Clear your browser's cache and do a hard refresh (Ctrl+Shift+R or Cmd+Shift+R) on the application page before trying the upload again.
+
 **Important Note:** The `"origin": ["*"]` setting is for development and allows uploads from any website. For a production application, you should replace `"*"` with your specific application domain (e.g., `"https://your-app-name.web.app"`).

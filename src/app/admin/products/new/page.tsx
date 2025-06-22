@@ -106,9 +106,13 @@ export default function NewProductPage() {
 
       toast({ title: "Product Created", description: `"${data.name}" has been successfully added.` });
       router.push('/admin/products');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating product:", error);
-      toast({ title: "Error Creating Product", description: "Could not create the product. Please try again.", variant: "destructive" });
+      toast({ 
+          title: "Error Creating Product", 
+          description: error.message || "An unexpected error occurred.",
+          variant: "destructive" 
+      });
     }
   };
   

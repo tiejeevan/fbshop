@@ -176,9 +176,13 @@ export default function EditProductPage() {
 
       toast({ title: "Product Updated", description: `"${data.name}" has been successfully updated.` });
       router.push('/admin/products');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating product:", error);
-      toast({ title: "Error Updating Product", description: "Could not update the product. Please try again.", variant: "destructive" });
+      toast({ 
+          title: "Error Updating Product", 
+          description: error.message || "An unexpected error occurred.",
+          variant: "destructive" 
+      });
     }
   };
 

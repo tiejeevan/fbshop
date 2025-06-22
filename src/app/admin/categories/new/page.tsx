@@ -82,9 +82,13 @@ export default function NewCategoryPage() {
 
       toast({ title: "Category Created", description: `"${data.name}" has been successfully added.` });
       router.push('/admin/categories');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating category:", error);
-      toast({ title: "Error Creating Category", description: "Could not create the category. Please try again.", variant: "destructive" });
+      toast({ 
+          title: "Error Creating Category", 
+          description: error.message || "An unexpected error occurred.",
+          variant: "destructive" 
+      });
     }
   };
 

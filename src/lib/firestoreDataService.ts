@@ -123,7 +123,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         if (adminData.badges === undefined) { updatePayload.badges = []; needsUpdate = true; }
         if (adminData.jobsCreatedCount === undefined) { updatePayload.jobsCreatedCount = 0; needsUpdate = true; }
         if (adminData.jobsCompletedCount === undefined) { updatePayload.jobsCompletedCount = 0; needsUpdate = true; }
-        if (adminData.name?.includes('(Firestore)')) { updatePayload.name = 'Administrator'; needsUpdate = true; }
+        if (adminData.name !== 'Administrator') { updatePayload.name = 'Administrator'; needsUpdate = true; }
 
         if(needsUpdate) {
             await updateDoc(adminDoc.ref, {...updatePayload, updatedAt: serverTimestamp() });
@@ -843,16 +843,19 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       console.warn("Firebase Storage not available, falling back to LocalDB for image save.");
       return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
     }
-    // Using the original filename and a simpler path to avoid issues.
-    const filePath = `images/${entityId}/${imageFile.name}`;
+    const sanitizedFileName = imageFile.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+    const filePath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
     const fileRef = storageRef(firebaseStorage, filePath);
     
     try {
       await uploadBytes(fileRef, imageFile);
       const downloadURL = await getDownloadURL(fileRef);
       return downloadURL;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading image to Firebase Storage:", error);
+      if (error.code === 'storage/unauthorized' || error.code === 'storage/unknown') {
+          throw new Error('Upload failed. Check Firebase Storage Rules for write access and CORS configuration. See CORS_FIX_INSTRUCTIONS.md for details.');
+      }
       throw error;
     }
   },
