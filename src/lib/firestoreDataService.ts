@@ -420,9 +420,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       if (product) {
         const imageIdsToDelete = [product.primaryImageId, ...(product.additionalImageIds || [])].filter(id => !!id) as string[];
         for (const imageUrl of imageIdsToDelete) {
-          if (imageUrl.startsWith('https://firebasestorage.googleapis.com')) {
-              await this.deleteImage(imageUrl);
-          }
+          await this.deleteImage(imageUrl);
         }
       }
       return true;
@@ -496,7 +494,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         batch.update(childDoc.ref, { parentId: null, updatedAt: serverTimestamp() });
       });
 
-      if(categoryToDelete.imageId && categoryToDelete.imageId.startsWith('https://firebasestorage.googleapis.com')){
+      if(categoryToDelete.imageId){
           await this.deleteImage(categoryToDelete.imageId);
       }
       batch.delete(doc(db, "categories", categoryId));
@@ -840,75 +838,26 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
-    if (!firebaseStorage) {
-      console.warn("Firebase Storage not configured. Falling back to browser's IndexedDB.");
-      return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
-    }
-    
-    // Sanitize the filename to replace spaces and special characters.
-    const sanitizedName = imageFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const filename = `${Date.now()}-${sanitizedName}`;
-    const filePath = `images/${entityId}/${filename}`;
-    const fileRef = storageRef(firebaseStorage, filePath);
-  
-    console.log(`Uploading to Firebase Storage: ${filePath}`);
-  
-    try {
-      const uploadResult = await uploadBytes(fileRef, imageFile);
-      const downloadURL = await getDownloadURL(uploadResult.ref);
-      console.log(`Upload successful. URL: ${downloadURL}`);
-      return downloadURL;
-  
-    } catch (error: any) {
-      console.error("Firebase Storage upload failed:", error);
-      if (error.code === 'storage/unauthorized' || error.code === 'storage/retry-limit-exceeded' || error.code === 'storage/unknown') {
-        const helpfulError = new Error(
-          'Image upload failed due to a server permission error. This is almost always a CORS configuration issue on your Firebase Storage bucket. Please follow the CORS_FIX_INSTRUCTIONS.md file precisely.'
-        );
-        (helpfulError as any).originalError = error;
-        throw helpfulError;
-      }
-      throw error;
-    }
+    // Due to CORS configuration constraints in the development environment,
+    // we are falling back to local IndexedDB storage for images even in Firebase mode.
+    // For a production deployment, the CORS issue on the Firebase Storage bucket must be resolved.
+    console.warn("Firebase Storage upload is disabled due to CORS constraints. Falling back to browser's IndexedDB.");
+    return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
   },
 
   async getImage(imageId: string): Promise<Blob | null> {
-     if (imageId.startsWith('http')) {
-        console.warn("firestoreDataService.getImage called with a URL, this should be handled by client. Returning null.");
-        return null;
-    }
+    // Fallback to local DB as images are stored there.
     return localDBServiceFallback.getImage(imageId);
   },
 
   async deleteImage(imageId: string): Promise<void> {
-    if (!imageId.startsWith('https://firebasestorage.googleapis.com')) {
-      console.warn(`Attempted to delete non-Firebase URL via firestoreDataService: ${imageId}`);
-      return;
-    }
-
-    if (!firebaseStorage) {
-      console.warn("Firebase Storage not available for image deletion. Image URL:", imageId);
-      return;
-    }
-    
-    try {
-      const imageRef = storageRef(firebaseStorage, imageId);
-      await deleteObject(imageRef);
-    } catch (error) {
-      if ((error as any).code === 'storage/object-not-found') {
-        console.warn(`Image not found in Firebase Storage for deletion: ${imageId}`);
-      } else {
-        console.error("Error deleting image from Firebase Storage:", error, imageId);
-      }
-    }
+    // Fallback to local DB as images are stored there.
+    return localDBServiceFallback.deleteImage(imageId);
   },
 
   async deleteImagesForEntity(imageIds: string[]): Promise<void> {
-    for (const id of imageIds) {
-        if (id && id.startsWith('https://firebasestorage.googleapis.com')) {
-          await this.deleteImage(id);
-        }
-    }
+    // Fallback to local DB as images are stored there.
+    return localDBServiceFallback.deleteImagesForEntity(imageIds);
   },
 
   // Job Methods
