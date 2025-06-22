@@ -13,12 +13,12 @@ import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup, documentId
 } from 'firebase/firestore';
 import { storage as firebaseStorage } from './firebase'; // Import Firebase Storage instance
-import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 
 // Import the original localStorageDataService for fallbacks or specific local operations
 import { localStorageDataService as localDBServiceFallback } from './localStorageDataService'; // For fallbacks
-import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, deleteImage as deleteImageFromLocalDB, deleteImagesForProduct as deleteImagesForEntityFromLocalDB } from './indexedDbService';
+import { saveImage as saveImageToLocalDB, getImage as getImageFromLocalDB, deleteImage as deleteImageFromLocalDB, deleteImagesForEntity as deleteImagesForEntityFromLocalDB } from './indexedDbService';
 
 
 let db: Firestore | null = null;
@@ -278,7 +278,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         // Calculate dynamic stats
         const jobsCreatedQuery = query(collection(db, 'jobs'), where('createdById', '==', userId));
         const jobsCompletedQuery = query(collection(db, 'jobs'), where('acceptedById', '==', userId), where('status', '==', 'completed'));
-        const [createdSnap, completedSnap] = await Promise.all([getDocs(jobsCreatedQuery), getDocs(completedSnap)]);
+        const [createdSnap, completedSnap] = await Promise.all([getDocs(jobsCreatedQuery), getDocs(jobsCompletedQuery)]);
         user.jobsCreatedCount = createdSnap.size;
         user.jobsCompletedCount = completedSnap.size;
         
@@ -855,8 +855,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const fileRef = storageRef(firebaseStorage, filePath);
     
     try {
-      const uploadTask = await uploadBytesResumable(fileRef, imageFile);
-      const downloadURL = await getDownloadURL(uploadTask.ref);
+      const uploadResult = await uploadBytes(fileRef, imageFile);
+      const downloadURL = await getDownloadURL(uploadResult.ref);
       return downloadURL;
     } catch (error) {
       console.error("Error uploading image to Firebase Storage:", error);
@@ -1210,23 +1210,23 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     await batch.commit();
   },
 
-  async getSavedJobs(userId: string): Promise<JobSavedItem[]> {
+  async getSavedJobs(userId): Promise<JobSavedItem[]> {
     if (!db) throw new Error("Firestore not initialized");
     const savedJobsCol = collection(db, `users/${userId}/savedJobs`);
     const snapshot = await getDocs(query(savedJobsCol, orderBy("addedAt", "desc")));
     return mapDocsToTypeArray<JobSavedItem>(snapshot);
   },
-  async addToSavedJobs(userId: string, jobId: string): Promise<void> {
+  async addToSavedJobs(userId, jobId): Promise<void> {
     if (!db) throw new Error("Firestore not initialized");
     const savedJobRef = doc(db, `users/${userId}/savedJobs`, jobId);
     await setDoc(savedJobRef, { userId, jobId, addedAt: serverTimestamp() });
   },
-  async removeFromSavedJobs(userId: string, jobId: string): Promise<void> {
+  async removeFromSavedJobs(userId, jobId): Promise<void> {
     if (!db) throw new Error("Firestore not initialized");
     const savedJobRef = doc(db, `users/${userId}/savedJobs`, jobId);
     await deleteDoc(savedJobRef);
   },
-  async isJobInSavedList(userId: string, jobId: string): Promise<boolean> {
+  async isJobInSavedList(userId, jobId): Promise<boolean> {
     if (!db) throw new Error("Firestore not initialized");
     const savedJobRef = doc(db, `users/${userId}/savedJobs`, jobId);
     const docSnap = await getDoc(savedJobRef);
