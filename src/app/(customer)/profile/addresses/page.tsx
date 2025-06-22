@@ -27,18 +27,19 @@ import {
 } from '@/components/ui/dialog';
 import { AddressForm, type AddressFormValues } from '@/components/customer/AddressForm';
 import { Badge } from '@/components/ui/badge';
-import { useDataSource } from '@/contexts/DataSourceContext'; // Added
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export default function AddressesPage() {
   const { currentUser, isLoading: authLoading, refreshUser } = useAuth();
   const [addresses, setAddresses] = useState<Address[]>([]);
-  const [isComponentLoading, setIsComponentLoading] = useState(true); // Renamed
+  const [isComponentLoading, setIsComponentLoading] = useState(true);
   const [addressToEdit, setAddressToEdit] = useState<Address | null>(null);
   const [addressToDelete, setAddressToDelete] = useState<Address | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isFormSubmitting, setIsFormSubmitting] = useState(false);
+  const [processingAddressId, setProcessingAddressId] = useState<string | null>(null);
   const { toast } = useToast();
-  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // Added
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
   const fetchAddresses = useCallback(async () => {
     if (!currentUser || !dataService || isDataSourceLoading) {
@@ -59,7 +60,7 @@ export default function AddressesPage() {
   }, [currentUser, dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    if (!authLoading) { // Only fetch if auth state is resolved
+    if (!authLoading) {
         fetchAddresses();
     }
   }, [currentUser, authLoading, fetchAddresses]);
@@ -73,9 +74,9 @@ export default function AddressesPage() {
     try {
       await dataService.addAddressToUser(currentUser.id, data);
       toast({ title: 'Address Added', description: 'Your new address has been saved.' });
-      fetchAddresses(); // Re-fetch to update list
+      fetchAddresses();
       setIsFormModalOpen(false);
-      refreshUser(); // Potentially refresh user data if addresses are part of user object
+      refreshUser();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not add address.', variant: 'destructive' });
     } finally {
@@ -109,6 +110,7 @@ export default function AddressesPage() {
         toast({ title: "Error", description: "User, address to delete or data service not available.", variant: "destructive" });
         return;
     }
+    setProcessingAddressId(addressToDelete.id);
     try {
       await dataService.deleteUserAddress(currentUser.id, addressToDelete.id);
       toast({ title: 'Address Deleted' });
@@ -116,8 +118,10 @@ export default function AddressesPage() {
       refreshUser();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not delete address.', variant: 'destructive' });
+    } finally {
+      setProcessingAddressId(null);
+      setAddressToDelete(null);
     }
-    setAddressToDelete(null);
   };
 
   const handleSetDefaultAddress = async (addressId: string) => {
@@ -125,6 +129,7 @@ export default function AddressesPage() {
         toast({ title: "Error", description: "User or data service not available.", variant: "destructive" });
         return;
     }
+    setProcessingAddressId(addressId);
     try {
       await dataService.setDefaultUserAddress(currentUser.id, addressId);
       toast({ title: 'Default Address Updated' });
@@ -132,6 +137,8 @@ export default function AddressesPage() {
       refreshUser();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not set default address.', variant: 'destructive' });
+    } finally {
+      setProcessingAddressId(null);
     }
   };
 
@@ -185,7 +192,12 @@ export default function AddressesPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
           {addresses.map((address) => (
-            <Card key={address.id} className={`shadow-md ${address.isDefault ? 'border-primary ring-2 ring-primary' : ''}`}>
+            <Card key={address.id} className={`shadow-md relative ${address.isDefault ? 'border-primary ring-2 ring-primary' : ''}`}>
+              {processingAddressId === address.id && (
+                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg z-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+              )}
               <CardHeader>
                 <CardTitle className="text-lg flex justify-between items-start">
                   <span>{address.recipientName}</span>
@@ -205,16 +217,16 @@ export default function AddressesPage() {
               </CardContent>
               <CardFooter className="flex justify-end gap-2 border-t pt-4">
                 {!address.isDefault && (
-                  <Button variant="outline" size="sm" onClick={() => handleSetDefaultAddress(address.id)}>
+                  <Button variant="outline" size="sm" onClick={() => handleSetDefaultAddress(address.id)} disabled={!!processingAddressId}>
                     Set Default
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={() => { setAddressToEdit(address); setIsFormModalOpen(true); }}>
+                <Button variant="outline" size="sm" onClick={() => { setAddressToEdit(address); setIsFormModalOpen(true); }} disabled={!!processingAddressId}>
                   <Edit className="mr-2 h-4 w-4" /> Edit
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" onClick={() => setAddressToDelete(address)}>
+                    <Button variant="destructive" size="sm" onClick={() => setAddressToDelete(address)} disabled={!!processingAddressId}>
                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
                   </AlertDialogTrigger>

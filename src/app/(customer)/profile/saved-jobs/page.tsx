@@ -19,6 +19,7 @@ export default function SavedJobsPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
   const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [isComponentLoading, setIsComponentLoading] = useState(true);
+  const [processingJobId, setProcessingJobId] = useState<string | null>(null);
   const { toast } = useToast();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const router = useRouter();
@@ -36,7 +37,6 @@ export default function SavedJobsPage() {
       const resolvedJobDetails = await Promise.all(jobDetailsPromises);
       const validJobs = resolvedJobDetails.filter((job): job is Job => job !== undefined);
       
-      // Sort by addedAt date, descending
       validJobs.sort((a,b) => {
           const itemA = savedItems.find(i => i.jobId === a.id);
           const itemB = savedItems.find(i => i.jobId === b.id);
@@ -63,6 +63,7 @@ export default function SavedJobsPage() {
 
   const handleRemoveFromSaved = async (jobId: string) => {
     if (!currentUser || !dataService) return;
+    setProcessingJobId(jobId);
     try {
         await dataService.removeFromSavedJobs(currentUser.id, jobId);
         setSavedJobs(prev => prev.filter(j => j.id !== jobId));
@@ -70,6 +71,8 @@ export default function SavedJobsPage() {
         window.dispatchEvent(new CustomEvent('savedJobUpdated'));
     } catch (error) {
         toast({ title: "Error", description: "Could not remove from saved jobs.", variant: "destructive" });
+    } finally {
+      setProcessingJobId(null);
     }
   };
 
@@ -100,7 +103,12 @@ export default function SavedJobsPage() {
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {savedJobs.map(job => (
-          <Card key={job.id} className="flex flex-col">
+          <Card key={job.id} className="flex flex-col relative">
+              {processingJobId === job.id && (
+                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg z-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+              )}
               <CardHeader>
                 <div className="flex justify-between items-start gap-2">
                     <p className="text-lg font-bold text-primary">
@@ -124,7 +132,7 @@ export default function SavedJobsPage() {
                     <span>Expires: {formatDistanceToNow(parseISO(job.expiresAt), { addSuffix: true })}</span>
                     <Badge variant={job.status === 'open' ? 'default' : 'outline'}>{job.status}</Badge>
                 </div>
-                <Button variant="outline" className="w-full" onClick={() => handleRemoveFromSaved(job.id)}>
+                <Button variant="outline" className="w-full" onClick={() => handleRemoveFromSaved(job.id)} disabled={!!processingJobId}>
                     <BookmarkX className="mr-2 h-4 w-4" /> Remove
                 </Button>
               </CardFooter>

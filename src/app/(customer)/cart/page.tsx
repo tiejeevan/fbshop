@@ -19,6 +19,7 @@ export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
   const { currentUser } = useAuth();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const router = useRouter();
@@ -53,12 +54,17 @@ export default function CartPage() {
   }, [loadCartAndProducts]);
 
   const handleQuantityChange = async (productId: string, newQuantity: number) => {
-    if (!currentUser || !cart || !dataService) return;
+    if (!currentUser || !cart || !dataService || updatingItemId) return;
+
+    setUpdatingItemId(productId);
+
     const productDetails = allProducts.find(p => p.id === productId);
     if (!productDetails) {
         toast({title: "Error", description: "Product details not found.", variant: "destructive"});
+        setUpdatingItemId(null);
         return;
     }
+    
     let updatedQuantity = Math.max(1, newQuantity);
     if (productDetails.stock < updatedQuantity) {
         toast({title: "Stock Limit", description: `Only ${productDetails.stock} units for ${productDetails.name}.`, variant: "destructive"});
@@ -66,80 +72,114 @@ export default function CartPage() {
     }
     if (updatedQuantity === 0 && productDetails.stock > 0) updatedQuantity = 1;
 
-    const originalItem = cart.items.find(item => item.productId === productId);
-    const originalQuantity = originalItem?.quantity || 0;
+    try {
+      const originalItem = cart.items.find(item => item.productId === productId);
+      const originalQuantity = originalItem?.quantity || 0;
 
-    const updatedItems = cart.items.map(item =>
-      item.productId === productId ? { ...item, quantity: updatedQuantity } : item
-    );
-    const updatedCart = { ...cart, items: updatedItems };
-    setCart(updatedCart);
-    await dataService.updateCart(updatedCart);
+      const updatedItems = cart.items.map(item =>
+        item.productId === productId ? { ...item, quantity: updatedQuantity } : item
+      );
+      const updatedCart = { ...cart, items: updatedItems };
+      setCart(updatedCart);
+      await dataService.updateCart(updatedCart);
 
-    if (updatedQuantity !== originalQuantity) {
-        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_QUANTITY_UPDATE', entityType: 'Product', entityId: productId, description: `Updated quantity of "${productDetails.name}" to ${updatedQuantity}.`});
+      if (updatedQuantity !== originalQuantity) {
+          await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_QUANTITY_UPDATE', entityType: 'Product', entityId: productId, description: `Updated quantity of "${productDetails.name}" to ${updatedQuantity}.`});
+      }
+      window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch(e) {
+      toast({title: "Error updating cart", variant: "destructive"});
+      loadCartAndProducts(); // Re-fetch to fix state
+    } finally {
+      setUpdatingItemId(null);
     }
-
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
   const handleRemoveItem = async (productId: string) => {
-    if (!currentUser || !cart || !dataService) return;
-    const itemToRemove = cart.items.find(item => item.productId === productId);
-    if (!itemToRemove) return;
+    if (!currentUser || !cart || !dataService || updatingItemId) return;
+    setUpdatingItemId(productId);
+    try {
+      const itemToRemove = cart.items.find(item => item.productId === productId);
+      if (!itemToRemove) return;
 
-    const updatedItems = cart.items.filter(item => item.productId !== productId);
-    const updatedCart = { ...cart, items: updatedItems };
-    setCart(updatedCart);
-    await dataService.updateCart(updatedCart);
-    
-    await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_REMOVE_ITEM', entityType: 'Product', entityId: productId, description: `Removed "${itemToRemove.name}" from cart.` });
-    
-    toast({ title: "Item Removed" });
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
+      const updatedItems = cart.items.filter(item => item.productId !== productId);
+      const updatedCart = { ...cart, items: updatedItems };
+      setCart(updatedCart);
+      await dataService.updateCart(updatedCart);
+      
+      await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_REMOVE_ITEM', entityType: 'Product', entityId: productId, description: `Removed "${itemToRemove.name}" from cart.` });
+      
+      toast({ title: "Item Removed" });
+      window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch(e) {
+      toast({title: "Error removing item", variant: "destructive"});
+      loadCartAndProducts();
+    } finally {
+      setUpdatingItemId(null);
+    }
   };
 
   const handleMoveToSavedForLater = async (productId: string) => {
-    if (!currentUser || !dataService) return;
-    const itemToSave = allProducts.find(p => p.id === productId);
-
-    await dataService.moveToSavedForLater(currentUser.id, productId);
-    if (itemToSave) {
-        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_SAVE_FOR_LATER', entityType: 'Product', entityId: productId, description: `Saved "${itemToSave.name}" for later.` });
+    if (!currentUser || !dataService || updatingItemId) return;
+    setUpdatingItemId(productId);
+    try {
+      const itemToSave = allProducts.find(p => p.id === productId);
+      await dataService.moveToSavedForLater(currentUser.id, productId);
+      if (itemToSave) {
+          await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_SAVE_FOR_LATER', entityType: 'Product', entityId: productId, description: `Saved "${itemToSave.name}" for later.` });
+      }
+      toast({ title: "Item Saved for Later" });
+      loadCartAndProducts();
+      window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch(e) {
+      toast({title: "Error saving item", variant: "destructive"});
+    } finally {
+      setUpdatingItemId(null);
     }
-    toast({ title: "Item Saved for Later" });
-    loadCartAndProducts();
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
   const handleMoveToCartFromSaved = async (productId: string) => {
-    if (!currentUser || !dataService) return;
+    if (!currentUser || !dataService || updatingItemId) return;
+    setUpdatingItemId(productId);
     const itemToMove = allProducts.find(p => p.id === productId);
-    const success = await dataService.moveToCartFromSaved(currentUser.id, productId);
-    if (success) {
-        if(itemToMove) {
-             await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_MOVE_FROM_SAVED', entityType: 'Product', entityId: productId, description: `Moved "${itemToMove.name}" from Saved to Cart.` });
-        }
-        toast({ title: "Item Moved to Cart" });
-    } else {
-        toast({ title: "Could not move item", description: "Item may be out of stock.", variant: "destructive" });
+    try {
+      const success = await dataService.moveToCartFromSaved(currentUser.id, productId);
+      if (success) {
+          if(itemToMove) {
+              await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_MOVE_FROM_SAVED', entityType: 'Product', entityId: productId, description: `Moved "${itemToMove.name}" from Saved to Cart.` });
+          }
+          toast({ title: "Item Moved to Cart" });
+      } else {
+          toast({ title: "Could not move item", description: "Item may be out of stock.", variant: "destructive" });
+      }
+      loadCartAndProducts();
+      window.dispatchEvent(new CustomEvent('cartUpdated'));
+    } catch(e) {
+      toast({title: "Error moving item", variant: "destructive"});
+    } finally {
+      setUpdatingItemId(null);
     }
-    loadCartAndProducts();
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
   };
 
   const handleRemoveFromSaved = async (productId: string) => {
-    if (!currentUser || !dataService) return;
+    if (!currentUser || !dataService || updatingItemId) return;
+    setUpdatingItemId(productId);
     const itemToRemove = allProducts.find(p => p.id === productId);
-    await dataService.removeFromSavedForLater(currentUser.id, productId);
-    if (itemToRemove) {
-        await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_REMOVE_FROM_SAVED', entityType: 'Product', entityId: productId, description: `Removed "${itemToRemove.name}" from Saved for Later.` });
+    try {
+      await dataService.removeFromSavedForLater(currentUser.id, productId);
+      if (itemToRemove) {
+          await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: currentUser.role, actionType: 'CART_REMOVE_FROM_SAVED', entityType: 'Product', entityId: productId, description: `Removed "${itemToRemove.name}" from Saved for Later.` });
+      }
+      toast({ title: "Removed from Saved" });
+      loadCartAndProducts();
+    } catch(e) {
+      toast({title: "Error removing saved item", variant: "destructive"});
+    } finally {
+      setUpdatingItemId(null);
     }
-    toast({ title: "Removed from Saved" });
-    loadCartAndProducts();
   };
 
-  const subtotal = cart?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
+  const subtotal = cart?.items.reduce((sum, item) => sum + item.quantity, 0) > 0 ? cart?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) : 0;
   const hasActiveItems = cart && cart.items.length > 0;
   const hasSavedItems = cart && cart.savedForLaterItems && cart.savedForLaterItems.length > 0;
 
@@ -170,7 +210,12 @@ export default function CartPage() {
             cart.items.map(item => {
               const productDetails = allProducts.find(p => p.id === item.productId);
               return (
-              <Card key={item.productId} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-md">
+              <Card key={item.productId} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-md relative">
+                {updatingItemId === item.productId && (
+                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg z-10">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                )}
                 <ProductImage
                   imageId={item.primaryImageId}
                   alt={item.name}
@@ -188,18 +233,18 @@ export default function CartPage() {
                   {productDetails && productDetails.stock < item.quantity && <p className="text-xs text-destructive">Requested > stock ({productDetails.stock})</p>}
                 </div>
                 <div className="flex items-center gap-2 my-2 sm:my-0">
-                  <Button variant="outline" size="icon" onClick={() => handleQuantityChange(item.productId, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => handleQuantityChange(item.productId, item.quantity - 1)} disabled={item.quantity <= 1 || !!updatingItemId}><Minus className="h-4 w-4" /></Button>
                   <Input type="number" value={item.quantity}
                     onChange={(e) => handleQuantityChange(item.productId, parseInt(e.target.value))}
-                    min="1" max={productDetails?.stock || item.quantity} className="w-16 h-10 text-center" />
-                  <Button variant="outline" size="icon" onClick={() => handleQuantityChange(item.productId, item.quantity + 1)} disabled={!!productDetails && item.quantity >= productDetails.stock}><Plus className="h-4 w-4" /></Button>
+                    min="1" max={productDetails?.stock || item.quantity} className="w-16 h-10 text-center" disabled={!!updatingItemId} />
+                  <Button variant="outline" size="icon" onClick={() => handleQuantityChange(item.productId, item.quantity + 1)} disabled={!!productDetails && item.quantity >= productDetails.stock || !!updatingItemId}><Plus className="h-4 w-4" /></Button>
                 </div>
                 <p className="text-lg font-semibold w-24 text-center sm:text-right">${(item.price * item.quantity).toFixed(2)}</p>
                 <div className="flex flex-col sm:flex-row gap-1 items-center">
-                    <Button variant="ghost" size="sm" onClick={() => handleMoveToSavedForLater(item.productId)} className="text-xs text-muted-foreground hover:text-primary h-auto p-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleMoveToSavedForLater(item.productId)} className="text-xs text-muted-foreground hover:text-primary h-auto p-1" disabled={!!updatingItemId}>
                         <Save className="mr-1 h-3 w-3"/> Save for Later
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.productId)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-5 w-5" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.productId)} className="text-destructive hover:bg-destructive/10" disabled={!!updatingItemId}><Trash2 className="h-5 w-5" /></Button>
                 </div>
               </Card>
             )})
@@ -242,7 +287,12 @@ export default function CartPage() {
             {cart.savedForLaterItems?.map(item => {
                 const productDetails = allProducts.find(p => p.id === item.productId);
                 return (
-                  <Card key={`saved-${item.productId}`} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-sm">
+                  <Card key={`saved-${item.productId}`} className="flex flex-col sm:flex-row items-center gap-4 p-4 shadow-sm relative">
+                    {updatingItemId === item.productId && (
+                        <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg z-10">
+                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                    )}
                     <ProductImage
                       imageId={item.primaryImageId}
                       alt={item.name}
@@ -260,10 +310,10 @@ export default function CartPage() {
                       <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                     </div>
                     <div className="flex flex-col gap-2 items-stretch sm:items-end">
-                      <Button size="sm" onClick={() => handleMoveToCartFromSaved(item.productId)} disabled={(productDetails?.stock || 0) < item.quantity}>
+                      <Button size="sm" onClick={() => handleMoveToCartFromSaved(item.productId)} disabled={(productDetails?.stock || 0) < item.quantity || !!updatingItemId}>
                         <ShoppingCartIcon className="mr-2 h-4 w-4"/>Add to Cart
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveFromSaved(item.productId)} className="text-xs text-destructive hover:bg-destructive/5">
+                      <Button variant="ghost" size="sm" onClick={() => handleRemoveFromSaved(item.productId)} className="text-xs text-destructive hover:bg-destructive/5" disabled={!!updatingItemId}>
                         <Trash2 className="mr-1 h-3 w-3"/>Remove
                       </Button>
                     </div>

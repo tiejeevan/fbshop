@@ -26,6 +26,7 @@ export default function MyJobsPage() {
   const [acceptedJobs, setAcceptedJobs] = useState<Job[]>([]);
   const [jobReviews, setJobReviews] = useState<JobReview[]>([]);
   const [isComponentLoading, setIsComponentLoading] = useState(true);
+  const [processingJobId, setProcessingJobId] = useState<string | null>(null);
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const { toast } = useToast();
   const router = useRouter();
@@ -49,7 +50,6 @@ export default function MyJobsPage() {
 
       const allJobIds = [...userCreatedJobs, ...userAcceptedJobs].map(job => job.id);
       if (allJobIds.length > 0) {
-        // Fetch reviews for each job individually to avoid collection group index requirement.
         const reviewPromises = allJobIds.map(id => dataService.getReviewsForJob(id));
         const reviewsByJob = await Promise.all(reviewPromises);
         const fetchedReviews = reviewsByJob.flat();
@@ -72,13 +72,16 @@ export default function MyJobsPage() {
 
   const handleMarkComplete = async (jobId: string) => {
     if (!dataService) return;
+    setProcessingJobId(jobId);
     try {
         await dataService.updateJob({ id: jobId, status: 'completed' });
         toast({ title: "Job Marked as Complete!" });
-        fetchJobsAndReviews(); // Refresh job lists and reviews
+        fetchJobsAndReviews();
     } catch (error) {
         console.error("Error completing job:", error);
         toast({ title: "Error", description: "Could not update job status.", variant: "destructive" });
+    } finally {
+      setProcessingJobId(null);
     }
   };
 
@@ -147,8 +150,15 @@ export default function MyJobsPage() {
         return nameComponent;
     };
 
+    const isProcessing = processingJobId === job.id;
+
     return (
-        <Card className="flex flex-col">
+        <Card className="flex flex-col relative">
+            {isProcessing && (
+                <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg z-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+            )}
             <CardHeader>
                 <CardTitle>{job.title}</CardTitle>
                 <div className="text-sm text-muted-foreground">
@@ -175,20 +185,20 @@ export default function MyJobsPage() {
                 </div>
                 <div className="w-full flex flex-col gap-2">
                     {(job.status === 'accepted' || job.status === 'completed') && (
-                        <Button size="sm" className="w-full" variant="outline" asChild>
+                        <Button size="sm" className="w-full" variant="outline" asChild disabled={isProcessing}>
                             <Link href={`/jobs/${job.id}/chat`}><MessageSquare className="mr-2 h-4 w-4" />Chat</Link>
                         </Button>
                     )}
                     {isCreator && job.status === 'accepted' && (
-                        <Button size="sm" className="w-full" onClick={() => handleMarkComplete(job.id)}>Mark as Complete</Button>
+                        <Button size="sm" className="w-full" onClick={() => handleMarkComplete(job.id)} disabled={isProcessing}>Mark as Complete</Button>
                     )}
                      {isCreator && job.status === 'expired' && (
-                        <Button size="sm" className="w-full" onClick={() => handleRelistJob(job)}>
+                        <Button size="sm" className="w-full" onClick={() => handleRelistJob(job)} disabled={isProcessing}>
                             <RefreshCw className="mr-2 h-4 w-4"/>Relist Job
                         </Button>
                     )}
                     {job.status === 'completed' && !hasUserReviewed && (
-                        <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-white" onClick={() => handleOpenReviewModal(job)}>
+                        <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-white" onClick={() => handleOpenReviewModal(job)} disabled={isProcessing}>
                             <Star className="mr-2 h-4 w-4" /> Leave Review
                         </Button>
                     )}

@@ -10,14 +10,15 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { HeartCrack, ShoppingCart, ArrowLeft, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ProductImage } from '@/components/product/ProductImage';
-import { useDataSource } from '@/contexts/DataSourceContext'; // Added
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 export default function WishlistPage() {
   const { currentUser, isLoading: authLoading } = useAuth();
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
-  const [isComponentLoading, setIsComponentLoading] = useState(true); // Renamed
+  const [isComponentLoading, setIsComponentLoading] = useState(true);
+  const [processingProductId, setProcessingProductId] = useState<string | null>(null);
   const { toast } = useToast();
-  const { dataService, isLoading: isDataSourceLoading } = useDataSource(); // Added
+  const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
   const fetchWishlist = useCallback(async () => {
     if (!currentUser || !dataService || isDataSourceLoading) {
@@ -33,7 +34,7 @@ export default function WishlistPage() {
       const resolvedProductDetails = await Promise.all(productDetailsPromises);
       const validProducts = resolvedProductDetails
         .filter((product): product is Product => product !== undefined)
-        .sort((a,b) => { // Sort by addedAt date, descending
+        .sort((a,b) => {
             const itemA = userWishlistItems.find(i => i.productId === a.id);
             const itemB = userWishlistItems.find(i => i.productId === b.id);
             return new Date(itemB?.addedAt || 0).getTime() - new Date(itemA?.addedAt || 0).getTime();
@@ -49,7 +50,7 @@ export default function WishlistPage() {
   }, [currentUser, dataService, isDataSourceLoading, toast]);
 
   useEffect(() => {
-    if (!authLoading) { // Fetch only when auth state is resolved
+    if (!authLoading) {
         fetchWishlist();
     }
 
@@ -61,6 +62,7 @@ export default function WishlistPage() {
 
   const handleRemoveFromWishlist = async (productId: string) => {
     if (!currentUser || !dataService) return;
+    setProcessingProductId(productId);
     try {
         await dataService.removeFromWishlist(currentUser.id, productId);
         setWishlistProducts(prev => prev.filter(p => p.id !== productId));
@@ -68,6 +70,8 @@ export default function WishlistPage() {
         window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: { isGeneralUpdate: true } }));
     } catch (error) {
         toast({ title: "Error", description: "Could not remove from wishlist.", variant: "destructive" });
+    } finally {
+        setProcessingProductId(null);
     }
   };
 
@@ -75,6 +79,7 @@ export default function WishlistPage() {
     if (!currentUser || !dataService) {
       toast({ title: "Error", description: "User or data service not available.", variant: "destructive" }); return;
     }
+    setProcessingProductId(product.id);
     try {
         let cart = await dataService.getCart(currentUser.id);
         if (!cart) {
@@ -93,6 +98,8 @@ export default function WishlistPage() {
         window.dispatchEvent(new CustomEvent('cartUpdated'));
     } catch (error) {
         toast({ title: "Error", description: "Could not add to cart.", variant: "destructive" });
+    } finally {
+        setProcessingProductId(null);
     }
   };
 
@@ -141,11 +148,13 @@ export default function WishlistPage() {
                 </CardContent>
               </Link>
               <CardFooter className="p-4 border-t mt-auto flex items-center justify-between">
-                <Button size="sm" variant="outline" onClick={() => handleRemoveFromWishlist(product.id)}>
-                  <HeartCrack className="mr-2 h-4 w-4 text-destructive" /> Remove
+                <Button size="sm" variant="outline" onClick={() => handleRemoveFromWishlist(product.id)} disabled={!!processingProductId}>
+                  {processingProductId === product.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <HeartCrack className="mr-2 h-4 w-4 text-destructive" />}
+                   Remove
                 </Button>
-                <Button size="sm" onClick={() => handleAddToCart(product)} disabled={product.stock === 0}>
-                  <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
+                <Button size="sm" onClick={() => handleAddToCart(product)} disabled={product.stock === 0 || !!processingProductId}>
+                  {processingProductId === product.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShoppingCart className="mr-2 h-4 w-4" />}
+                   Add to Cart
                 </Button>
               </CardFooter>
             </Card>
