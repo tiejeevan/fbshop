@@ -57,8 +57,14 @@ export default function ProductsPage() {
             };
         });
 
+        // Filter out duplicate categories by name before setting state
+        const uniqueCategories = allCategories.filter(
+          (category, index, self) =>
+            index === self.findIndex((c) => c.name === category.name)
+        );
+
         setProducts(productsWithDetails);
-        setCategories(allCategories);
+        setCategories(uniqueCategories);
       } catch (error) {
         console.error("Error fetching products/categories in ProductsPage:", error);
         toast({ title: "Error", description: "Could not load product data.", variant: "destructive" });
