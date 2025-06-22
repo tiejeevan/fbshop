@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback, ReactNode } from 'react';
@@ -24,6 +23,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 const generateJobsSchema = z.object({
   count: z.coerce.number().int().min(1, "At least 1 job").max(20, "Max 20 jobs"),
@@ -37,6 +37,8 @@ const generateJobsSchema = z.object({
     return true;
 }, { message: "Max must be greater than or equal to min", path: ["maxCompensation"] });
 type GenerateJobsValues = z.infer<typeof generateJobsSchema>;
+
+const RANDOM_CATEGORY_VALUE = "__RANDOM__";
 
 const generateProductsSchema = z.object({
   count: z.coerce.number().int().min(1, "At least 1 product").max(20, "Max 20 products"),
@@ -115,21 +117,46 @@ export default function MockDataGeneratorPage() {
   
   const onProductsSubmit: SubmitHandler<GenerateProductsValues> = async (data) => {
     if (!currentUser || !dataService) return;
+    const isRandom = data.categoryId === RANDOM_CATEGORY_VALUE;
+    
+    if (productCategories.length === 0) {
+        toast({ title: "Prerequisites Missing", description: "No product categories exist to assign products to.", variant: "destructive"});
+        return;
+    }
+
     setIsLoading(prev => ({ ...prev, products: true }));
     try {
-      const categoryName = productCategories.find(c => c.id === data.categoryId)?.name;
-      if (!categoryName) {
+      const categoryNameForAI = isRandom 
+        ? undefined 
+        : productCategories.find(c => c.id === data.categoryId)?.name;
+        
+      if (!isRandom && !categoryNameForAI) {
         throw new Error("Selected category not found.");
       }
       
-      const result = await generateMockProducts({ count: data.count, categoryName: categoryName, prompt: data.prompt });
+      const result = await generateMockProducts({ count: data.count, categoryName: categoryNameForAI, prompt: data.prompt });
       
       if (!result || !result.products || result.products.length === 0) throw new Error("AI did not return any products.");
       
-      const productsWithCategory = result.products.map(p => ({
-        ...p,
-        categoryId: data.categoryId,
-      }));
+      const productsWithCategory = result.products.map(p => {
+          let assignedCatId: string;
+          let assignedCatName: string | undefined;
+
+          if (isRandom) {
+              const randomCat = productCategories[Math.floor(Math.random() * productCategories.length)];
+              assignedCatId = randomCat.id;
+              assignedCatName = randomCat.name;
+          } else {
+              assignedCatId = data.categoryId;
+              assignedCatName = categoryNameForAI;
+          }
+
+          return {
+            ...p,
+            categoryId: assignedCatId,
+            categoryName: assignedCatName, // For display in modal
+          };
+      });
 
       handleGenerationResult(productsWithCategory as unknown as Product[], 'products');
 
@@ -218,6 +245,7 @@ export default function MockDataGeneratorPage() {
                     <span>Price: ${product.price.toFixed(2)}</span>
                     <span>Stock: {product.stock}</span>
                 </div>
+                {product.categoryName && <Badge variant="outline" className="mt-1">Category: {product.categoryName}</Badge>}
               </CardContent>
             </Card>
           ));
@@ -270,7 +298,10 @@ export default function MockDataGeneratorPage() {
                 <div><Label htmlFor="product-prompt">Guiding Prompt (Optional)</Label><Textarea id="product-prompt" {...productsForm.register('prompt')} placeholder="e.g., 'Handmade leather goods'"/></div>
                 <div><Label htmlFor="product-category">Category</Label>
                     <Select onValueChange={(value) => productsForm.setValue('categoryId', value)} defaultValue=""><SelectTrigger><SelectValue placeholder="Select a category..." /></SelectTrigger>
-                    <SelectContent>{productCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                        <SelectItem value={RANDOM_CATEGORY_VALUE}>Random Existing Category</SelectItem>
+                        {productCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
                     </Select>{productsForm.formState.errors.categoryId && <p className="text-sm text-destructive mt-1">{productsForm.formState.errors.categoryId.message}</p>}
                 </div>
                 <div><Label htmlFor="product-count">Number of Products (1-20)</Label><Input id="product-count" type="number" {...productsForm.register('count')} min="1" max="20" />{productsForm.formState.errors.count && <p className="text-sm text-destructive mt-1">{productsForm.formState.errors.count.message}</p>}</div>

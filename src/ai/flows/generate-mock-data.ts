@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview AI flows for generating mock data for the application.
@@ -89,7 +88,7 @@ Generate a random compensation amount for each job between $0 and $150.
 // 2. Generate Mock Products
 const GenerateMockProductsInputSchema = z.object({
   count: z.number().int().min(1).max(20).describe("The number of mock products to generate."),
-  categoryName: z.string().describe("The name of the category to generate products for."),
+  categoryName: z.string().optional().describe("The name of the category to generate products for. If omitted, generate products for various common e-commerce categories."),
   prompt: z.string().optional().describe("An optional text prompt to guide the theme of the generated products."),
 });
 export type GenerateMockProductsInput = z.infer<typeof GenerateMockProductsInputSchema>;
@@ -112,12 +111,16 @@ const generateMockProductsFlow = ai.defineFlow(
   async (input) => {
     const promptText = `You are a mock data generator. Create ${input.count} realistic but clearly fake product listings. For each, provide a creative name, a compelling description, a realistic price, and a random stock quantity.
 
-All products should belong to the category: "{{input.categoryName}}". This is a mandatory instruction. Do not invent new categories.
+    {{#if input.categoryName}}
+    All products should belong to the category: "{{input.categoryName}}". This is a mandatory instruction. Do not invent new categories.
+    {{else}}
+    The products can belong to any common e-commerce category. Do not include the category name in the product name or description.
+    {{/if}}
 
-{{#if input.prompt}}
-The products should be inspired by the following theme: {{{input.prompt}}}
-{{/if}}
-`;
+    {{#if input.prompt}}
+    The products should be inspired by the following theme: {{{input.prompt}}}
+    {{/if}}
+    `;
     const prompt = ai.definePrompt({
       name: 'generateMockProductsPrompt',
       input: {schema: GenerateMockProductsInputSchema},
