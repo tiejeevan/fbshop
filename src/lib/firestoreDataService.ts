@@ -1,3 +1,4 @@
+
 // src/lib/firestoreDataService.ts
 'use client';
 
@@ -596,55 +597,79 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const orderSnapshot = await getDocs(q);
     return mapDocsToTypeArray<Order>(orderSnapshot);
   },
-  async addOrder(orderData): Promise<Order> {
+  
+  async addOrder(orderData, actor): Promise<Order> {
     if (!db) throw new Error("Firestore not initialized");
-    const ordersRef = collection(db, "orders");
-    const newOrderRef = doc(ordersRef); 
+    const newOrderRef = doc(collection(db, "orders"));
 
     try {
       const finalOrder = await runTransaction(db, async (transaction) => {
-        const orderItemsWithDetails: OrderItem[] = [];
-        for (const item of orderData.items) {
-          const productRef = doc(db!, "products", item.productId);
-          const productSnap = await transaction.get(productRef);
+        // PHASE 1: READ all products
+        const productRefs = orderData.items.map(item => doc(db!, "products", item.productId));
+        const productSnaps = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+
+        // PHASE 2: VALIDATE all products
+        const productsData: { product: Product, snap: any }[] = [];
+        for (let i = 0; i < productSnaps.length; i++) {
+          const productSnap = productSnaps[i];
           if (!productSnap.exists()) {
-            throw new Error(`Product ${item.productId} not found.`);
+            throw new Error(`Product with ID ${orderData.items[i].productId} not found.`);
           }
           const product = productSnap.data() as Product;
-          if (product.stock < item.quantity) {
-            throw new Error(`Not enough stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+          if (product.stock < orderData.items[i].quantity) {
+            throw new Error(`Not enough stock for ${product.name}. Available: ${product.stock}, Requested: ${orderData.items[i].quantity}`);
           }
-          
-          orderItemsWithDetails.push({
-            ...item,
-            name: product.name || 'Unknown Product',
-            primaryImageId: product.primaryImageId,
-          });
-          
-          transaction.update(productRef, { 
-            stock: product.stock - item.quantity,
-            purchases: (product.purchases || 0) + item.quantity,
+          productsData.push({ product, snap: productSnap });
+        }
+        
+        // PHASE 3: WRITE all updates
+        const orderItemsWithDetails: OrderItem[] = [];
+        productsData.forEach((pData, i) => {
+          const item = orderData.items[i];
+          transaction.update(pData.snap.ref, {
+            stock: pData.product.stock - item.quantity,
+            purchases: (pData.product.purchases || 0) + item.quantity,
             updatedAt: serverTimestamp()
           });
-        }
+
+          orderItemsWithDetails.push({
+            ...item,
+            name: pData.product.name || 'Unknown Product',
+            primaryImageId: pData.product.primaryImageId,
+          });
+        });
 
         const newOrderDataFS = {
           ...orderData,
-          id: newOrderRef.id, 
+          id: newOrderRef.id,
           items: orderItemsWithDetails,
           shippingAddress: orderData.shippingAddress,
           orderDate: serverTimestamp(),
         };
-        transaction.set(newOrderRef, newOrderDataFS);
-        
+        transaction.set(newOrderRef, newOrderDataFS); // WRITE the new order
+
+        // Return the client-side representation of the order
         return {
-            ...orderData,
-            id: newOrderRef.id,
-            items: orderItemsWithDetails,
-            orderDate: new Date().toISOString(), 
+          ...orderData,
+          id: newOrderRef.id,
+          items: orderItemsWithDetails,
+          orderDate: new Date().toISOString(),
         } as Order;
       });
+      
+      // Add activity log outside the transaction
+      await this.addActivityLog({
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        actionType: 'ORDER_CREATE',
+        entityType: 'Order',
+        entityId: finalOrder.id,
+        description: `Created order with ${finalOrder.items.length} item(s) for a total of $${finalOrder.totalAmount.toFixed(2)}.`
+      });
+
       return finalOrder;
+
     } catch (e) {
       console.error("Firestore addOrder transaction failed: ", e);
       throw e;
@@ -838,24 +863,23 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
     if (!firebaseStorage) {
-      throw new Error("Firebase Storage is not configured. Cannot upload image.");
+      return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
     }
     const sanitizedFileName = imageFile.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
     const destinationPath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
     const imageRef = storageRef(firebaseStorage, destinationPath);
-
     try {
-        const snapshot = await uploadBytes(imageRef, imageFile);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        return downloadURL;
+      const snapshot = await uploadBytes(imageRef, imageFile);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      return downloadURL;
     } catch (error: any) {
-        console.error("Direct Firebase upload failed:", error);
-        if (error.code === 'storage/unauthorized') {
-            throw new Error(
-              'Permission denied. Please ensure your Firebase Storage security rules and CORS configuration are correct. See CORS_FIX_INSTRUCTIONS.md for help.'
-            );
-        }
-        throw new Error(`Image upload failed: ${error.message}`);
+      console.error("Firebase upload failed, trying local fallback:", error);
+      try {
+        return await localDBServiceFallback.saveImage(entityId, imageType, imageFile);
+      } catch (localError) {
+        console.error("Local image save also failed:", localError);
+        throw new Error("Both Firebase and local image uploads failed.");
+      }
     }
   },
 
@@ -865,19 +889,21 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async deleteImage(imageId: string): Promise<void> {
-    if (!firebaseStorage || !imageId) return;
-    try {
-      // Create a reference from the full HTTPS URL
-      const imageRef = storageRef(firebaseStorage, imageId);
-      await deleteObject(imageRef);
-    } catch (error: any) {
-      if (error.code === 'storage/object-not-found') {
-        console.warn(`Image to delete was not found in Firebase Storage: ${imageId}`);
-      } else if (error.code === 'storage/invalid-url') {
-          console.warn(`The imageId "${imageId}" is not a valid Firebase Storage URL. Skipping deletion.`);
-      } else {
-        console.error(`An unexpected error occurred while deleting image from Firebase Storage: ${imageId}`, error);
+    if (!imageId) return;
+    if (imageId.startsWith('http')) {
+      if (!firebaseStorage) return;
+      try {
+        const imageRef = storageRef(firebaseStorage, imageId);
+        await deleteObject(imageRef);
+      } catch (error: any) {
+        if (error.code === 'storage/object-not-found') {
+          console.warn(`Image to delete not found in Firebase: ${imageId}`);
+        } else {
+          console.error(`Error deleting image from Firebase: ${imageId}`, error);
+        }
       }
+    } else {
+      await localDBServiceFallback.deleteImage(imageId);
     }
   },
 
@@ -1234,3 +1260,5 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return docSnap.exists();
   },
 };
+
+export { firestoreDataService };
