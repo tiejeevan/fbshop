@@ -844,7 +844,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       console.warn("Firebase Storage not available, falling back to LocalDB for image save.");
       return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
     }
-    const filePath = `images/${entityId}/${imageType}/${Date.now()}_${imageFile.name}`;
+    const sanitizedFileName = imageFile.name.replace(/[^a-zA-Z0-9.]/g, '_');
+    const filePath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
     const fileRef = storageRef(firebaseStorage, filePath);
     
     try {
