@@ -11,7 +11,7 @@ import {
     saveImage as saveImageToDB,
     getImage as getImageFromDB,
     deleteImage as deleteImageFromDB,
-    deleteImagesForProduct as deleteImagesForEntityFromDB,
+    deleteImagesForEntity as deleteImagesForEntityFromDB,
 } from './indexedDbService';
 import type { IDataService } from './dataService';
 import { simpleUUID } from '@/lib/utils';

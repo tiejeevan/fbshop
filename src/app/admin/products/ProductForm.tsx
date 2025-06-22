@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback, ChangeEvent } from 'react';
@@ -21,8 +20,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { getImage as getImageFromDB } from '@/lib/indexedDbService';
 import { ProductImage } from '@/components/product/ProductImage';
+import { useDataSource } from '@/contexts/DataSourceContext';
 
 const MAX_TOTAL_IMAGES = 10;
 const MAX_FILE_SIZE_MB = 0.5;
@@ -31,8 +30,6 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const productSchema = z.object({
   name: z.string().min(3, { message: 'Product name must be at least 3 characters' }),
   description: z.string().min(10, { message: 'Description must be at least 10 characters' }),
-  primaryImageId: z.string().optional().nullable(),
-  additionalImageIds: z.array(z.string()).max(MAX_TOTAL_IMAGES - 1).optional(),
   price: z.coerce.number().min(0.01, { message: 'Price must be greater than 0' }),
   stock: z.coerce.number().min(0, { message: 'Stock cannot be negative' }).int(),
   categoryId: z.string().min(1, { message: 'Please select a category' }),
@@ -54,23 +51,21 @@ interface ProductFormProps {
 interface ImageFileState {
   file: File | null;
   previewUrl: string | null;
-  id: string | null;
+  id: string | null; // This will hold the existing ID (from DB or Firestore URL)
 }
 
 export function ProductForm({ initialData, categories, onFormSubmit }: ProductFormProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { dataSourceType } = useDataSource();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggestingCategories, setIsSuggestingCategories] = useState(false);
   const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
-  const [primaryImageFile, setPrimaryImageFile] = useState<ImageFileState>({
-    file: null,
-    previewUrl: null,
-    id: initialData?.primaryImageId || null
-  });
-  const [additionalImageFiles, setAdditionalImageFiles] = useState<ImageFileState[]>(
+  // States to manage images
+  const [primaryImage, setPrimaryImage] = useState<ImageFileState>({ file: null, previewUrl: null, id: initialData?.primaryImageId || null });
+  const [additionalImages, setAdditionalImages] = useState<ImageFileState[]>(
     (initialData?.additionalImageIds || []).map(id => ({ file: null, previewUrl: null, id }))
   );
   
@@ -86,73 +81,27 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     defaultValues: initialData
       ? {
           ...initialData,
-          primaryImageId: initialData.primaryImageId || null,
-          additionalImageIds: initialData.additionalImageIds || [],
         }
       : {
           name: '',
           description: '',
-          primaryImageId: null,
-          additionalImageIds: [],
           price: 0,
           stock: 0,
           categoryId: '',
         },
   });
-  
-  useEffect(() => {
-    let primaryObjectUrl: string | null = null;
-    const additionalObjectUrls: (string | null)[] = additionalImageFiles.map(() => null);
-
-    const loadPreviews = async () => {
-        if (initialData?.primaryImageId && !primaryImageFile.file) {
-            const blob = await getImageFromDB(initialData.primaryImageId);
-            if (blob) {
-                primaryObjectUrl = URL.createObjectURL(blob);
-                setPrimaryImageFile(prev => ({ ...prev, id: initialData.primaryImageId, previewUrl: primaryObjectUrl }));
-            }
-        }
-        const newAdditionalPreviews = await Promise.all(
-            (initialData?.additionalImageIds || []).map(async (id, index) => {
-                if (id && !additionalImageFiles[index]?.file) {
-                    const blob = await getImageFromDB(id);
-                    if (blob) {
-                        additionalObjectUrls[index] = URL.createObjectURL(blob);
-                        return { file: null, previewUrl: additionalObjectUrls[index], id };
-                    }
-                }
-                return additionalImageFiles[index] || { file: null, previewUrl: null, id };
-            })
-        );
-        setAdditionalImageFiles(newAdditionalPreviews);
-    };
-
-    loadPreviews();
-
-    return () => {
-        if (primaryObjectUrl) URL.revokeObjectURL(primaryObjectUrl);
-        additionalObjectUrls.forEach(url => { if (url) URL.revokeObjectURL(url); });
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData?.primaryImageId, initialData?.additionalImageIds]);
 
   useEffect(() => {
     if (initialData) {
-      setValue('name', initialData.name);
-      setValue('description', initialData.description);
-      setValue('price', initialData.price);
-      setValue('stock', initialData.stock);
-      setValue('categoryId', initialData.categoryId);
-      setValue('primaryImageId', initialData.primaryImageId || null);
-      setValue('additionalImageIds', initialData.additionalImageIds || []);
+      setPrimaryImage({ file: null, previewUrl: null, id: initialData.primaryImageId || null });
+      setAdditionalImages((initialData.additionalImageIds || []).map(id => ({ file: null, previewUrl: null, id })));
     }
-  }, [initialData, setValue]);
-
+  }, [initialData]);
 
   const productDescription = watch('description');
   const productName = watch('name');
 
-  const handleFileChange = async (
+  const handleFileChange = (
     event: ChangeEvent<HTMLInputElement>,
     imageType: 'primary' | 'additional',
     index?: number
@@ -162,59 +111,83 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
       toast({ title: "File Too Large", description: `Image size should not exceed ${MAX_FILE_SIZE_MB}MB.`, variant: "destructive" });
-      event.target.value = ''; return;
+      return;
     }
     if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
         toast({ title: "Invalid File Type", description: "Please select JPG, PNG, WEBP, or GIF.", variant: "destructive" });
-        event.target.value = ''; return;
+        return;
     }
+    event.target.value = ''; // Reset file input
 
     const previewUrl = URL.createObjectURL(file);
 
     if (imageType === 'primary') {
-      if (primaryImageFile.previewUrl && primaryImageFile.previewUrl.startsWith('blob:')) URL.revokeObjectURL(primaryImageFile.previewUrl);
-      setPrimaryImageFile(prev => ({ ...prev, file, previewUrl }));
+      if (primaryImage.previewUrl) URL.revokeObjectURL(primaryImage.previewUrl);
+      setPrimaryImage(prev => ({ ...prev, file, previewUrl }));
     } else if (index !== undefined) {
-      setAdditionalImageFiles(prev => {
+      setAdditionalImages(prev => {
         const newFiles = [...prev];
-        if (newFiles[index]?.previewUrl && newFiles[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newFiles[index].previewUrl!);
+        if (newFiles[index]?.previewUrl) URL.revokeObjectURL(newFiles[index].previewUrl!);
         newFiles[index] = { ...newFiles[index], file, previewUrl };
         return newFiles;
       });
     }
-    event.target.value = '';
   };
 
   const addAdditionalImageSlot = () => {
-    if (additionalImageFiles.length < MAX_TOTAL_IMAGES - 1) {
-      setAdditionalImageFiles(prev => [...prev, { file: null, previewUrl: null, id: null }]);
+    const totalImages = (primaryImage.id || primaryImage.file ? 1 : 0) + additionalImages.filter(img => img.id || img.file).length;
+    if (totalImages < MAX_TOTAL_IMAGES) {
+      setAdditionalImages(prev => [...prev, { file: null, previewUrl: null, id: null }]);
     } else {
-      toast({ title: "Image Limit Reached", description: `Max ${MAX_TOTAL_IMAGES - 1} additional images.`, variant: "destructive"});
+      toast({ title: "Image Limit Reached", description: `Max ${MAX_TOTAL_IMAGES} total images.`, variant: "destructive"});
     }
   };
 
-  const removePrimaryImage = () => {
-    if (primaryImageFile.previewUrl && primaryImageFile.previewUrl.startsWith('blob:')) URL.revokeObjectURL(primaryImageFile.previewUrl);
-    setPrimaryImageFile(prev => ({ ...prev, file: null, previewUrl: null }));
-    const fileInput = document.getElementById('primaryImageFile') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
+  const removeImage = (type: 'primary' | 'additional', index?: number) => {
+    if (type === 'primary') {
+      if (primaryImage.previewUrl) URL.revokeObjectURL(primaryImage.previewUrl);
+      setPrimaryImage({ file: null, previewUrl: null, id: null });
+    } else if (index !== undefined) {
+      setAdditionalImages(prev => prev.filter((_, i) => {
+        if (i === index && prev[i].previewUrl) URL.revokeObjectURL(prev[i].previewUrl!);
+        return i !== index;
+      }));
+    }
   };
 
-  const removeAdditionalImage = (index: number) => {
-    setAdditionalImageFiles(prev => {
-      const newFiles = [...prev];
-      if (newFiles[index]?.previewUrl && newFiles[index].previewUrl!.startsWith('blob:')) URL.revokeObjectURL(newFiles[index].previewUrl!);
-      newFiles[index] = { ...newFiles[index], file: null, previewUrl: null };
-      return newFiles;
+  const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
+    setIsSubmitting(true);
+    
+    const imagesToSave: {type: 'primary' | 'additional', index?: number, file: File}[] = [];
+    const imageIdsToDelete: string[] = [];
+
+    // Check primary image
+    if (primaryImage.file) {
+      imagesToSave.push({ type: 'primary', file: primaryImage.file });
+    }
+    if (!primaryImage.file && !primaryImage.id && initialData?.primaryImageId) {
+      imageIdsToDelete.push(initialData.primaryImageId);
+    }
+    
+    // Check additional images
+    const initialAdditionalIds = initialData?.additionalImageIds || [];
+    additionalImages.forEach((imgState, index) => {
+      if (imgState.file) {
+        imagesToSave.push({ type: 'additional', index, file: imgState.file });
+      }
     });
-    const fileInput = document.getElementById(`additionalImageFile-${index}`) as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
-  };
 
-  const removeAdditionalImageSlot = (index: number) => {
-    const imageState = additionalImageFiles[index];
-    if (imageState?.previewUrl && imageState.previewUrl.startsWith('blob:')) URL.revokeObjectURL(imageState.previewUrl);
-    setAdditionalImageFiles(prev => prev.filter((_, i) => i !== index));
+    initialAdditionalIds.forEach(id => {
+      if (!additionalImages.some(img => img.id === id)) {
+        imageIdsToDelete.push(id);
+      }
+    });
+    
+    try {
+      await onFormSubmit(data, initialData?.id, imagesToSave, imageIdsToDelete);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSuggestCategories = async () => {
@@ -265,39 +238,6 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
     }
   };
 
-  const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
-    setIsSubmitting(true);
-
-    const imagesToSave: {type: 'primary' | 'additional', index?: number, file: File}[] = [];
-    const imageIdsMarkedForDeletionByUI: string[] = [];
-
-    if (primaryImageFile.file) {
-      imagesToSave.push({ type: 'primary', file: primaryImageFile.file });
-    } else if (!primaryImageFile.previewUrl && primaryImageFile.id) {
-      imageIdsMarkedForDeletionByUI.push(primaryImageFile.id);
-    }
-
-    additionalImageFiles.forEach((imgState, index) => {
-      if (imgState.file) {
-        imagesToSave.push({ type: 'additional', index, file: imgState.file });
-      } else if (!imgState.previewUrl && imgState.id) {
-        imageIdsMarkedForDeletionByUI.push(imgState.id);
-      }
-    });
-    
-    setValue('primaryImageId', primaryImageFile.id); 
-    setValue('additionalImageIds', additionalImageFiles.map(f => f.id).filter(id => id !== null) as string[]);
-
-
-    try {
-      await onFormSubmit(data, initialData?.id, imagesToSave, imageIdsMarkedForDeletionByUI);
-    } catch (error) {
-      // Error handled by parent
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
@@ -306,14 +246,14 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
             {initialData ? 'Edit Product & Images' : 'Create New Product'}
         </CardTitle>
         <CardDescription>
-          Manage product details and images. Images are stored in your browser via IndexedDB.
+          Manage product details and images. Images are stored in {dataSourceType === 'local' ? 'your browser via IndexedDB' : 'Firebase Storage'}.
           You can upload one primary image and up to {MAX_TOTAL_IMAGES - 1} additional images. Max {MAX_FILE_SIZE_MB}MB per image.
         </CardDescription>
          <Alert variant="destructive" className="mt-2">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Browser Storage Warning:</strong> While IndexedDB offers more space than LocalStorage, it's still finite and browser-dependent.
-            Large or numerous images can impact performance and eventually hit browser quotas. Use optimized web images.
+            <strong>Storage Warning:</strong> Using {dataSourceType === 'local' ? 'Browser IndexedDB has storage limits and can be cleared by the user. ' : 'Firebase Storage may incur costs. '}
+            Always use optimized web images.
           </AlertDescription>
         </Alert>
       </CardHeader>
@@ -342,61 +282,41 @@ export function ProductForm({ initialData, categories, onFormSubmit }: ProductFo
             <Input id="primaryImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"
                    onChange={(e) => handleFileChange(e, 'primary')}
                    className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
-            {primaryImageFile.previewUrl ? (
+            {(primaryImage.previewUrl || primaryImage.id) && (
               <div className="mt-2 relative w-32 h-32">
-                <Image src={primaryImageFile.previewUrl} alt="Primary preview" layout="fill" objectFit="cover" className="rounded-md border" data-ai-hint="product primary preview" unoptimized/>
-                <Button type="button" variant="destructive" size="icon" onClick={removePrimaryImage} className="absolute -top-2 -right-2 h-6 w-6 p-1">
+                 <ProductImage imageId={primaryImage.previewUrl || primaryImage.id} alt="Primary preview" className="w-full h-full rounded-md border" imageClassName="object-cover" />
+                 <Button type="button" variant="destructive" size="icon" onClick={() => removeImage('primary')} className="absolute -top-2 -right-2 h-6 w-6 p-1">
                   <Trash2 className="h-3 w-3"/>
                 </Button>
               </div>
-            ) : primaryImageFile.id ? (
-                <div className="mt-2 relative w-32 h-32">
-                    <ProductImage imageId={primaryImageFile.id} alt="Current primary image" className="w-full h-full rounded-md border" imageClassName="object-cover" />
-                    <Button type="button" variant="destructive" size="icon" onClick={removePrimaryImage} className="absolute -top-2 -right-2 h-6 w-6 p-1">
-                        <Trash2 className="h-3 w-3"/>
-                    </Button>
-                </div>
-            ): null}
-            {errors.primaryImageId && <p className="text-sm text-destructive">{errors.primaryImageId.message}</p>}
+            )}
           </div>
 
           <div className="space-y-4 border p-4 rounded-md bg-muted/30">
             <Label className="font-medium">Additional Images (up to {MAX_TOTAL_IMAGES - 1})</Label>
-            {additionalImageFiles.map((imgState, index) => (
+            {additionalImages.map((imgState, index) => (
               <div key={`additional-${imgState.id || index}`} className="space-y-2 border-t pt-3 mt-3 first:border-t-0 first:mt-0 first:pt-0">
                 <Label htmlFor={`additionalImageFile-${index}`}>Additional Image {index + 1}</Label>
                 <div className="flex items-center gap-2">
                   <Input id={`additionalImageFile-${index}`} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
                          onChange={(e) => handleFileChange(e, 'additional', index)}
                          className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 flex-grow"/>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeAdditionalImageSlot(index)} aria-label={`Remove additional image slot ${index + 1}`}>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeImage('additional', index)} aria-label={`Remove additional image slot ${index + 1}`}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-                {imgState.previewUrl ? (
+                {(imgState.previewUrl || imgState.id) && (
                   <div className="mt-1 relative w-24 h-24">
-                    <Image src={imgState.previewUrl} alt={`Additional preview ${index + 1}`} layout="fill" objectFit="cover" className="rounded-md border" data-ai-hint="product additional preview" unoptimized/>
-                     <Button type="button" variant="destructive" size="icon" onClick={() => removeAdditionalImage(index)} className="absolute -top-2 -right-2 h-5 w-5 p-0.5" aria-label={`Clear additional image ${index + 1}`}>
-                        <Trash2 className="h-3 w-3"/>
-                    </Button>
+                     <ProductImage imageId={imgState.previewUrl || imgState.id} alt={`Additional preview ${index + 1}`} className="w-full h-full rounded-md border" imageClassName="object-cover" />
                   </div>
-                ) : imgState.id ? (
-                     <div className="mt-1 relative w-24 h-24">
-                        <ProductImage imageId={imgState.id} alt={`Current additional image ${index + 1}`} className="w-full h-full rounded-md border" imageClassName="object-cover" />
-                         <Button type="button" variant="destructive" size="icon" onClick={() => removeAdditionalImage(index)} className="absolute -top-2 -right-2 h-5 w-5 p-0.5" aria-label={`Clear additional image ${index + 1}`}>
-                            <Trash2 className="h-3 w-3"/>
-                        </Button>
-                    </div>
-                ) : null}
-                 {errors.additionalImageIds && errors.additionalImageIds[index] && <p className="text-sm text-destructive">{errors.additionalImageIds[index]?.message}</p>}
+                )}
               </div>
             ))}
-            {additionalImageFiles.length < MAX_TOTAL_IMAGES - 1 && (
+            {((primaryImage.id || primaryImage.file ? 1 : 0) + additionalImages.length) < MAX_TOTAL_IMAGES && (
               <Button type="button" variant="outline" size="sm" onClick={addAdditionalImageSlot}>
                 <UploadCloud className="mr-2 h-4 w-4" /> Add Image Slot
               </Button>
             )}
-             {errors.additionalImageIds && !Array.isArray(errors.additionalImageIds) && <p className="text-sm text-destructive">{errors.additionalImageIds.message}</p>}
           </div>
 
 

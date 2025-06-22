@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -76,9 +75,10 @@ export default function AdminProductsPage() {
     try {
       const success = await dataService.deleteProduct(productId);
       if (success) {
-        await dataService.addAdminActionLog({
-          adminId: currentUser.id,
-          adminEmail: currentUser.email,
+        await dataService.addActivityLog({
+          actorId: currentUser.id,
+          actorEmail: currentUser.email,
+          actorRole: 'admin',
           actionType: 'PRODUCT_DELETE',
           entityType: 'Product',
           entityId: productId,

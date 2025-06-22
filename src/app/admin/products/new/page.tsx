@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -53,14 +52,27 @@ export default function NewProductPage() {
       return;
     }
     try {
+      // First, create the product document to get a stable ID
+      const initialProductData: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'> = {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        stock: data.stock,
+        categoryId: data.categoryId,
+        primaryImageId: null, // Placeholder
+        additionalImageIds: [], // Placeholder
+      };
+      const newProduct = await dataService.addProduct(initialProductData);
+      
       let primaryImageId: string | null = null;
       const additionalImageIds: string[] = [];
-      const tempProductIdForImages = `temp_product_${simpleUUID()}`; // Used as entityId for image saving
+      let imageChangeLog = '';
 
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {
+          // Use the real product ID now for structured storage path
           const savedImageId = await dataService.saveImage(
-            tempProductIdForImages, // Temporary or actual product ID if generated before image save
+            newProduct.id, 
             imgInfo.type === 'primary' ? 'primary' : (imgInfo.index?.toString() ?? Date.now().toString()),
             imgInfo.file
           );
@@ -72,28 +84,15 @@ export default function NewProductPage() {
         }
       }
 
-      const productDataForStorage: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'purchases' | 'averageRating' | 'reviewCount'> = {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        stock: data.stock,
-        categoryId: data.categoryId,
-        primaryImageId, // This will be the ID from IndexedDB
-        additionalImageIds, // These will be IDs from IndexedDB
-      };
+      // If images were uploaded, update the product document with the image IDs/URLs
+      if (primaryImageId || additionalImageIds.length > 0) {
+        newProduct.primaryImageId = primaryImageId;
+        newProduct.additionalImageIds = additionalImageIds;
+        await dataService.updateProduct(newProduct);
+        imageChangeLog = ` ${primaryImageId ? 'Primary image added. ' : ''}${additionalImageIds.length > 0 ? `${additionalImageIds.length} additional image(s) added.` : ''}`;
+      }
 
-      const newProduct = await dataService.addProduct(productDataForStorage);
-      
-      // If using Firestore, images saved with tempProductIdForImages might need their IDs updated if product.id is different
-      // For local, this is fine as IDs are just strings.
-      // For Firestore, a more robust solution would save images *after* product doc is created to use its real ID.
-      // Or, store images in a way they can be associated later.
-      // For now, assuming image IDs are self-contained and don't need updating based on product ID.
-
-      let logDescription = `Created product "${newProduct.name}" (ID: ${newProduct.id.substring(0,8)}) with price $${newProduct.price.toFixed(2)} and stock ${newProduct.stock}.`;
-      if (primaryImageId) logDescription += ' Primary image added.';
-      if (additionalImageIds.length > 0) logDescription += ` ${additionalImageIds.length} additional image(s) added.`;
-
+      const logDescription = `Created product "${newProduct.name}" (ID: ${newProduct.id.substring(0,8)}) with price $${newProduct.price.toFixed(2)} and stock ${newProduct.stock}.${imageChangeLog}`;
 
       await dataService.addActivityLog({
         actorId: currentUser.id,

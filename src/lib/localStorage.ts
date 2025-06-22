@@ -1,9 +1,8 @@
-
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem, AdminActionLog, Address } from '@/types';
 import {
-    deleteImagesForProduct as deleteImagesFromDB,
+    deleteImagesForEntity as deleteImagesFromDB,
     deleteImage as deleteSingleImageFromDB,
 } from './indexedDbService';
 import { simpleUUID } from '@/lib/utils';

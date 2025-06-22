@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback, use } from 'react'; // Added use
@@ -126,6 +125,11 @@ export default function EditProductPage() {
 
       if (imagesToSave && imagesToSave.length > 0) {
         for (const imgInfo of imagesToSave) {
+          const originalIdToReplace = imgInfo.type === 'primary' ? finalPrimaryImageId : (imgInfo.index !== undefined ? finalAdditionalImageIds[imgInfo.index] : null);
+          if (originalIdToReplace) {
+             await dataService.deleteImage(originalIdToReplace);
+          }
+
           const savedImageId = await dataService.saveImage(
             id, 
             imgInfo.type === 'primary' ? 'primary' : (imgInfo.index?.toString() ?? Date.now().toString()),
@@ -133,19 +137,12 @@ export default function EditProductPage() {
           );
 
           if (imgInfo.type === 'primary') {
-            if (oldProductSnapshot.primaryImageId && oldProductSnapshot.primaryImageId !== savedImageId && !imageIdsMarkedForDeletionByUI?.includes(oldProductSnapshot.primaryImageId)) {
-                 await dataService.deleteImage(oldProductSnapshot.primaryImageId);
-            }
             finalPrimaryImageId = savedImageId;
             imageChangeDescriptions.push(oldProductSnapshot.primaryImageId ? 'Primary image updated.' : 'Primary image added.');
           } else { 
             if (imgInfo.index !== undefined && imgInfo.index < finalAdditionalImageIds.length) {
-              const oldImgIdAtIndex = finalAdditionalImageIds[imgInfo.index];
-              if (oldImgIdAtIndex && oldImgIdAtIndex !== savedImageId && !imageIdsMarkedForDeletionByUI?.includes(oldImgIdAtIndex)) {
-                  await dataService.deleteImage(oldImgIdAtIndex);
-              }
               finalAdditionalImageIds[imgInfo.index] = savedImageId;
-              imageChangeDescriptions.push(oldImgIdAtIndex ? `Additional image at slot ${imgInfo.index + 1} updated.` : `Additional image added at slot ${imgInfo.index + 1}.`);
+              imageChangeDescriptions.push(originalIdToReplace ? `Additional image at slot ${imgInfo.index + 1} updated.` : `Additional image added at slot ${imgInfo.index + 1}.`);
             } else { 
               finalAdditionalImageIds.push(savedImageId);
                imageChangeDescriptions.push('New additional image added.');
@@ -204,4 +201,3 @@ export default function EditProductPage() {
     </div>
   );
 }
-    

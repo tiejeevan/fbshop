@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -47,15 +46,19 @@ export default function NewCategoryPage() {
       return;
     }
     try {
+      // Create the category document first to get an ID
+      const initialCategoryData = {
+        ...data,
+        imageId: null, // Placeholder
+      };
+      const newCategory = await dataService.addCategory(initialCategoryData);
+
       let imageId: string | null = null;
       if (imageFile) {
-        imageId = await dataService.saveImage(`category_${data.slug}`, 'main', imageFile);
+        imageId = await dataService.saveImage(`category_${newCategory.id}`, 'main', imageFile);
+        newCategory.imageId = imageId;
+        await dataService.updateCategory(newCategory); // Update with the imageId
       }
-
-      const newCategory = await dataService.addCategory({
-        ...data,
-        imageId,
-      });
 
       let logDescription = `Created category "${newCategory.name}" (ID: ${newCategory.id.substring(0,8)}) with slug "${newCategory.slug}".`;
       if (newCategory.parentId) {

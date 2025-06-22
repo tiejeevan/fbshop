@@ -1,4 +1,3 @@
-
 'use client';
 
 const DB_NAME = 'LocalCommerceImagesDB';
@@ -36,9 +35,9 @@ function openDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-export async function saveImage(productId: string, imageIndex: number | 'primary' | string, imageFile: File): Promise<string> {
+export async function saveImage(entityId: string, imageType: number | 'primary' | string, imageFile: File): Promise<string> {
   const db = await openDB();
-  const imageId = `${productId}_${imageIndex}_${Date.now()}_${imageFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`; 
+  const imageId = `${entityId}_${imageType}_${Date.now()}_${imageFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`; 
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(PRODUCT_IMAGES_STORE_NAME, 'readwrite');
@@ -90,7 +89,7 @@ export async function deleteImage(imageId: string): Promise<void> {
   });
 }
 
-export async function deleteImagesForProduct(imageIds: string[]): Promise<void> {
+export async function deleteImagesForEntity(imageIds: string[]): Promise<void> {
   if (!imageIds || imageIds.length === 0) return;
   const db = await openDB();
 

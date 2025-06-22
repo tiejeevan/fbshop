@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -111,13 +110,12 @@ export default function EditCategoryPage() {
     const oldParentName = oldCategorySnapshot.parentId ? (await dataService.findCategoryById(oldCategorySnapshot.parentId))?.name : undefined;
     const newParentNameIfChanged = data.parentId ? (await dataService.findCategoryById(data.parentId))?.name : undefined;
 
-
     try {
       if (imageFile) {
         if (category.imageId) {
           await dataService.deleteImage(category.imageId);
         }
-        newImageId = await dataService.saveImage(`category_${data.slug || category.slug}`, 'main', imageFile);
+        newImageId = await dataService.saveImage(`category_${id}`, 'main', imageFile);
         imageUpdatedInThisAction = true;
       } else if (data.imageId === null && category.imageId) {
         await dataService.deleteImage(category.imageId);
@@ -172,4 +170,3 @@ export default function EditCategoryPage() {
     </div>
   );
 }
-    

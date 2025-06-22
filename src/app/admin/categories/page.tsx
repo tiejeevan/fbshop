@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -401,23 +400,12 @@ export default function AdminCategoriesPage() {
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Delete "{categoryToDelete.name}"?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete the category.
-                {(async () => { const children = await dataService?.getChildCategories(categoryToDelete.id); return children && children.length > 0; })() && <span className="block mt-2 font-semibold text-destructive">This category has subcategories. They must be moved or deleted first.</span>}
-                {allProducts.filter(p => p.categoryId === categoryToDelete.id).length > 0 && <span className="block mt-2 font-semibold text-destructive">This category has products. They must be reassigned first.</span>}
-                This action cannot be undone.
+                This will permanently delete the category. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                disabled={
-                    (async () => {
-                        if (!dataService) return true; // Disable if service not ready
-                        const children = await dataService.getChildCategories(categoryToDelete.id);
-                        const productsInCategory = allProducts.filter(p => p.categoryId === categoryToDelete.id);
-                        return children.length > 0 || productsInCategory.length > 0;
-                    })()
-                }>
+              <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                 Confirm Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -427,5 +415,3 @@ export default function AdminCategoriesPage() {
     </div>
   );
 }
-
-    
