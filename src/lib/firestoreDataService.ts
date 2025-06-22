@@ -1,4 +1,3 @@
-
 // src/lib/firestoreDataService.ts
 'use client';
 
@@ -844,8 +843,8 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       console.warn("Firebase Storage not available, falling back to LocalDB for image save.");
       return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
     }
-    const sanitizedFileName = imageFile.name.replace(/[^a-zA-Z0-9.]/g, '_');
-    const filePath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
+    // Using the original filename and a simpler path to avoid issues.
+    const filePath = `images/${entityId}/${imageFile.name}`;
     const fileRef = storageRef(firebaseStorage, filePath);
     
     try {
@@ -891,7 +890,9 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
   async deleteImagesForEntity(imageIds: string[]): Promise<void> {
     for (const id of imageIds) {
-        if (id) await this.deleteImage(id);
+        if (id && id.startsWith('https://firebasestorage.googleapis.com')) {
+          await this.deleteImage(id);
+        }
     }
   },
 
