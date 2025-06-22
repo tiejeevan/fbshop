@@ -851,9 +851,15 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         });
 
         if (!response.ok) {
-            const errorBody = await response.json();
+            const contentType = response.headers.get("content-type");
+            let errorBody;
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                errorBody = await response.json();
+            } else {
+                errorBody = { error: await response.text() }; // Get raw text if not json
+            }
             console.error('Upload API responded with an error:', errorBody);
-            throw new Error(errorBody.error || 'Failed to upload file.');
+            throw new Error(errorBody.error || `Failed to upload file. Status: ${response.status}`);
         }
 
         const result = await response.json();
@@ -872,25 +878,18 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async deleteImage(imageId: string): Promise<void> {
     if (!firebaseStorage || !imageId) return;
     try {
-      // Defensively check if imageId is a valid URL before trying to use it.
-      // This prevents crashes if old, invalid data (like a path instead of a URL) exists in the database.
       if (!imageId.startsWith('http')) {
         console.warn(`Attempted to delete an image with an invalid ID (not a URL): "${imageId}". Skipping deletion.`);
         return;
       }
-
-      // The Firebase SDK's ref() function can create a reference directly from an HTTPS download URL.
-      // This is more robust than manually parsing the path.
       const imageRef = storageRef(firebaseStorage, imageId);
       await deleteObject(imageRef);
     } catch (error: any) {
-      // Handle specific Firebase errors gracefully.
       if (error.code === 'storage/object-not-found') {
         console.warn(`Image to delete was not found in Firebase Storage: ${imageId}`);
       } else if (error.code === 'storage/invalid-url') {
           console.warn(`The imageId "${imageId}" is not a valid Firebase Storage URL. Skipping deletion.`);
       } else {
-        // Log other unexpected errors.
         console.error(`An unexpected error occurred while deleting image from Firebase Storage: ${imageId}`, error);
       }
     }
