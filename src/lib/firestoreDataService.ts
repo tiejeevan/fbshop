@@ -840,33 +840,27 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
-    // If Firebase Storage is not available, fall back to the local browser database.
     if (!firebaseStorage) {
-      console.warn("Firebase Storage not configured. Falling back to browser's IndexedDB for image storage.");
+      console.warn("Firebase Storage not configured. Falling back to browser's IndexedDB.");
       return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
     }
-  
-    // Per your request, we will not sanitize the filename. A timestamp is added to prevent overwrites.
-    const filename = `${Date.now()}-${imageFile.name}`;
+    
+    // Sanitize the filename to replace spaces and special characters.
+    const sanitizedName = imageFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const filename = `${Date.now()}-${sanitizedName}`;
     const filePath = `images/${entityId}/${filename}`;
     const fileRef = storageRef(firebaseStorage, filePath);
   
-    console.log(`Attempting to upload to Firebase Storage at path: ${filePath}`);
+    console.log(`Uploading to Firebase Storage: ${filePath}`);
   
     try {
-      // Use the simpler `uploadBytes` function for direct uploads.
       const uploadResult = await uploadBytes(fileRef, imageFile);
-      
-      // After a successful upload, get the public URL for the file.
       const downloadURL = await getDownloadURL(uploadResult.ref);
-      
-      console.log(`Successfully uploaded. URL: ${downloadURL}`);
+      console.log(`Upload successful. URL: ${downloadURL}`);
       return downloadURL;
   
     } catch (error: any) {
       console.error("Firebase Storage upload failed:", error);
-      
-      // Provide a more specific error message for the common CORS/permissions issue.
       if (error.code === 'storage/unauthorized' || error.code === 'storage/retry-limit-exceeded' || error.code === 'storage/unknown') {
         const helpfulError = new Error(
           'Image upload failed due to a server permission error. This is almost always a CORS configuration issue on your Firebase Storage bucket. Please follow the CORS_FIX_INSTRUCTIONS.md file precisely.'
@@ -874,8 +868,6 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         (helpfulError as any).originalError = error;
         throw helpfulError;
       }
-      
-      // For other errors, re-throw the original error.
       throw error;
     }
   },
@@ -1266,3 +1258,5 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return docSnap.exists();
   },
 };
+
+    
