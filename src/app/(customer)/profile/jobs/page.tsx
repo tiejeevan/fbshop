@@ -49,7 +49,10 @@ export default function MyJobsPage() {
 
       const allJobIds = [...userCreatedJobs, ...userAcceptedJobs].map(job => job.id);
       if (allJobIds.length > 0) {
-        const fetchedReviews = await dataService.getReviewsForJobs(allJobIds);
+        // Fetch reviews for each job individually to avoid collection group index requirement.
+        const reviewPromises = allJobIds.map(id => dataService.getReviewsForJob(id));
+        const reviewsByJob = await Promise.all(reviewPromises);
+        const fetchedReviews = reviewsByJob.flat();
         setJobReviews(fetchedReviews);
       } else {
         setJobReviews([]);
