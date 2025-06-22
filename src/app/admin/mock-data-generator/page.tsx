@@ -40,7 +40,7 @@ type GenerateJobsValues = z.infer<typeof generateJobsSchema>;
 
 const generateProductsSchema = z.object({
   count: z.coerce.number().int().min(1, "At least 1 product").max(20, "Max 20 products"),
-  categoryId: z.string().min(1, "Please select a category or 'Random'"),
+  categoryId: z.string().min(1, "Please select a category."),
   prompt: z.string().optional(),
 });
 type GenerateProductsValues = z.infer<typeof generateProductsSchema>;
@@ -117,11 +117,22 @@ export default function MockDataGeneratorPage() {
     if (!currentUser || !dataService) return;
     setIsLoading(prev => ({ ...prev, products: true }));
     try {
-      const isRandom = data.categoryId === 'random';
-      const categoryName = isRandom ? undefined : productCategories.find(c => c.id === data.categoryId)?.name;
+      const categoryName = productCategories.find(c => c.id === data.categoryId)?.name;
+      if (!categoryName) {
+        throw new Error("Selected category not found.");
+      }
+      
       const result = await generateMockProducts({ count: data.count, categoryName: categoryName, prompt: data.prompt });
+      
       if (!result || !result.products || result.products.length === 0) throw new Error("AI did not return any products.");
-      handleGenerationResult(result.products as unknown as Product[], 'products');
+      
+      const productsWithCategory = result.products.map(p => ({
+        ...p,
+        categoryId: data.categoryId,
+      }));
+
+      handleGenerationResult(productsWithCategory as unknown as Product[], 'products');
+
     } catch (error: any) {
       toast({ title: "Error Generating Products", description: error.message, variant: "destructive" });
     } finally {
@@ -158,24 +169,9 @@ export default function MockDataGeneratorPage() {
         }
       } else if (modalDataType === 'products') {
         const products = modalContent as Product[];
-        const existingCats = await dataService.getCategories();
-        const catNameMap = new Map(existingCats.map(c => [c.name.toLowerCase(), c.id]));
-        
         for (const product of products) {
-            let categoryId = productsForm.getValues('categoryId');
-            if (categoryId === 'random' && product.newCategoryName) {
-                const newCatNameLower = product.newCategoryName.toLowerCase();
-                if (catNameMap.has(newCatNameLower)) {
-                    categoryId = catNameMap.get(newCatNameLower)!;
-                } else {
-                    const newCat = await dataService.addCategory({ name: product.newCategoryName, slug: newCatNameLower.replace(/\s+/g, '-'), description: `AI generated category for ${product.newCategoryName}`, parentId: null, imageId: null, displayOrder: 99, isActive: true });
-                    catNameMap.set(newCatNameLower, newCat.id);
-                    categoryId = newCat.id;
-                }
-            }
-            await dataService.addProduct({ ...product, categoryId });
+            await dataService.addProduct(product);
         }
-        await fetchCategories(); // Refresh product categories list
       } else if (modalDataType === 'categories') {
         const categories = modalContent as Category[];
         for (const category of categories) {
@@ -195,17 +191,53 @@ export default function MockDataGeneratorPage() {
   };
 
   const renderModalContent = (): ReactNode => {
-    if (!modalContent) return null;
+    if (!modalContent || !modalDataType) return null;
+
+    const renderContent = () => {
+      switch (modalDataType) {
+        case 'jobs':
+          return (modalContent as Job[]).map((job, index) => (
+            <Card key={index} className="mb-2">
+              <CardHeader className="p-3"><CardTitle className="text-base">{job.title}</CardTitle></CardHeader>
+              <CardContent className="p-3 pt-0 text-sm text-muted-foreground">
+                <p className="line-clamp-2">{job.description}</p>
+                <div className="flex justify-between mt-2 text-xs">
+                    <span>Location: {job.location}</span>
+                    <span>Compensation: ${job.compensationAmount?.toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ));
+        case 'products':
+          return (modalContent as Product[]).map((product, index) => (
+            <Card key={index} className="mb-2">
+              <CardHeader className="p-3"><CardTitle className="text-base">{product.name}</CardTitle></CardHeader>
+              <CardContent className="p-3 pt-0 text-sm text-muted-foreground">
+                <p className="line-clamp-2">{product.description}</p>
+                 <div className="flex justify-between mt-2 text-xs">
+                    <span>Price: ${product.price.toFixed(2)}</span>
+                    <span>Stock: {product.stock}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ));
+        case 'categories':
+          return (modalContent as Category[]).map((cat, index) => (
+             <Card key={index} className="mb-2">
+              <CardHeader className="p-3"><CardTitle className="text-base">{cat.name}</CardTitle></CardHeader>
+              <CardContent className="p-3 pt-0 text-sm text-muted-foreground">
+                <p className="line-clamp-2">{cat.description}</p>
+              </CardContent>
+            </Card>
+          ));
+        default:
+          return null;
+      }
+    };
+
     return (
-      <ScrollArea className="max-h-64 mt-4 border rounded-md p-2 bg-muted/50">
-        <ul className="list-disc pl-5 text-sm text-foreground">
-          {modalContent.map((item, index) => (
-            <li key={index}>
-              {(item as Product).name || (item as Job).title || (item as Category).name}
-              {(item as Product).newCategoryName && <span className="text-muted-foreground text-xs ml-2"> (New Category: {(item as Product).newCategoryName})</span>}
-            </li>
-          ))}
-        </ul>
+      <ScrollArea className="max-h-72 mt-4 border rounded-md p-2 bg-muted/50">
+        <div className="space-y-2">{renderContent()}</div>
       </ScrollArea>
     );
   };
@@ -238,7 +270,7 @@ export default function MockDataGeneratorPage() {
                 <div><Label htmlFor="product-prompt">Guiding Prompt (Optional)</Label><Textarea id="product-prompt" {...productsForm.register('prompt')} placeholder="e.g., 'Handmade leather goods'"/></div>
                 <div><Label htmlFor="product-category">Category</Label>
                     <Select onValueChange={(value) => productsForm.setValue('categoryId', value)} defaultValue=""><SelectTrigger><SelectValue placeholder="Select a category..." /></SelectTrigger>
-                    <SelectContent><SelectItem value="random">Random New Categories</SelectItem>{productCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>{productCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select>{productsForm.formState.errors.categoryId && <p className="text-sm text-destructive mt-1">{productsForm.formState.errors.categoryId.message}</p>}
                 </div>
                 <div><Label htmlFor="product-count">Number of Products (1-20)</Label><Input id="product-count" type="number" {...productsForm.register('count')} min="1" max="20" />{productsForm.formState.errors.count && <p className="text-sm text-destructive mt-1">{productsForm.formState.errors.count.message}</p>}</div>

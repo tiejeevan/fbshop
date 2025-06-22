@@ -25,7 +25,6 @@ const MockProductSchema = z.object({
   description: z.string().describe("A compelling but fake product description (40-80 words)."),
   price: z.number().describe("A realistic price for the product, between 10 and 800."),
   stock: z.number().int().describe("A random stock quantity between 5 and 200."),
-  newCategoryName: z.string().optional().describe("A new, plausible category name for this product. This should ONLY be populated if no category was specified in the input."),
 });
 
 const MockCategorySchema = z.object({
@@ -90,7 +89,7 @@ Generate a random compensation amount for each job between $0 and $150.
 // 2. Generate Mock Products
 const GenerateMockProductsInputSchema = z.object({
   count: z.number().int().min(1).max(20).describe("The number of mock products to generate."),
-  categoryName: z.string().optional().describe("The name of the category to generate products for. If not provided, the AI should invent new category names."),
+  categoryName: z.string().describe("The name of the category to generate products for."),
   prompt: z.string().optional().describe("An optional text prompt to guide the theme of the generated products."),
 });
 export type GenerateMockProductsInput = z.infer<typeof GenerateMockProductsInputSchema>;
@@ -112,11 +111,8 @@ const generateMockProductsFlow = ai.defineFlow(
   },
   async (input) => {
     const promptText = `You are a mock data generator. Create ${input.count} realistic but clearly fake product listings. For each, provide a creative name, a compelling description, a realistic price, and a random stock quantity.
-{{#if input.categoryName}}
-All products should belong to the category: "{{input.categoryName}}".
-{{else}}
-The products should belong to various new, creative categories. For each product, you MUST invent a plausible new category name and include it in the 'newCategoryName' field. Do not repeat category names.
-{{/if}}
+
+All products should belong to the category: "{{input.categoryName}}". This is a mandatory instruction. Do not invent new categories.
 
 {{#if input.prompt}}
 The products should be inspired by the following theme: {{{input.prompt}}}
