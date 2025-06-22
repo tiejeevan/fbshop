@@ -16,7 +16,7 @@ import {z} from 'genkit';
 const MockJobSchema = z.object({
   title: z.string().describe("A realistic but fake job title."),
   description: z.string().describe("A detailed but fake job description (30-60 words)."),
-  compensationAmount: z.number().describe("A random compensation amount between 0 and 150."),
+  compensationAmount: z.number().describe("A realistic compensation amount based on the provided range or a random one if no range is given."),
   location: z.string().describe("A fictional, plausible location like 'North Park' or 'Riverside'."),
 });
 
@@ -25,6 +25,7 @@ const MockProductSchema = z.object({
   description: z.string().describe("A compelling but fake product description (40-80 words)."),
   price: z.number().describe("A realistic price for the product, between 10 and 800."),
   stock: z.number().int().describe("A random stock quantity between 5 and 200."),
+  newCategoryName: z.string().optional().describe("A new, plausible category name for this product. This should ONLY be populated if no category was specified in the input."),
 });
 
 const MockCategorySchema = z.object({
@@ -36,6 +37,9 @@ const MockCategorySchema = z.object({
 // 1. Generate Mock Jobs
 const GenerateMockJobsInputSchema = z.object({
   count: z.number().int().min(1).max(20).describe("The number of mock jobs to generate."),
+  prompt: z.string().optional().describe("An optional text prompt to guide the theme of the generated jobs."),
+  minCompensation: z.number().optional().describe("The minimum compensation for the job."),
+  maxCompensation: z.number().optional().describe("The maximum compensation for the job."),
 });
 export type GenerateMockJobsInput = z.infer<typeof GenerateMockJobsInputSchema>;
 
@@ -55,14 +59,29 @@ const generateMockJobsFlow = ai.defineFlow(
     outputSchema: GenerateMockJobsOutputSchema,
   },
   async (input) => {
+    const promptText = `You are a mock data generator. Create ${input.count} realistic but clearly fake job postings for a local community help app. Jobs can range from simple tasks like 'watering plants' to more complex ones like 'building a shelf'.
+
+Provide a title, a detailed description, and a fictional location for each job.
+{{#if input.prompt}}
+The jobs should be based on the following theme or idea: {{{input.prompt}}}
+{{/if}}
+
+For compensation:
+{{#if input.minCompensation}}
+The compensation amount for each job must be between $${input.minCompensation} and $${input.maxCompensation}.
+{{else}}
+Generate a random compensation amount for each job between $0 and $150.
+{{/if}}
+`;
+    
     const prompt = ai.definePrompt({
       name: 'generateMockJobsPrompt',
       input: {schema: GenerateMockJobsInputSchema},
       output: {schema: GenerateMockJobsOutputSchema},
       model: googleAI.model('gemini-1.5-flash-latest'),
-      prompt: `You are a mock data generator. Create ${input.count} realistic but clearly fake job postings for a local community help app. Jobs can range from simple tasks like 'watering plants' to more complex ones like 'building a shelf'. Provide a title, a detailed description, a fictional location, and a random compensation amount for each.`,
+      prompt: promptText,
     });
-    const {output} = await prompt(input);
+    const {output} = await prompt({ input }); // Pass the whole input object to the template
     return output!;
   }
 );
@@ -71,7 +90,8 @@ const generateMockJobsFlow = ai.defineFlow(
 // 2. Generate Mock Products
 const GenerateMockProductsInputSchema = z.object({
   count: z.number().int().min(1).max(20).describe("The number of mock products to generate."),
-  categoryName: z.string().describe("The name of the category to generate products for."),
+  categoryName: z.string().optional().describe("The name of the category to generate products for. If not provided, the AI should invent new category names."),
+  prompt: z.string().optional().describe("An optional text prompt to guide the theme of the generated products."),
 });
 export type GenerateMockProductsInput = z.infer<typeof GenerateMockProductsInputSchema>;
 
@@ -91,14 +111,25 @@ const generateMockProductsFlow = ai.defineFlow(
     outputSchema: GenerateMockProductsOutputSchema,
   },
   async (input) => {
+    const promptText = `You are a mock data generator. Create ${input.count} realistic but clearly fake product listings. For each, provide a creative name, a compelling description, a realistic price, and a random stock quantity.
+{{#if input.categoryName}}
+All products should belong to the category: "{{input.categoryName}}".
+{{else}}
+The products should belong to various new, creative categories. For each product, you MUST invent a plausible new category name and include it in the 'newCategoryName' field. Do not repeat category names.
+{{/if}}
+
+{{#if input.prompt}}
+The products should be inspired by the following theme: {{{input.prompt}}}
+{{/if}}
+`;
     const prompt = ai.definePrompt({
       name: 'generateMockProductsPrompt',
       input: {schema: GenerateMockProductsInputSchema},
       output: {schema: GenerateMockProductsOutputSchema},
       model: googleAI.model('gemini-1.5-flash-latest'),
-      prompt: `You are a mock data generator. Create ${input.count} realistic but clearly fake product listings for the category "${input.categoryName}". Provide a creative product name, a compelling description, a realistic price, and a random stock quantity for each.`,
+      prompt: promptText,
     });
-    const {output} = await prompt(input);
+    const {output} = await prompt({input});
     return output!;
   }
 );
@@ -106,6 +137,7 @@ const generateMockProductsFlow = ai.defineFlow(
 // 3. Generate Mock Categories
 const GenerateMockCategoriesInputSchema = z.object({
   count: z.number().int().min(1).max(10).describe("The number of mock categories to generate."),
+  prompt: z.string().optional().describe("An optional text prompt to guide the theme of the generated categories."),
 });
 export type GenerateMockCategoriesInput = z.infer<typeof GenerateMockCategoriesInputSchema>;
 
@@ -125,14 +157,21 @@ const generateMockCategoriesFlow = ai.defineFlow(
     outputSchema: GenerateMockCategoriesOutputSchema,
   },
   async (input) => {
+    const promptText = `You are a mock data generator. Create ${input.count} unique and plausible e-commerce product categories. Do not use overly generic names like "Electronics" or "Books". Be more specific, like "Vintage Audio Gear" or "Modernist Fiction".
+
+Provide a name and a short description for each category.
+{{#if input.prompt}}
+The categories should be inspired by the following theme or idea: {{{input.prompt}}}
+{{/if}}
+`;
     const prompt = ai.definePrompt({
       name: 'generateMockCategoriesPrompt',
       input: {schema: GenerateMockCategoriesInputSchema},
       output: {schema: GenerateMockCategoriesOutputSchema},
       model: googleAI.model('gemini-1.5-flash-latest'),
-      prompt: `You are a mock data generator. Create ${input.count} unique and plausible e-commerce product categories. Do not use generic names like "Electronics" or "Books". Be more specific, like "Vintage Audio Gear" or "Modernist Fiction". Provide a name and a short description for each.`,
+      prompt: promptText,
     });
-    const {output} = await prompt(input);
+    const {output} = await prompt({input});
     return output!;
   }
 );
