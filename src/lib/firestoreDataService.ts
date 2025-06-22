@@ -837,51 +837,37 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
+    if (!firebaseStorage) {
+      throw new Error("Firebase Storage is not configured. Cannot upload image.");
+    }
     const sanitizedFileName = imageFile.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
     const destinationPath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
-
-    const formData = new FormData();
-    formData.append('file', imageFile);
-    formData.append('path', destinationPath);
+    const imageRef = storageRef(firebaseStorage, destinationPath);
 
     try {
-        const response = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (!response.ok) {
-            const contentType = response.headers.get("content-type");
-            let errorBody;
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                errorBody = await response.json();
-            } else {
-                errorBody = { error: await response.text() }; // Get raw text if not json
-            }
-            console.error('Upload API responded with an error:', errorBody);
-            throw new Error(errorBody.error || `Failed to upload file. Status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        return result.downloadURL;
-
+        const snapshot = await uploadBytes(imageRef, imageFile);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        return downloadURL;
     } catch (error: any) {
-        console.error("Failed to upload image via proxy API:", error);
+        console.error("Direct Firebase upload failed:", error);
+        if (error.code === 'storage/unauthorized') {
+            throw new Error(
+              'Permission denied. Please ensure your Firebase Storage security rules and CORS configuration are correct. See CORS_FIX_INSTRUCTIONS.md for help.'
+            );
+        }
         throw new Error(`Image upload failed: ${error.message}`);
     }
   },
 
   async getImage(imageId: string): Promise<Blob | null> {
+    // This is for local IndexedDB; Firebase URLs are handled directly.
     return localDBServiceFallback.getImage(imageId);
   },
 
   async deleteImage(imageId: string): Promise<void> {
     if (!firebaseStorage || !imageId) return;
     try {
-      if (!imageId.startsWith('http')) {
-        console.warn(`Attempted to delete an image with an invalid ID (not a URL): "${imageId}". Skipping deletion.`);
-        return;
-      }
+      // Create a reference from the full HTTPS URL
       const imageRef = storageRef(firebaseStorage, imageId);
       await deleteObject(imageRef);
     } catch (error: any) {
@@ -1248,5 +1234,3 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     return docSnap.exists();
   },
 };
-
-    
