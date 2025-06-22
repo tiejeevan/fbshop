@@ -42,7 +42,8 @@ if (missingEssentialKeys.length > 0) {
   if (app) {
       try {
         db = getFirestore(app);
-        storage = getStorage(app);
+        // Explicitly pass the bucket URL to getStorage.
+        storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
       } catch (error) {
           console.error("Error getting Firestore/Storage from Firebase app:", error);
           db = null;
