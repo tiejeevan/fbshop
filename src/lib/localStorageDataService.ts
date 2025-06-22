@@ -293,8 +293,7 @@ const localStorageDataService: IDataService = {
     if (categories.length < initialLength) {
       setItem(KEYS.CATEGORIES, categories);
       if (categoryToDelete.imageId) await this.deleteImage(categoryToDelete.imageId);
-      const products = await this.getProducts();
-      for (const p of products) if (p.categoryId === categoryId) { p.categoryId = ''; await this.updateProduct(p); }
+      // The UI now handles product re-assignment or deletion before calling this.
       const childCategories = (await this.getCategories()).filter(c => c.parentId === categoryId);
       for (const child of childCategories) { child.parentId = null; await this.updateCategory(child); }
       return true;
@@ -763,6 +762,20 @@ const localStorageDataService: IDataService = {
   },
   async isJobInSavedList(userId, jobId): Promise<boolean> {
     return (getItem<JobSavedItem[]>(KEYS.SAVED_JOBS) || []).some(item => item.userId === userId && item.jobId === jobId);
+  },
+
+  async reassignProductsToCategory(productIds: string[], newCategoryId: string): Promise<void> {
+    let products = await this.getProducts();
+    let updated = false;
+    products.forEach(p => {
+      if (productIds.includes(p.id)) {
+        p.categoryId = newCategoryId;
+        updated = true;
+      }
+    });
+    if (updated) {
+      setItem(KEYS.PRODUCTS, products);
+    }
   },
 };
 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -27,6 +28,8 @@ import { Badge } from '@/components/ui/badge';
 import { ProductImage } from '@/components/product/ProductImage';
 import { cn } from '@/lib/utils';
 import { useDataSource } from '@/contexts/DataSourceContext';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 
 interface DisplayCategory extends Category {
@@ -41,6 +44,8 @@ export default function AdminCategoriesPage() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isComponentLoading, setIsComponentLoading] = useState(true);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [productsInDeletingCategory, setProductsInDeletingCategory] = useState<Product[]>([]);
+  const [deleteProductsOption, setDeleteProductsOption] = useState<'reassign' | 'delete'>('reassign');
   const [categoriesToBatchAction, setCategoriesToBatchAction] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
@@ -111,44 +116,74 @@ export default function AdminCategoriesPage() {
 
   }, [allCategories, allProducts, searchTerm, filterStatus, filterHierarchy, expandedCategories]);
 
-  const handleDeleteCategory = async () => {
+  const handleDeleteClick = (category: Category) => {
+    const productsInCategory = allProducts.filter(p => p.categoryId === category.id);
+    setProductsInDeletingCategory(productsInCategory);
+    setCategoryToDelete(category);
+  };
+
+  const confirmDeleteCategory = async () => {
     if (!categoryToDelete || !currentUser || !dataService) return;
 
+    // Check for child categories still needs to happen first.
     const children = await dataService.getChildCategories(categoryToDelete.id);
     if (children.length > 0) {
         toast({ title: "Cannot Delete", description: `Category "${categoryToDelete.name}" has ${children.length} subcategories. Please reassign or delete them first.`, variant: "destructive", duration: 5000 });
         setCategoryToDelete(null);
         return;
     }
-    const productsUsingCategory = allProducts.filter(p => p.categoryId === categoryToDelete.id);
-    if (productsUsingCategory.length > 0) {
-        toast({ title: "Cannot Delete", description: `Category "${categoryToDelete.name}" is used by ${productsUsingCategory.length} product(s). Reassign them first.`, variant: "destructive", duration: 5000 });
+
+    try {
+      if (productsInDeletingCategory.length > 0) {
+        if (deleteProductsOption === 'reassign') {
+          let unassignedCategory = allCategories.find(c => c.name.toLowerCase() === 'unassigned');
+          if (!unassignedCategory) {
+            unassignedCategory = await dataService.addCategory({ name: 'Unassigned', slug: 'unassigned', description: 'Products without a specific category.', parentId: null, imageId: null, displayOrder: 999, isActive: true });
+            fetchData(); // re-fetch to get the new category in state for logging
+          }
+          await dataService.reassignProductsToCategory(productsInDeletingCategory.map(p => p.id), unassignedCategory.id);
+        } else { // 'delete' option
+          await Promise.all(productsInDeletingCategory.map(p => dataService.deleteProduct(p.id)));
+        }
+      }
+
+      // Finally delete the category itself
+      const categoryName = categoryToDelete.name;
+      const categoryId = categoryToDelete.id;
+
+      const success = await dataService.deleteCategory(categoryId);
+      if (success) {
+        let logDescription = `Deleted category "${categoryName}" (ID: ${categoryId.substring(0,8)}...).`;
+        if (productsInDeletingCategory.length > 0) {
+            logDescription += deleteProductsOption === 'delete' 
+                ? ` Deleted ${productsInDeletingCategory.length} associated products.` 
+                : ` Reassigned ${productsInDeletingCategory.length} products to Unassigned.`;
+        }
+
+        await dataService.addActivityLog({
+          actorId: currentUser.id,
+          actorEmail: currentUser.email,
+          actorRole: 'admin',
+          actionType: 'CATEGORY_DELETE',
+          entityType: 'Category',
+          entityId: categoryId,
+          description: logDescription
+        });
+        toast({ title: "Category Deleted" });
+        fetchData();
+        setCategoriesToBatchAction(prev => prev.filter(id => id !== categoryId));
+      } else {
+        toast({ title: "Error Deleting Category", variant: "destructive" });
+      }
+    } catch (e) {
+        console.error("Error during category deletion process:", e);
+        toast({ title: "Error", description: "An unexpected error occurred during deletion.", variant: "destructive" });
+    } finally {
         setCategoryToDelete(null);
-        return;
+        setProductsInDeletingCategory([]);
     }
-
-    const categoryName = categoryToDelete.name;
-    const categoryId = categoryToDelete.id;
-
-    const success = await dataService.deleteCategory(categoryId);
-    if (success) {
-      await dataService.addActivityLog({
-        actorId: currentUser.id,
-        actorEmail: currentUser.email,
-        actorRole: 'admin',
-        actionType: 'CATEGORY_DELETE',
-        entityType: 'Category',
-        entityId: categoryId,
-        description: `Deleted category "${categoryName}" (ID: ${categoryId.substring(0,8)}...).`
-      });
-      toast({ title: "Category Deleted" });
-      fetchData(); // Refetch all data
-      setCategoriesToBatchAction(prev => prev.filter(id => id !== categoryId));
-    } else {
-      toast({ title: "Error Deleting Category", variant: "destructive" });
-    }
-    setCategoryToDelete(null);
   };
+
 
   const handleBatchAction = async (action: 'delete' | 'setActive' | 'setInactive') => {
     if (categoriesToBatchAction.length === 0 || !currentUser || !dataService) {
@@ -297,7 +332,7 @@ export default function AdminCategoriesPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild><Link href={`/admin/categories/edit/${category.id}`} className="cursor-pointer"><Edit className="mr-2 h-4 w-4" /> Edit</Link></DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCategoryToDelete(category)} className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10">
+              <DropdownMenuItem onClick={() => handleDeleteClick(category)} className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10">
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -398,16 +433,32 @@ export default function AdminCategoriesPage() {
       {categoryToDelete && (
         <AlertDialog open onOpenChange={() => setCategoryToDelete(null)}>
           <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Delete "{categoryToDelete.name}"?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the category. This action cannot be undone.
-              </AlertDialogDescription>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{categoryToDelete.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    {productsInDeletingCategory.length > 0 ?
+                        `This category contains ${productsInDeletingCategory.length} product(s). What would you like to do with them?` :
+                        `This will permanently delete the category. This action cannot be undone.`
+                    }
+                </AlertDialogDescription>
             </AlertDialogHeader>
+            {productsInDeletingCategory.length > 0 && (
+                <RadioGroup defaultValue="reassign" onValueChange={(value) => setDeleteProductsOption(value as 'reassign' | 'delete')} className="my-4 space-y-2">
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="reassign" id="reassign-products" />
+                        <Label htmlFor="reassign-products">Reassign products to "Unassigned"</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="delete" id="delete-products" />
+                        <Label htmlFor="delete-products">Delete all products in this category</Label>
+                    </div>
+                </RadioGroup>
+            )}
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                Confirm Delete
-              </AlertDialogAction>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    Confirm Delete
+                </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

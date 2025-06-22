@@ -481,13 +481,11 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
       const categoryToDelete = await this.findCategoryById(categoryId);
       if (!categoryToDelete) return false;
 
-      const batch = writeBatch(db);
-      const productsQuery = query(collection(db, "products"), where("categoryId", "==", categoryId));
-      const productsSnapshot = await getDocs(productsQuery);
-      productsSnapshot.forEach(prodDoc => {
-        batch.update(prodDoc.ref, { categoryId: null, updatedAt: serverTimestamp() });
-      });
+      // The UI now handles product re-assignment or deletion before this is called.
+      // The UI also prevents deleting categories with sub-categories.
 
+      const batch = writeBatch(db);
+      
       const childCategoriesQuery = query(collection(db, "categories"), where("parentId", "==", categoryId));
       const childCategoriesSnapshot = await getDocs(childCategoriesQuery);
       childCategoriesSnapshot.forEach(childDoc => {
@@ -514,9 +512,12 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async getChildCategories(parentId: string | null): Promise<Category[]> {
     if (!db) throw new Error("Firestore not initialized");
     const categoriesCol = collection(db, "categories");
-    const q = query(categoriesCol, where("parentId", "==", parentId), orderBy("displayOrder"));
+    // Removed orderBy to avoid needing a composite index. Sorting is now done on the client.
+    const q = query(categoriesCol, where("parentId", "==", parentId));
     const snapshot = await getDocs(q);
-    return mapDocsToTypeArray<Category>(snapshot);
+    const categories = mapDocsToTypeArray<Category>(snapshot);
+    // Sort client-side
+    return categories.sort((a,b) => a.displayOrder - b.displayOrder);
   },
   async getJobCategories(): Promise<JobCategory[]> {
     if (!db) throw new Error("Firestore not initialized");
@@ -1292,6 +1293,16 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const savedJobRef = doc(db, `users/${userId}/savedJobs`, jobId);
     const docSnap = await getDoc(savedJobRef);
     return docSnap.exists();
+  },
+
+  async reassignProductsToCategory(productIds: string[], newCategoryId: string): Promise<void> {
+    if (!db) throw new Error("Firestore not initialized");
+    if (productIds.length === 0) return;
+    const batch = writeBatch(db);
+    for (const productId of productIds) {
+      batch.update(doc(db, "products", productId), { categoryId: newCategoryId });
+    }
+    await batch.commit();
   },
 };
 

@@ -32,6 +32,7 @@ export interface IDataService {
   updateProduct: (updatedProduct: Product) => Promise<Product | null>;
   deleteProduct: (productId: string) => Promise<boolean>;
   findProductById: (productId: string) => Promise<Product | undefined>;
+  reassignProductsToCategory: (productIds: string[], newCategoryId: string) => Promise<void>;
 
   // Category methods
   getCategories: () => Promise<Category[]>;
