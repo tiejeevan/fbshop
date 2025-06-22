@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useEffect, useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, ChangeEvent, useMemo } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +22,6 @@ import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { LoginModal } from '@/components/auth/LoginModal';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { StickyAddToCartBar } from '@/components/product/StickyAddToCartBar';
 
 const MAX_TOTAL_IMAGES = 10;
 const MAX_FILE_SIZE_MB = 0.5;
@@ -59,33 +57,6 @@ export default function ProductDetailPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [allProductImageIdsState, setAllProductImageIdsState] = useState<string[]>([]);
   const [isZoomed, setIsZoomed] = useState(false);
-  const [isStickyBarVisible, setIsStickyBarVisible] = useState(false);
-
-  const mainAddToCartRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsStickyBarVisible(!entry.isIntersecting && entry.boundingClientRect.bottom < 0);
-      },
-      {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0,
-      }
-    );
-
-    const currentRef = mainAddToCartRef.current;
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
-
-    return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
-    };
-  }, []);
 
   const fetchProductData = useCallback(async (productId: string) => {
     if (!dataService || isDataSourceLoading) {
@@ -697,7 +668,7 @@ export default function ProductDetailPage() {
             <Badge variant="destructive" className="text-sm">Out of Stock</Badge>
           )}
 
-          <div ref={mainAddToCartRef}>
+          <div>
             {product.stock > 0 && !isEditing && (
                 <div className="flex items-center gap-4 pt-4">
                 <div className="flex items-center border rounded-md">
@@ -800,14 +771,6 @@ export default function ProductDetailPage() {
           <p className="text-muted-foreground">No reviews yet for this product.</p>
         )}
       </div>
-
-       <StickyAddToCartBar
-        product={product}
-        quantity={quantity}
-        onQuantityChange={handleQuantityChange}
-        onAddToCart={handleAddToCart}
-        isVisible={isStickyBarVisible}
-      />
     </div>
   );
 }
