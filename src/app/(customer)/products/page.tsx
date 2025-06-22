@@ -196,37 +196,40 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-8">
-      <header className="text-center space-y-2">
-        <h1 className="font-headline text-5xl text-primary">Our Products</h1>
-        <p className="text-lg text-muted-foreground">Discover a wide range of items, stored locally!</p>
-      </header>
-
-      <div className="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-card rounded-lg shadow items-center">
-        <div className="relative flex-grow w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input type="search" placeholder="Search products by name or description..." value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full" />
+      <Card className="p-4 mb-8 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="sm:col-span-2 lg:col-span-2">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input type="search" placeholder="Search products..." value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full" />
+                </div>
+            </div>
+            <div>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(category => (<SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+            </div>
+            <div>
+                <Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
+                  <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                    <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                    <SelectItem value="price-asc">Price (Low-High)</SelectItem>
+                    <SelectItem value="price-desc">Price (High-Low)</SelectItem>
+                    <SelectItem value="rating-desc">Rating (Highest)</SelectItem>
+                    <SelectItem value="views-desc">Popularity (Viewed)</SelectItem>
+                    <SelectItem value="purchases-desc">Popularity (Purchased)</SelectItem>
+                  </SelectContent>
+                </Select>
+            </div>
         </div>
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-full md:w-[200px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map(category => (<SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>))}
-          </SelectContent>
-        </Select>
-        <Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
-          <SelectTrigger className="w-full md:w-[220px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-            <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-            <SelectItem value="price-asc">Price (Low-High)</SelectItem>
-            <SelectItem value="price-desc">Price (High-Low)</SelectItem>
-            <SelectItem value="rating-desc">Rating (Highest)</SelectItem>
-            <SelectItem value="views-desc">Popularity (Viewed)</SelectItem>
-            <SelectItem value="purchases-desc">Popularity (Purchased)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      </Card>
 
       {sortedAndFilteredProducts.length === 0 ? (
         <p className="text-center text-muted-foreground text-xl py-10">No products found.</p>
