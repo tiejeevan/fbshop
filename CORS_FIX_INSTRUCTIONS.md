@@ -36,6 +36,8 @@ Follow these steps precisely to resolve the issue. You will need to use the Goog
 
 1.  Now, run the following command in the Cloud Shell. This command tells your storage bucket to use the rules you just defined in `cors.json`.
 
+    **Important Note on Bucket Name:** Even if your Firebase console URL shows a name ending in `...firebasestorage.app`, the correct name for this `gsutil` command is the one ending in `.appspot.com`.
+
     ```bash
     gsutil cors set cors.json gs://local-commerce-f5t0u.appspot.com
     ```
@@ -51,7 +53,7 @@ After a minute or two for the settings to apply, go back to your web application
 
 If you still see a CORS error after following these steps:
 
-1.  **Double-check the bucket name:** Make sure the command in Step 3 uses your exact bucket name: `gs://local-commerce-f5t0u.appspot.com`. Any typo will cause it to fail.
+1.  **Double-check the bucket name:** Make sure the command in Step 3 uses your exact bucket name: `gs://local-commerce-f5t0u.appspot.com`. Any typo will cause it to fail. Do not use the `...firebasestorage.app` name here.
 2.  **Verify `cors.json`:** Run `cat cors.json` in the Cloud Shell to ensure the content is exactly as shown above, with no extra characters or missing brackets.
 3.  **Wait a Few Minutes:** Sometimes it can take 2-5 minutes for the new CORS settings to be applied across all of Google's servers.
 4.  **Hard Refresh:** Clear your browser's cache and do a hard refresh (Ctrl+Shift+R or Cmd+Shift+R) on the application page before trying the upload again.
