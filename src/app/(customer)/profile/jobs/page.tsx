@@ -137,9 +137,9 @@ export default function MyJobsPage() {
                 <Tooltip>
                     <TooltipTrigger asChild>{nameComponent}</TooltipTrigger>
                     <TooltipContent className="max-w-xs">
-                        <p className="font-bold text-sm">Review of {name}</p>
+                        <div className="font-bold text-sm">Review of {name}</div>
                         <div className="my-1"><StarRatingDisplay rating={reviewForOtherPerson.rating} size="sm" /></div>
-                        <p className="text-xs text-muted-foreground italic">"{reviewForOtherPerson.comment}"</p>
+                        <div className="text-xs text-muted-foreground italic">"{reviewForOtherPerson.comment}"</div>
                     </TooltipContent>
                 </Tooltip>
             );
@@ -151,14 +151,14 @@ export default function MyJobsPage() {
         <Card className="flex flex-col">
             <CardHeader>
                 <CardTitle>{job.title}</CardTitle>
-                <CardDescription>
+                <div className="text-sm text-muted-foreground">
                     {job.status === 'open' && 'Not yet accepted.'}
                     {job.status !== 'open' && (isCreator ? (
                         <>Accepted by: <OtherPersonNameDisplay /></>
                     ) : (
                         <>Created by: <OtherPersonNameDisplay /></>
                     ))}
-                </CardDescription>
+                </div>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground flex-grow space-y-3">
                 <p className="line-clamp-2">{job.description}</p>
