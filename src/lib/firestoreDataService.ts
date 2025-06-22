@@ -1,3 +1,4 @@
+
 // src/lib/firestoreDataService.ts
 'use client';
 
@@ -909,6 +910,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
     if (options.status) {
         queryConstraints.push(where("status", "==", options.status));
+        shouldSortInCode = true;
     }
     if (options.createdById) {
         queryConstraints.push(where("createdById", "==", options.createdById));
@@ -932,7 +934,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     }
 
     const now = new Date();
-    const batch = writeBatch(db);
+    const batch = writeBatch(db!);
     let hasUpdates = false;
     jobs.forEach(job => {
         if (job.status === 'open' && new Date(job.expiresAt) < now) {
