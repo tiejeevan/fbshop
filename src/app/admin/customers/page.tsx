@@ -29,6 +29,7 @@ export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [customerToDelete, setCustomerToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const { currentUser: adminUserPerformingAction } = useAuth();
@@ -74,6 +75,7 @@ export default function AdminCustomersPage() {
       setCustomerToDelete(null);
       return;
     }
+    setIsDeleting(true);
 
     const userNameOrEmail = customerToDelete.name || customerToDelete.email; 
     const userId = customerToDelete.id;
@@ -95,6 +97,7 @@ export default function AdminCustomersPage() {
     } else {
       toast({ title: "Error Deleting User", description: "Could not delete the user. Please try again.", variant: "destructive" });
     }
+    setIsDeleting(false);
     setCustomerToDelete(null);
   };
 
@@ -221,7 +224,9 @@ export default function AdminCustomersPage() {
               <AlertDialogAction
                 onClick={handleDeleteCustomer}
                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                disabled={isDeleting}
               >
+                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Yes, delete user
               </AlertDialogAction>
             </AlertDialogFooter>

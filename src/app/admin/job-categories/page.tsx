@@ -28,6 +28,7 @@ export default function AdminJobCategoriesPage() {
   const [jobCategories, setJobCategories] = useState<JobCategory[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<JobCategory | null>(null);
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -71,7 +72,8 @@ export default function AdminJobCategoriesPage() {
       setCategoryToDelete(null);
       return;
     }
-
+    
+    setIsDeleting(true);
     const categoryName = categoryToDelete.name;
     const categoryId = categoryToDelete.id;
 
@@ -91,6 +93,7 @@ export default function AdminJobCategoriesPage() {
     } else {
       toast({ title: "Error Deleting Category", variant: "destructive" });
     }
+    setIsDeleting(false);
     setCategoryToDelete(null);
   };
 
@@ -175,7 +178,10 @@ export default function AdminJobCategoriesPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Confirm Delete</AlertDialogAction>
+              <AlertDialogAction onClick={handleDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" disabled={isDeleting}>
+                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirm Delete
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -34,6 +34,8 @@ export default function AdminJobsPage() {
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [jobSettings, setJobSettings] = useState<JobSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [processingJobId, setProcessingJobId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -77,6 +79,7 @@ export default function AdminJobsPage() {
 
   const handleDeleteJob = async () => {
     if (!jobToDelete || !currentUser || !dataService) return;
+    setIsDeleting(true);
     const jobId = jobToDelete.id;
     const success = await dataService.deleteJob(jobId);
     if (success) {
@@ -94,11 +97,13 @@ export default function AdminJobsPage() {
     } else {
       toast({ title: "Error Deleting Job", variant: "destructive" });
     }
+    setIsDeleting(false);
     setJobToDelete(null);
   };
 
   const handleToggleVerifyJob = async (job: Job) => {
-    if (!dataService || !currentUser) return;
+    if (!dataService || !currentUser || processingJobId) return;
+    setProcessingJobId(job.id);
     try {
       const newVerifiedState = !job.isVerified;
       await dataService.updateJob({ id: job.id, isVerified: newVerifiedState });
@@ -116,6 +121,8 @@ export default function AdminJobsPage() {
     } catch (error) {
         console.error("Error updating job verification:", error);
         toast({ title: "Error", description: "Could not update job.", variant: "destructive" });
+    } finally {
+      setProcessingJobId(null);
     }
   };
 
@@ -247,6 +254,7 @@ export default function AdminJobsPage() {
                                 checked={job.isVerified}
                                 onCheckedChange={() => handleToggleVerifyJob(job)}
                                 aria-label="Toggle job verification"
+                                disabled={processingJobId === job.id}
                              />
                         </TableCell>
                         <TableCell className="text-right">
@@ -278,7 +286,10 @@ export default function AdminJobsPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteJob} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Delete</AlertDialogAction>
+              <AlertDialogAction onClick={handleDeleteJob} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" disabled={isDeleting}>
+                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

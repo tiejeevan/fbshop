@@ -22,6 +22,7 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const { toast } = useToast();
@@ -77,6 +78,7 @@ export default function AdminProductsPage() {
         setProductToDelete(null);
         return;
     }
+    setIsDeleting(true);
     const productName = productToDelete.name;
     const productId = productToDelete.id;
 
@@ -101,6 +103,7 @@ export default function AdminProductsPage() {
         console.error("Error during product deletion process:", error);
         toast({ title: "Error Deleting Product", description: "An unexpected error occurred.", variant: "destructive" });
     }
+    setIsDeleting(false);
     setProductToDelete(null);
   };
 
@@ -218,7 +221,10 @@ export default function AdminProductsPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteProduct} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Delete</AlertDialogAction>
+              <AlertDialogAction onClick={handleDeleteProduct} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" disabled={isDeleting}>
+                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

@@ -52,6 +52,8 @@ export default function AdminCategoriesPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterHierarchy, setFilterHierarchy] = useState<'all' | 'toplevel' | 'subcategories'>('all');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isBatchActionLoading, setIsBatchActionLoading] = useState(false);
 
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -125,12 +127,13 @@ export default function AdminCategoriesPage() {
 
   const confirmDeleteCategory = async () => {
     if (!categoryToDelete || !currentUser || !dataService) return;
+    setIsDeleting(true);
 
-    // Check for child categories still needs to happen first.
     const children = await dataService.getChildCategories(categoryToDelete.id);
     if (children.length > 0) {
         toast({ title: "Cannot Delete", description: `Category "${categoryToDelete.name}" has ${children.length} subcategories. Please reassign or delete them first.`, variant: "destructive", duration: 5000 });
         setCategoryToDelete(null);
+        setIsDeleting(false);
         return;
     }
 
@@ -140,15 +143,14 @@ export default function AdminCategoriesPage() {
           let unassignedCategory = allCategories.find(c => c.name.toLowerCase() === 'unassigned');
           if (!unassignedCategory) {
             unassignedCategory = await dataService.addCategory({ name: 'Unassigned', slug: 'unassigned', description: 'Products without a specific category.', parentId: null, imageId: null, displayOrder: 999, isActive: true });
-            fetchData(); // re-fetch to get the new category in state for logging
+            fetchData(); 
           }
           await dataService.reassignProductsToCategory(productsInDeletingCategory.map(p => p.id), unassignedCategory.id);
-        } else { // 'delete' option
+        } else {
           await Promise.all(productsInDeletingCategory.map(p => dataService.deleteProduct(p.id)));
         }
       }
 
-      // Finally delete the category itself
       const categoryName = categoryToDelete.name;
       const categoryId = categoryToDelete.id;
 
@@ -180,6 +182,7 @@ export default function AdminCategoriesPage() {
         console.error("Error during category deletion process:", e);
         toast({ title: "Error", description: "An unexpected error occurred during deletion.", variant: "destructive" });
     } finally {
+        setIsDeleting(false);
         setCategoryToDelete(null);
         setProductsInDeletingCategory([]);
     }
@@ -191,6 +194,7 @@ export default function AdminCategoriesPage() {
       toast({ title: "No categories selected or admin not found", variant: "destructive" });
       return;
     }
+    setIsBatchActionLoading(true);
 
     let successCount = 0;
     let skippedCount = 0;
@@ -260,6 +264,7 @@ export default function AdminCategoriesPage() {
     }
     fetchData(); // Refetch all data
     setCategoriesToBatchAction([]);
+    setIsBatchActionLoading(false);
   };
 
   const toggleSelectAll = (checked: boolean) => {
@@ -380,13 +385,16 @@ export default function AdminCategoriesPage() {
            {categoriesToBatchAction.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2 items-center border-t pt-4">
                 <span className="text-sm text-muted-foreground">{categoriesToBatchAction.length} selected:</span>
-                <Button size="sm" variant="outline" onClick={() => handleBatchAction('setActive')}>Set Active</Button>
-                <Button size="sm" variant="outline" onClick={() => handleBatchAction('setInactive')}>Set Inactive</Button>
+                <Button size="sm" variant="outline" onClick={() => handleBatchAction('setActive')} disabled={isBatchActionLoading}>{isBatchActionLoading && <Loader2 className="mr-2 h-3 w-3 animate-spin"/>}Set Active</Button>
+                <Button size="sm" variant="outline" onClick={() => handleBatchAction('setInactive')} disabled={isBatchActionLoading}>{isBatchActionLoading && <Loader2 className="mr-2 h-3 w-3 animate-spin"/>}Set Inactive</Button>
                  <AlertDialog>
-                    <AlertDialogTrigger asChild><Button size="sm" variant="destructive" className="bg-destructive hover:bg-destructive/90"><Trash2 className="mr-2 h-3 w-3"/> Delete Selected</Button></AlertDialogTrigger>
+                    <AlertDialogTrigger asChild><Button size="sm" variant="destructive" className="bg-destructive hover:bg-destructive/90" disabled={isBatchActionLoading}>{isBatchActionLoading && <Loader2 className="mr-2 h-3 w-3 animate-spin"/>}<Trash2 className="mr-2 h-3 w-3"/> Delete Selected</Button></AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader><AlertDialogTitle>Delete Selected Categories?</AlertDialogTitle><AlertDialogDescription>This will attempt to delete {categoriesToBatchAction.length} categories. Categories with products or subcategories will be skipped. This action cannot be undone for successfully deleted categories.</AlertDialogDescription></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleBatchAction('delete')} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Confirm Delete</AlertDialogAction></AlertDialogFooter>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleBatchAction('delete')} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Confirm Delete</AlertDialogAction>
+                        </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
@@ -457,7 +465,8 @@ export default function AdminCategoriesPage() {
             )}
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                <AlertDialogAction onClick={confirmDeleteCategory} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" disabled={isDeleting}>
+                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Confirm Delete
                 </AlertDialogAction>
             </AlertDialogFooter>
