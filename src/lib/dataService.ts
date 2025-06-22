@@ -68,7 +68,7 @@ export interface IDataService {
 
   // Review methods
   getReviewsForProduct: (productId: string) => Promise<Review[]>;
-  addReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => Promise<Review>;
+  addReview: (reviewData: Omit<Review, 'id' | 'createdAt'>, actor: { id: string, email: string, role: UserRole }) => Promise<Review>;
   deleteReview: (reviewId: string) => Promise<void>;
 
   // Recently Viewed

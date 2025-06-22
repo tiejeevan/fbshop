@@ -1,10 +1,11 @@
+
 'use client';
 
 import React, { useEffect, useState, useCallback, ChangeEvent, useMemo } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Product, Category, Review as ReviewType } from '@/types';
+import type { Product, Category, Review as ReviewType, User } from '@/types';
 import { ArrowLeft, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, ImageOff, Edit3, Trash2, Save, Ban, UploadCloud, AlertTriangle, Loader2 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -756,7 +757,11 @@ export default function ProductDetailPage() {
       <div className="mt-12 space-y-8">
         <h2 className="font-headline text-3xl text-primary border-b pb-2">Customer Reviews</h2>
         {currentUser && (currentUser.role === 'customer' || currentUser.role === 'admin') && !isEditing && ( 
-          <ReviewForm productId={product.id} userId={currentUser.id} userName={currentUser.name || 'Anonymous'} onReviewSubmitted={onReviewSubmitted} />
+          <ReviewForm 
+            productId={product.id} 
+            currentUser={currentUser}
+            onReviewSubmitted={onReviewSubmitted} 
+          />
         )}
         {!currentUser && !isEditing && (
           <p className="text-muted-foreground">Please <LoginModalTrigger /> to leave a review.</p>

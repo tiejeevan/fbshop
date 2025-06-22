@@ -408,7 +408,7 @@ const localStorageDataService: IDataService = {
       if (userId) return allOrders.filter(order => order.userId === userId).sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
       return allOrders.sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   },
-  async addOrder(orderData): Promise<Order> {
+  async addOrder(orderData, actor): Promise<Order> {
       const orders = await this.getOrders();
       const orderItemsWithDetails: OrderItem[] = [];
       for (const item of orderData.items) { const product = await this.findProductById(item.productId); orderItemsWithDetails.push({ ...item, name: product?.name || 'Unknown Product', primaryImageId: product?.primaryImageId }); }
@@ -419,6 +419,7 @@ const localStorageDataService: IDataService = {
         const product = await this.findProductById(item.productId);
         if (product) { product.stock -= item.quantity; product.purchases = (product.purchases || 0) + item.quantity; await this.updateProduct(product); }
       }
+      await this.addActivityLog({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role, actionType: 'ORDER_CREATE', entityType: 'Order', entityId: newOrder.id, description: `Created order with ${newOrder.items.length} item(s) for a total of $${newOrder.totalAmount.toFixed(2)}.` });
       return newOrder;
   },
   setCurrentUser(user: User | null): void { user ? setItem(KEYS.CURRENT_USER, { id: user.id, role: user.role, email: user.email, name: user.name, themePreference: user.themePreference, addresses: user.addresses || [] }) : removeItem(KEYS.CURRENT_USER); },
@@ -431,7 +432,7 @@ const localStorageDataService: IDataService = {
   async removeFromWishlist(userId, productId): Promise<void> { let wishlists = getItem<WishlistItem[]>(KEYS.WISHLISTS) || []; wishlists = wishlists.filter(item => !(item.userId === userId && item.productId === productId)); setItem(KEYS.WISHLISTS, wishlists); },
   async isProductInWishlist(userId, productId): Promise<boolean> { return (getItem<WishlistItem[]>(KEYS.WISHLISTS) || []).some(item => item.userId === userId && item.productId === productId); },
   async getReviewsForProduct(productId): Promise<Review[]> { return (getItem<Review[]>(KEYS.REVIEWS) || []).filter(review => review.productId === productId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); },
-  async addReview(reviewData): Promise<Review> {
+  async addReview(reviewData, actor): Promise<Review> {
     const reviews = getItem<Review[]>(KEYS.REVIEWS) || [];
     const newReview: Review = { ...reviewData, id: simpleUUID(), createdAt: new Date().toISOString() };
     reviews.push(newReview);
@@ -444,7 +445,7 @@ const localStorageDataService: IDataService = {
       product.reviewCount = productReviews.length;
       await this.updateProduct(product);
     }
-    await this.addActivityLog({ actorId: reviewData.userId, actorEmail: (await this.findUserById(reviewData.userId))?.email || '', actorRole: 'customer', actionType: 'PRODUCT_REVIEW', entityType: 'Product', entityId: reviewData.productId, description: `Submitted a ${reviewData.rating}-star review for a product.`});
+    await this.addActivityLog({ actorId: actor.id, actorEmail: actor.email, actorRole: actor.role, actionType: 'PRODUCT_REVIEW', entityType: 'Product', entityId: reviewData.productId, description: `Submitted a ${reviewData.rating}-star review for a product.`});
     return newReview;
   },
   async deleteReview(reviewId): Promise<void> {

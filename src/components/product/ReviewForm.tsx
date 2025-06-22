@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Star, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDataSource } from '@/contexts/DataSourceContext';
+import type { User } from '@/types';
 
 const reviewSchema = z.object({
   rating: z.number().min(1, "Rating is required").max(5),
@@ -23,12 +24,11 @@ type ReviewFormValues = z.infer<typeof reviewSchema>;
 
 interface ReviewFormProps {
   productId: string;
-  userId: string;
-  userName: string;
+  currentUser: User;
   onReviewSubmitted: () => void;
 }
 
-export function ReviewForm({ productId, userId, userName, onReviewSubmitted }: ReviewFormProps) {
+export function ReviewForm({ productId, currentUser, onReviewSubmitted }: ReviewFormProps) {
   const [hoverRating, setHoverRating] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -64,12 +64,16 @@ export function ReviewForm({ productId, userId, userName, onReviewSubmitted }: R
     try {
       await dataService.addReview({
         productId,
-        userId,
-        userName,
+        userId: currentUser.id,
+        userName: currentUser.name || currentUser.email,
         rating: data.rating,
         comment: data.comment,
+      }, {
+        id: currentUser.id,
+        email: currentUser.email,
+        role: currentUser.role,
       });
-      // The log is handled inside the dataService.addReview method
+      
       toast({ title: "Review Submitted", description: "Thank you for your feedback!" });
       reset(); 
       onReviewSubmitted(); 

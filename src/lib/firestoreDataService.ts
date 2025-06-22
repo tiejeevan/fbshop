@@ -12,7 +12,7 @@ import type { Firestore } from 'firebase/firestore';
 import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, writeBatch, serverTimestamp, Timestamp, runTransaction, collectionGroup, documentId
 } from 'firebase/firestore';
-import { storage as firebaseStorage } from './firebase'; // Import Firebase Storage instance
+import { storage as firebaseStorage, db as firebaseDBInstance } from './firebase'; // Import Firebase Storage instance
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 
@@ -713,10 +713,10 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const snapshot = await getDocs(q);
     return mapDocsToTypeArray<Review>(snapshot);
   },
-  async addReview(reviewData): Promise<Review> {
+  async addReview(reviewData, actor): Promise<Review> {
     if (!db) throw new Error("Firestore not initialized");
-    const reviewsCol = collection(db, `products/${reviewData.productId}/reviews`);
-    const reviewDocRef = doc(reviewsCol);
+    
+    const reviewDocRef = doc(collection(db, `products/${reviewData.productId}/reviews`));
     const newReviewFSData = {
       ...reviewData,
       id: reviewDocRef.id,
@@ -724,12 +724,13 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     };
 
     const productRef = doc(db, "products", reviewData.productId);
-    await runTransaction(db, async (transaction) => {
-        transaction.set(reviewDocRef, newReviewFSData); 
 
+    await runTransaction(db, async (transaction) => {
+        // PHASE 1: READ
         const productDoc = await transaction.get(productRef);
         if (!productDoc.exists()) throw new Error("Product not found for review update!");
         
+        // PHASE 2: CALCULATE
         const productData = productDoc.data() as Product;
         const oldReviewCount = productData.reviewCount || 0;
         const oldTotalRating = (productData.averageRating || 0) * oldReviewCount;
@@ -737,13 +738,27 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         const newReviewCount = oldReviewCount + 1;
         const newTotalRating = oldTotalRating + reviewData.rating;
         const newAverageRating = newReviewCount > 0 ? newTotalRating / newReviewCount : 0;
-
+        
+        // PHASE 3: WRITE
+        transaction.set(reviewDocRef, newReviewFSData); 
         transaction.update(productRef, {
             averageRating: newAverageRating,
             reviewCount: newReviewCount,
             updatedAt: serverTimestamp(),
         });
     });
+    
+    // Add activity log outside transaction
+    await this.addActivityLog({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      actionType: 'PRODUCT_REVIEW',
+      entityType: 'Product',
+      entityId: reviewData.productId,
+      description: `Submitted a ${reviewData.rating}-star review for a product.`
+    });
+
     return { ...reviewData, id: reviewDocRef.id, createdAt: new Date().toISOString() }; 
   },
   async deleteReview(reviewIdString: string): Promise<void> { 
@@ -862,24 +877,43 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   },
 
   async saveImage(entityId: string, imageType: string, imageFile: File): Promise<string> {
-    if (!firebaseStorage) {
-      return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
+    if (!firebaseStorage || !firebaseDBInstance) {
+        console.warn("Firebase Storage or DB not configured. Falling back to local storage for image save.");
+        return localDBServiceFallback.saveImage(entityId, imageType, imageFile);
     }
-    const sanitizedFileName = imageFile.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
-    const destinationPath = `images/${entityId}/${imageType}/${Date.now()}_${sanitizedFileName}`;
-    const imageRef = storageRef(firebaseStorage, destinationPath);
+    const formData = new FormData();
+    formData.append('file', imageFile);
+    formData.append('entityId', entityId);
+    formData.append('imageType', imageType);
+    
     try {
-      const snapshot = await uploadBytes(imageRef, imageFile);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      return downloadURL;
-    } catch (error: any) {
-      console.error("Firebase upload failed, trying local fallback:", error);
-      try {
-        return await localDBServiceFallback.saveImage(entityId, imageType, imageFile);
-      } catch (localError) {
-        console.error("Local image save also failed:", localError);
-        throw new Error("Both Firebase and local image uploads failed.");
-      }
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            let errorText = await response.text();
+            try {
+                const errorBody = JSON.parse(errorText);
+                 console.error('Upload API responded with an error:', errorBody);
+                 throw new Error(errorBody.error || 'Failed to upload file.');
+            } catch (e) {
+                 console.error('Upload API responded with a non-JSON error:', errorText);
+                 throw new Error(errorText || 'Failed to upload file due to server error.');
+            }
+        }
+        const result = await response.json();
+        return result.url;
+
+    } catch (error) {
+        console.error("API upload failed, trying local fallback:", error);
+        try {
+            return await localDBServiceFallback.saveImage(entityId, imageType, imageFile);
+        } catch (localError) {
+            console.error("Local image save also failed:", localError);
+            throw new Error("Both API and local image uploads failed.");
+        }
     }
   },
 
@@ -891,19 +925,19 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
   async deleteImage(imageId: string): Promise<void> {
     if (!imageId) return;
     if (imageId.startsWith('http')) {
-      if (!firebaseStorage) return;
-      try {
-        const imageRef = storageRef(firebaseStorage, imageId);
-        await deleteObject(imageRef);
-      } catch (error: any) {
-        if (error.code === 'storage/object-not-found') {
-          console.warn(`Image to delete not found in Firebase: ${imageId}`);
-        } else {
-          console.error(`Error deleting image from Firebase: ${imageId}`, error);
+        if (!firebaseStorage) return;
+        try {
+            const imageRef = storageRef(firebaseStorage, imageId);
+            await deleteObject(imageRef);
+        } catch (error: any) {
+            if (error.code === 'storage/object-not-found') {
+                console.warn(`Image to delete not found in Firebase: ${imageId}`);
+            } else {
+                console.error(`Error deleting image from Firebase: ${imageId}`, error);
+            }
         }
-      }
     } else {
-      await localDBServiceFallback.deleteImage(imageId);
+        await localDBServiceFallback.deleteImage(imageId);
     }
   },
 
