@@ -103,6 +103,19 @@ const localStorageDataService: IDataService = {
         setItem(KEYS.JOB_CATEGORIES, jobCategories);
     }
 
+    // Default Job Settings
+    if (!getItem(KEYS.JOB_SETTINGS)) {
+      setItem(KEYS.JOB_SETTINGS, { 
+        maxJobsPerUser: 5, 
+        maxTimerDurationDays: 10,
+        enableJobCreation: true,
+        requireCompensation: false,
+        maxCompensationAmount: 10000,
+        allowUserJobEditing: true,
+        markNewJobsAsUrgent: false,
+      });
+    }
+
     // Other keys
     if (!getItem(KEYS.PRODUCTS)) setItem(KEYS.PRODUCTS, []);
     if (!getItem(KEYS.CARTS)) setItem(KEYS.CARTS, []);
@@ -114,7 +127,6 @@ const localStorageDataService: IDataService = {
     if (!getItem(KEYS.THEME)) setItem(KEYS.THEME, 'system');
     if (!getItem(KEYS.JOBS)) setItem(KEYS.JOBS, []);
     if (!getItem(KEYS.JOB_CHATS)) setItem(KEYS.JOB_CHATS, []);
-    if (!getItem(KEYS.JOB_SETTINGS)) setItem(KEYS.JOB_SETTINGS, { maxJobsPerUser: 5, maxTimerDurationDays: 10 });
     if (!getItem(KEYS.JOB_REVIEWS)) setItem(KEYS.JOB_REVIEWS, []);
     if (!getItem(KEYS.NOTIFICATIONS)) setItem(KEYS.NOTIFICATIONS, []);
     if (!getItem(KEYS.SAVED_JOBS)) setItem(KEYS.SAVED_JOBS, []);
@@ -664,7 +676,15 @@ const localStorageDataService: IDataService = {
   },
   
   async getJobSettings(): Promise<JobSettings> {
-    return getItem<JobSettings>(KEYS.JOB_SETTINGS) || { maxJobsPerUser: 5, maxTimerDurationDays: 10 };
+    return getItem<JobSettings>(KEYS.JOB_SETTINGS) || { 
+        maxJobsPerUser: 5, 
+        maxTimerDurationDays: 10,
+        enableJobCreation: true,
+        requireCompensation: false,
+        maxCompensationAmount: 10000,
+        allowUserJobEditing: true,
+        markNewJobsAsUrgent: false,
+    };
   },
   async updateJobSettings(settings: JobSettings): Promise<JobSettings> {
     setItem(KEYS.JOB_SETTINGS, settings);

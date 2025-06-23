@@ -186,6 +186,11 @@ export interface ChatMessage {
 export interface JobSettings {
   maxJobsPerUser: number;
   maxTimerDurationDays: number;
+  enableJobCreation: boolean;
+  requireCompensation: boolean;
+  maxCompensationAmount: number;
+  allowUserJobEditing: boolean;
+  markNewJobsAsUrgent: boolean;
 }
 
 export interface JobReview {

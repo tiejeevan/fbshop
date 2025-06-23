@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, ChangeEvent } from 'react';
+import React, { useEffect, useState, useCallback, ChangeEvent, useMemo } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,7 +15,7 @@ import type { JobSettings, JobCategory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSource } from '@/contexts/DataSourceContext';
-import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame, Info, Wand2, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
+import { Loader2, Briefcase, UploadCloud, Trash2, ImagePlus, DollarSign, Flame, Info, Wand2, Calendar as CalendarIcon, Clock, MapPin, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { add, format, setHours, setMinutes } from 'date-fns';
 import Image from 'next/image';
@@ -30,23 +30,6 @@ import { cn } from '@/lib/utils';
 const MAX_JOB_IMAGES = 5;
 const MAX_FILE_SIZE_MB = 2;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
-const jobFormSchema = z.object({
-  title: z.string().min(5, 'Title must be at least 5 characters').max(100, 'Title cannot exceed 100 characters'),
-  description: z.string().min(20, 'Description must be at least 20 characters').max(1000, 'Description cannot exceed 1000 characters'),
-  categoryId: z.string().min(1, 'Please select a category'),
-  compensationAmount: z.coerce.number().min(0, "Compensation must be 0 or more").optional(),
-  durationInHours: z.coerce.number().int().min(1, 'Duration must be at least 1 hour'),
-  isUrgent: z.boolean().optional(),
-  location: z.string().max(100, 'Location cannot exceed 100 characters').optional(),
-  preferredDate: z.date().optional(),
-  preferredTime: z.string().optional().refine((val) => !val || /^([01]\d|2[0-3]):([0-5]\d)$/.test(val), {
-    message: "Invalid time format (HH:mm)",
-  }),
-  estimatedDurationHours: z.coerce.number().min(0, "Duration must be positive").optional(),
-});
-
-type JobFormValues = z.infer<typeof jobFormSchema>;
 
 export default function NewJobPage() {
   const [settings, setSettings] = useState<JobSettings | null>(null);
@@ -64,6 +47,42 @@ export default function NewJobPage() {
   const [isSuggesting, setIsSuggesting] = useState(false);
   
   const isRelist = !!searchParams.get('title');
+
+  const jobFormSchema = useMemo(() => {
+    const schema = z.object({
+      title: z.string().min(5, 'Title must be at least 5 characters').max(100, 'Title cannot exceed 100 characters'),
+      description: z.string().min(20, 'Description must be at least 20 characters').max(1000, 'Description cannot exceed 1000 characters'),
+      categoryId: z.string().min(1, 'Please select a category'),
+      compensationAmount: settings?.requireCompensation
+        ? z.coerce.number().min(0.01, 'Compensation is required and must be a positive value.')
+        : z.coerce.number().min(0, "Compensation must be 0 or more").optional(),
+      durationInHours: z.coerce.number().int().min(1, 'Duration must be at least 1 hour'),
+      isUrgent: z.boolean().optional(),
+      location: z.string().max(100, 'Location cannot exceed 100 characters').optional(),
+      preferredDate: z.date().optional(),
+      preferredTime: z.string().optional().refine((val) => !val || /^([01]\d|2[0-3]):([0-5]\d)$/.test(val), {
+        message: "Invalid time format (HH:mm)",
+      }),
+      estimatedDurationHours: z.coerce.number().min(0, "Duration must be positive").optional(),
+    });
+
+    if (settings?.maxCompensationAmount) {
+      return schema.refine(data => {
+        if (data.compensationAmount) {
+            return data.compensationAmount <= settings.maxCompensationAmount;
+        }
+        return true;
+      }, {
+        message: `Compensation cannot exceed $${settings.maxCompensationAmount}.`,
+        path: ['compensationAmount'],
+      });
+    }
+
+    return schema;
+  }, [settings]);
+  
+  type JobFormValues = z.infer<typeof jobFormSchema>;
+
 
   const { register, handleSubmit, control, setValue, getValues, watch, formState: { errors, isSubmitting: isFormProcessing } } = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
@@ -100,6 +119,13 @@ export default function NewJobPage() {
         }
     }
   }, [isRelist, searchParams, setValue]);
+
+  useEffect(() => {
+    if (settings && !isRelist) {
+        setValue('isUrgent', settings.markNewJobsAsUrgent);
+    }
+  }, [settings, isRelist, setValue]);
+
   
   const fetchPrerequisites = useCallback(async () => {
     if (!currentUser || !dataService || isDataSourceLoading) {
@@ -239,6 +265,20 @@ export default function NewJobPage() {
     return <div className="text-center py-20 text-destructive">Could not load job settings. Please try again later.</div>
   }
 
+  if (!settings.enableJobCreation) {
+    return (
+      <Card className="text-center py-10 max-w-lg mx-auto">
+        <CardHeader>
+          <CardTitle className="text-destructive font-headline">Job Creation Disabled</CardTitle>
+          <CardDescription>The site administrator has temporarily disabled new job postings. Please check back later.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild><Link href="/jobs"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Jobs</Link></Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const canPostJob = userJobsCount < settings.maxJobsPerUser || isRelist;
   const maxDurationInHours = settings.maxTimerDurationDays * 24;
   const durationOptions = [ { value: 1, label: '1 Hour' }, { value: 6, label: '6 Hours' }, { value: 12, label: '12 Hours' }, { value: 24, label: '1 Day' }, { value: 48, label: '2 Days' }, { value: 72, label: '3 Days' }, { value: 120, label: '5 Days' }, { value: 168, label: '7 Days' }, { value: 240, label: '10 Days' }, ].filter(opt => opt.value <= maxDurationInHours);
@@ -308,10 +348,10 @@ export default function NewJobPage() {
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="compensationAmount" className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-muted-foreground"/>Compensation ($) (Optional)</Label>
+                                    <Label htmlFor="compensationAmount" className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-muted-foreground"/>Compensation ($) {settings.requireCompensation ? '' : '(Optional)'}</Label>
                                     <Input id="compensationAmount" {...register('compensationAmount')} type="number" step="0.01" min="0" placeholder="e.g. 25.00" />
                                     {errors.compensationAmount && <p className="text-sm text-destructive">{errors.compensationAmount.message}</p>}
-                                    <p className="text-xs text-muted-foreground">Leave blank or set to 0 for volunteer jobs.</p>
+                                    {!settings.requireCompensation && <p className="text-xs text-muted-foreground">Leave blank or set to 0 for volunteer jobs.</p>}
                                 </div>
                                 <div className="space-y-1.5">
                                     <Label htmlFor="estimatedDurationHours" className="flex items-center gap-2"><Clock className="h-4 w-4 text-muted-foreground"/>Estimated Duration (Hours)</Label>

@@ -74,7 +74,15 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     const jobSettingsSnap = await getDoc(jobSettingsDocRef);
     if (!jobSettingsSnap.exists()) {
         console.log("Job settings not found in Firestore, creating default...");
-        await setDoc(jobSettingsDocRef, { maxJobsPerUser: 5, maxTimerDurationDays: 10 });
+        await setDoc(jobSettingsDocRef, { 
+            maxJobsPerUser: 5, 
+            maxTimerDurationDays: 10,
+            enableJobCreation: true,
+            requireCompensation: false,
+            maxCompensationAmount: 10000,
+            allowUserJobEditing: true,
+            markNewJobsAsUrgent: false,
+        });
     }
 
     // Seed Admin User
@@ -1150,7 +1158,19 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
     if (!db) throw new Error("Firestore not initialized");
     const docRef = doc(db, "settings", "jobs");
     const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? docSnap.data() as JobSettings : { maxJobsPerUser: 5, maxTimerDurationDays: 10 };
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+            maxJobsPerUser: data.maxJobsPerUser ?? 5,
+            maxTimerDurationDays: data.maxTimerDurationDays ?? 10,
+            enableJobCreation: data.enableJobCreation ?? true,
+            requireCompensation: data.requireCompensation ?? false,
+            maxCompensationAmount: data.maxCompensationAmount ?? 10000,
+            allowUserJobEditing: data.allowUserJobEditing ?? true,
+            markNewJobsAsUrgent: data.markNewJobsAsUrgent ?? false,
+        } as JobSettings;
+    }
+    return { maxJobsPerUser: 5, maxTimerDurationDays: 10, enableJobCreation: true, requireCompensation: false, maxCompensationAmount: 10000, allowUserJobEditing: true, markNewJobsAsUrgent: false };
   },
   async updateJobSettings(settings: JobSettings): Promise<JobSettings> {
     if (!db) throw new Error("Firestore not initialized");

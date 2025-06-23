@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useForm, SubmitHandler } from 'react-hook-form';
+import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 const jobSettingsSchema = z.object({
   maxJobsPerUser: z.coerce.number().int().min(1, 'Must be at least 1').max(100, 'Cannot exceed 100'),
   maxTimerDurationDays: z.coerce.number().int().min(1, 'Must be at least 1 day').max(30, 'Cannot exceed 30 days'),
+  enableJobCreation: z.boolean(),
+  requireCompensation: z.boolean(),
+  maxCompensationAmount: z.coerce.number().min(0, "Must be positive").max(100000, "Cannot exceed 100,000"),
+  allowUserJobEditing: z.boolean(),
+  markNewJobsAsUrgent: z.boolean(),
 });
 
 type JobSettingsFormValues = z.infer<typeof jobSettingsSchema>;
@@ -46,7 +51,7 @@ export default function AdminJobsPage() {
   const { currentUser } = useAuth();
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<JobSettingsFormValues>({
+  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<JobSettingsFormValues>({
     resolver: zodResolver(jobSettingsSchema),
   });
 
@@ -62,6 +67,11 @@ export default function AdminJobsPage() {
       setJobSettings(fetchedSettings);
       setValue('maxJobsPerUser', fetchedSettings.maxJobsPerUser);
       setValue('maxTimerDurationDays', fetchedSettings.maxTimerDurationDays);
+      setValue('enableJobCreation', fetchedSettings.enableJobCreation ?? true);
+      setValue('requireCompensation', fetchedSettings.requireCompensation ?? false);
+      setValue('maxCompensationAmount', fetchedSettings.maxCompensationAmount ?? 10000);
+      setValue('allowUserJobEditing', fetchedSettings.allowUserJobEditing ?? true);
+      setValue('markNewJobsAsUrgent', fetchedSettings.markNewJobsAsUrgent ?? false);
     } catch (error) {
       console.error("Error fetching jobs data:", error);
       toast({ title: "Error", description: "Could not load jobs data.", variant: "destructive" });
@@ -150,7 +160,15 @@ export default function AdminJobsPage() {
     if (!dataService || !currentUser) return;
     try {
       await dataService.updateJobSettings(data);
-      await dataService.addActivityLog({ actorId: currentUser.id, actorEmail: currentUser.email, actorRole: 'admin', actionType: 'JOB_SETTINGS_UPDATE', entityType: 'Settings', description: `Updated job settings: Max jobs/user to ${data.maxJobsPerUser}, max duration to ${data.maxTimerDurationDays} days.`});
+      await dataService.addActivityLog({ 
+        actorId: currentUser.id, 
+        actorEmail: currentUser.email, 
+        actorRole: 'admin', 
+        actionType: 'JOB_SETTINGS_UPDATE', 
+        entityType: 'Settings', 
+        description: `Updated platform job settings.`,
+        details: data
+      });
       toast({ title: "Job Settings Updated" });
       setJobSettings(data);
     } catch (error) {
@@ -295,8 +313,8 @@ export default function AdminJobsPage() {
           <CardDescription>Control the rules for job creation across the platform.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSettingsSubmit)}>
-            <CardContent className="space-y-4">
-                 <div className="grid sm:grid-cols-2 gap-4">
+            <CardContent className="space-y-6">
+                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-1">
                         <Label htmlFor="maxJobsPerUser">Max Active Jobs per User</Label>
                         <Input id="maxJobsPerUser" type="number" {...register('maxJobsPerUser')} />
@@ -306,6 +324,29 @@ export default function AdminJobsPage() {
                         <Label htmlFor="maxTimerDurationDays">Max Job Duration (Days)</Label>
                         <Input id="maxTimerDurationDays" type="number" {...register('maxTimerDurationDays')} />
                         {errors.maxTimerDurationDays && <p className="text-sm text-destructive">{errors.maxTimerDurationDays.message}</p>}
+                    </div>
+                     <div className="space-y-1">
+                        <Label htmlFor="maxCompensationAmount">Max Compensation ($)</Label>
+                        <Input id="maxCompensationAmount" type="number" {...register('maxCompensationAmount')} />
+                        {errors.maxCompensationAmount && <p className="text-sm text-destructive">{errors.maxCompensationAmount.message}</p>}
+                    </div>
+                 </div>
+                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+                    <div className="flex items-center space-x-2">
+                        <Controller name="enableJobCreation" control={control} render={({ field }) => ( <Switch id="enableJobCreation" checked={field.value} onCheckedChange={field.onChange}/> )}/>
+                        <Label htmlFor="enableJobCreation">Enable Job Creation</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Controller name="requireCompensation" control={control} render={({ field }) => ( <Switch id="requireCompensation" checked={field.value} onCheckedChange={field.onChange}/> )}/>
+                        <Label htmlFor="requireCompensation">Require Compensation</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Controller name="allowUserJobEditing" control={control} render={({ field }) => ( <Switch id="allowUserJobEditing" checked={field.value} onCheckedChange={field.onChange}/> )}/>
+                        <Label htmlFor="allowUserJobEditing">Allow User Edits</Label>
+                    </div>
+                     <div className="flex items-center space-x-2">
+                        <Controller name="markNewJobsAsUrgent" control={control} render={({ field }) => ( <Switch id="markNewJobsAsUrgent" checked={field.value} onCheckedChange={field.onChange}/> )}/>
+                        <Label htmlFor="markNewJobsAsUrgent">Urgent by Default</Label>
                     </div>
                  </div>
             </CardContent>
@@ -355,6 +396,3 @@ export default function AdminJobsPage() {
     </div>
   );
 }
-
-
-    
