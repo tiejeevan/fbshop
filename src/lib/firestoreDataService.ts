@@ -1,4 +1,3 @@
-
 // src/lib/firestoreDataService.ts
 'use client';
 
@@ -599,12 +598,23 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
 
   async getOrders(userId?: string): Promise<Order[]> {
     if (!db) throw new Error("Firestore not initialized");
-    let q = query(collection(db, "orders"), orderBy("orderDate", "desc"));
+    let q;
     if (userId) {
-      q = query(collection(db, "orders"), where("userId", "==", userId), orderBy("orderDate", "desc"));
+      // Query by userId without ordering to avoid needing a composite index
+      q = query(collection(db, "orders"), where("userId", "==", userId));
+    } else {
+      // Get all orders, ordered by date
+      q = query(collection(db, "orders"), orderBy("orderDate", "desc"));
     }
     const orderSnapshot = await getDocs(q);
-    return mapDocsToTypeArray<Order>(orderSnapshot);
+    const orders = mapDocsToTypeArray<Order>(orderSnapshot);
+    
+    // If we filtered by user, we need to sort manually on the client-side
+    if (userId) {
+      orders.sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
+    }
+    
+    return orders;
   },
   
   async addOrder(orderData, actor): Promise<Order> {
