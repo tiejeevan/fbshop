@@ -23,6 +23,8 @@ import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
+
 
 const jobSettingsSchema = z.object({
   maxJobsPerUser: z.coerce.number().int().min(1, 'Must be at least 1').max(100, 'Cannot exceed 100'),
@@ -44,7 +46,7 @@ export default function AdminJobsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   
-  const [filters, setFilters] = useState({ searchTerm: '', status: 'all', verified: 'all' });
+  const [filters, setFilters] = useState({ searchTerm: '', status: 'all' as 'all' | Job['status'], verified: 'all' });
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
 
   const { toast } = useToast();
@@ -193,16 +195,22 @@ export default function AdminJobsPage() {
   };
 
 
-  const StatsCard = ({ title, value, icon: Icon }: { title: string, value: number, icon: React.ElementType}) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
+  const StatsCard = ({ title, value, icon: Icon, onClick, isActive }: { title: string, value: number, icon: React.ElementType, onClick: () => void, isActive: boolean }) => (
+    <button 
+        onClick={onClick} 
+        className={cn(
+            "text-left p-0 rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            isActive && "ring-2 ring-primary border-primary bg-accent/30"
+        )}
+    >
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{title}</CardTitle>
+            <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{value}</div>
+        </CardContent>
+    </button>
   );
 
   if (isLoading || isDataSourceLoading) {
@@ -220,11 +228,35 @@ export default function AdminJobsPage() {
       </div>
 
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard title="Total Jobs" value={jobStats.total} icon={ShoppingBag} />
-        <StatsCard title="Open Jobs" value={jobStats.open} icon={Clock} />
-        <StatsCard title="Accepted Jobs" value={jobStats.accepted} icon={Users} />
-        <StatsCard title="Completed Jobs" value={jobStats.completed} icon={CheckCircle} />
-      </div>
+            <StatsCard 
+                title="Total Jobs" 
+                value={jobStats.total} 
+                icon={ShoppingBag}
+                onClick={() => setFilters(f => ({ ...f, status: 'all' }))}
+                isActive={filters.status === 'all'}
+            />
+            <StatsCard 
+                title="Open Jobs" 
+                value={jobStats.open} 
+                icon={Clock}
+                onClick={() => setFilters(f => ({ ...f, status: 'open' }))}
+                isActive={filters.status === 'open'}
+            />
+            <StatsCard 
+                title="Accepted Jobs" 
+                value={jobStats.accepted} 
+                icon={Users}
+                onClick={() => setFilters(f => ({ ...f, status: 'accepted' }))}
+                isActive={filters.status === 'accepted'}
+            />
+            <StatsCard 
+                title="Completed Jobs" 
+                value={jobStats.completed} 
+                icon={CheckCircle}
+                onClick={() => setFilters(f => ({ ...f, status: 'completed' }))}
+                isActive={filters.status === 'completed'}
+            />
+        </div>
 
       <Card>
         <CardHeader>
@@ -232,7 +264,7 @@ export default function AdminJobsPage() {
                 <CardTitle>All Jobs</CardTitle>
                 <div className="flex flex-wrap gap-2">
                     <Input placeholder="Search jobs..." value={filters.searchTerm} onChange={(e) => setFilters(f => ({...f, searchTerm: e.target.value}))} className="h-9 max-w-xs" />
-                    <Select value={filters.status} onValueChange={(v) => setFilters(f => ({...f, status: v}))}>
+                    <Select value={filters.status} onValueChange={(v) => setFilters(f => ({...f, status: v as Job['status'] | 'all' }))}>
                         <SelectTrigger className="h-9 w-full sm:w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
                         <SelectContent><SelectItem value="all">All Statuses</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="accepted">Accepted</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="expired">Expired</SelectItem></SelectContent>
                     </Select>
