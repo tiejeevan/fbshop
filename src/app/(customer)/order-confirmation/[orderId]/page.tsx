@@ -62,10 +62,10 @@ export default function OrderConfirmationPage() {
       } else if (!isDataSourceLoading && !currentUser) { 
           router.replace(`/login?redirect=/order-confirmation/${orderIdFromParams}`);
       }
-    } else if (!orderIdFromParams && !isLoading && !isDataSourceLoading) {
+    } else if (!orderIdFromParams && !isDataSourceLoading) {
       router.replace('/profile/orders');
     }
-  }, [currentUser, orderIdFromParams, fetchOrder, isLoading, isDataSourceLoading, router]);
+  }, [currentUser, orderIdFromParams, fetchOrder, isDataSourceLoading, router]);
 
   if (isLoading || isDataSourceLoading || !orderIdFromParams) {
     return <div className="text-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /> Loading...</div>;
