@@ -72,7 +72,7 @@ export default function OrderConfirmationPage() {
       } else if (!isDataSourceLoading && !currentUser) { 
           router.replace(`/login?redirect=/order-confirmation/${orderIdFromParams}`);
       }
-    } else if (!orderIdFromParams && !isDataSourceLoading) {
+    } else if (!isDataSourceLoading) { // Removed !orderIdFromParams check to allow effect to run once loaded
       router.replace('/profile/orders');
     }
   }, [currentUser, orderIdFromParams, fetchOrder, isDataSourceLoading, router]);

@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { User, Product, Category, Cart, Order, LoginActivity, UserRole, WishlistItem, Review, UserRecentlyViewed, RecentlyViewedItem, Theme, CartItem, OrderItem, AdminActionLog, Address } from '@/types';
@@ -593,8 +594,10 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
     const orderItemsWithDetails: OrderItem[] = orderData.items.map(item => {
       const product = findProductById(item.productId);
       return {
-        ...item,
-        name: product?.name || 'Unknown Product', 
+        productId: item.productId,
+        quantity: item.quantity,
+        priceAtPurchase: item.price,
+        name: product?.name || 'Unknown Product',
         primaryImageId: product?.primaryImageId,
       };
     });
