@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import type { Order } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Package, ArrowLeft, ShoppingBag, Loader2 } from 'lucide-react';
+import { CheckCircle, Package, ArrowLeft, ShoppingBag, Loader2, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ProductImage } from '@/components/product/ProductImage';
@@ -25,6 +25,16 @@ export default function OrderConfirmationPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { dataService, isLoading: isDataSourceLoading } = useDataSource();
   const { toast } = useToast();
+
+  const handleCopyOrderId = () => {
+    if (!order) return;
+    navigator.clipboard.writeText(order.id).then(() => {
+      toast({ title: "Order ID Copied!", description: "The full order ID has been copied to your clipboard." });
+    }).catch(err => {
+      console.error('Failed to copy Order ID: ', err);
+      toast({ title: "Copy Failed", description: "Could not copy the Order ID.", variant: "destructive" });
+    });
+  };
 
   const fetchOrder = useCallback(async (orderId: string, userId?: string) => {
     if (!dataService || isDataSourceLoading) {
@@ -89,7 +99,18 @@ export default function OrderConfirmationPage() {
           <CheckCircle className="h-20 w-20 text-green-600 mx-auto mb-4" />
           <CardTitle className="font-headline text-4xl text-green-700 dark:text-green-400">Thank You!</CardTitle>
           <CardDescription className="text-lg text-muted-foreground">
-            Order <span className="font-semibold text-primary">#{order.id.substring(0, 8)}...</span> placed.
+            Order{' '}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto p-1 font-semibold text-primary hover:bg-primary/10"
+              onClick={handleCopyOrderId}
+              title="Click to copy full Order ID"
+            >
+              #{order.id.substring(0, 8)}...
+              <Copy className="ml-2 h-4 w-4 inline-block" />
+            </Button>
+            {' '}placed.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
@@ -114,7 +135,7 @@ export default function OrderConfirmationPage() {
                     />
                   <div className="flex-grow">
                     <p className="font-medium text-sm text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {item.quantity} &bull; Price: ${item.priceAtPurchase?.toFixed(2) ?? 'N/A'}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {item.quantity} &bull; Price: ${item.priceAtPurchase ? item.priceAtPurchase.toFixed(2) : 'N/A'}</p>
                   </div>
                   <p className="text-sm font-semibold">${item.priceAtPurchase ? (item.priceAtPurchase * item.quantity).toFixed(2) : 'N/A'}</p>
                 </li>
