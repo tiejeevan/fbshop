@@ -645,7 +645,7 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
         // PHASE 3: WRITE all updates
         const orderItemsWithDetails: OrderItem[] = [];
         productsData.forEach((pData, i) => {
-          const item = orderData.items[i];
+          const item = orderData.items[i]; // This is a CartItem
           transaction.update(pData.snap.ref, {
             stock: pData.product.stock - item.quantity,
             purchases: (pData.product.purchases || 0) + item.quantity,
@@ -653,7 +653,9 @@ export const firestoreDataService: IDataService & { initialize: (firestoreInstan
           });
 
           orderItemsWithDetails.push({
-            ...item,
+            productId: item.productId,
+            quantity: item.quantity,
+            priceAtPurchase: item.price,
             name: pData.product.name || 'Unknown Product',
             primaryImageId: pData.product.primaryImageId,
           });

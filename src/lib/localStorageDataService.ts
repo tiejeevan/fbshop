@@ -422,7 +422,16 @@ const localStorageDataService: IDataService = {
   async addOrder(orderData, actor): Promise<Order> {
       const orders = await this.getOrders();
       const orderItemsWithDetails: OrderItem[] = [];
-      for (const item of orderData.items) { const product = await this.findProductById(item.productId); orderItemsWithDetails.push({ ...item, name: product?.name || 'Unknown Product', primaryImageId: product?.primaryImageId }); }
+      for (const item of orderData.items) {
+        const product = await this.findProductById(item.productId);
+        orderItemsWithDetails.push({
+          productId: item.productId,
+          quantity: item.quantity,
+          priceAtPurchase: item.price,
+          name: product?.name || 'Unknown Product',
+          primaryImageId: product?.primaryImageId,
+        });
+      }
       const newOrder: Order = { ...orderData, items: orderItemsWithDetails, shippingAddress: orderData.shippingAddress, id: simpleUUID(), orderDate: new Date().toISOString() };
       orders.push(newOrder);
       setItem(KEYS.ORDERS, orders);

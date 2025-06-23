@@ -114,9 +114,9 @@ export default function OrderConfirmationPage() {
                     />
                   <div className="flex-grow">
                     <p className="font-medium text-sm text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {item.quantity} &bull; Price: ${item.priceAtPurchase.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {item.quantity} &bull; Price: ${item.priceAtPurchase?.toFixed(2) ?? 'N/A'}</p>
                   </div>
-                  <p className="text-sm font-semibold">${(item.priceAtPurchase * item.quantity).toFixed(2)}</p>
+                  <p className="text-sm font-semibold">${item.priceAtPurchase ? (item.priceAtPurchase * item.quantity).toFixed(2) : 'N/A'}</p>
                 </li>
               ))}
             </ul>
