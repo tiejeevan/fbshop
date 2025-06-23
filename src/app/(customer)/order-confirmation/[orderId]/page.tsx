@@ -37,7 +37,7 @@ export default function OrderConfirmationPage() {
   };
 
   const fetchOrder = useCallback(async (orderId: string, userId?: string) => {
-    if (!dataService || isDataSourceLoading) {
+    if (!dataService) {
       setIsLoading(true);
       return;
     }
@@ -63,7 +63,7 @@ export default function OrderConfirmationPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [dataService, isDataSourceLoading, router, toast]);
+  }, [dataService, router, toast]);
 
   useEffect(() => {
     if (orderIdFromParams) {
@@ -72,7 +72,7 @@ export default function OrderConfirmationPage() {
       } else if (!isDataSourceLoading && !currentUser) { 
           router.replace(`/login?redirect=/order-confirmation/${orderIdFromParams}`);
       }
-    } else if (!isDataSourceLoading) { // Removed !orderIdFromParams check to allow effect to run once loaded
+    } else if (!isDataSourceLoading && !orderIdFromParams) { 
       router.replace('/profile/orders');
     }
   }, [currentUser, orderIdFromParams, fetchOrder, isDataSourceLoading, router]);

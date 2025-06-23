@@ -591,7 +591,7 @@ const getOrders = (userId?: string): Order[] => {
 const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string }): Order => {
     const orders = getOrders(); 
 
-    const orderItemsWithDetails: OrderItem[] = orderData.items.map(item => {
+    const orderItemsWithDetails: OrderItem[] = (orderData.items as any[]).map(item => {
       const product = findProductById(item.productId);
       return {
         productId: item.productId,
@@ -605,7 +605,7 @@ const addOrder = (orderData: Omit<Order, 'id' | 'orderDate'> & { userId: string 
     const newOrder: Order = {
         ...orderData,
         items: orderItemsWithDetails,
-        shippingAddress: orderData.shippingAddress, 
+        shippingAddress: (orderData as any).shippingAddress, 
         id: simpleUUID(),
         orderDate: new Date().toISOString(),
     };

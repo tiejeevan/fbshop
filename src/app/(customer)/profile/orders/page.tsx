@@ -102,7 +102,7 @@ export default function OrderHistoryPage() {
                         <Link href={`/products/${item.productId}`} className="font-medium hover:text-primary hover:underline">{item.name}</Link>
                         <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
                       </div>
-                      <p className="text-sm font-semibold">${(item.priceAtPurchase * item.quantity).toFixed(2)}</p>
+                      <p className="text-sm font-semibold">${item.priceAtPurchase ? (item.priceAtPurchase * item.quantity).toFixed(2) : 'N/A'}</p>
                     </li>
                    )
                 )}
