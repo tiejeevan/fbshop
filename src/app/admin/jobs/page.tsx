@@ -264,10 +264,6 @@ export default function AdminJobsPage() {
                 <CardTitle>All Jobs</CardTitle>
                 <div className="flex flex-wrap gap-2">
                     <Input placeholder="Search jobs..." value={filters.searchTerm} onChange={(e) => setFilters(f => ({...f, searchTerm: e.target.value}))} className="h-9 max-w-xs" />
-                    <Select value={filters.status} onValueChange={(v) => setFilters(f => ({...f, status: v as Job['status'] | 'all' }))}>
-                        <SelectTrigger className="h-9 w-full sm:w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">All Statuses</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="accepted">Accepted</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="expired">Expired</SelectItem></SelectContent>
-                    </Select>
                     <Select value={filters.verified} onValueChange={(v) => setFilters(f => ({...f, verified: v}))}>
                         <SelectTrigger className="h-9 w-full sm:w-[140px]"><SelectValue placeholder="Verification" /></SelectTrigger>
                         <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="yes">Verified</SelectItem><SelectItem value="no">Not Verified</SelectItem></SelectContent>
